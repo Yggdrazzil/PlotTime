@@ -1,11 +1,13 @@
 # SerieTime
 
-Application personnelle de suivi de séries, animés et films — pensée pour remplacer TV Time
-après la fermeture du service. Une **app mobile cross-platform React Native + Expo** (Android & iOS,
-visualisable avec Expo Go), adossée à un **serveur personnel Node/Fastify/Prisma/SQLite**.
+Application de suivi de séries, animés et films — pensée pour remplacer TV Time après la fermeture
+du service. Une **app mobile cross-platform React Native + Expo** (Android & iOS, visualisable avec
+Expo Go), adossée à un **serveur Node/Fastify/Prisma/SQLite**.
 
-> Usage strictement personnel. Aucune fonctionnalité sociale (pas d'amis, d'abonnés, de profils
-> publics ni de commentaires publics). Aucun asset propriétaire TV Time n'est réutilisé.
+Multi-comptes (e-mail + mot de passe) avec une **dimension sociale façon TV Time** : abonnements
+entre utilisateurs, fil d'activité des amis, commentaires et réactions sur les séries et épisodes.
+Chaque compte garde sa propre bibliothèque ; les profils privés ne sont visibles que de leurs
+abonnés. Aucun asset propriétaire TV Time n'est réutilisé.
 
 ## Architecture
 
@@ -91,6 +93,18 @@ disparaît — l'utilisateur n'a plus qu'à créer son compte.
 
 Détails et build APK : [mobile/README.md](mobile/README.md) et
 [docs/README_ANDROID.md](docs/README_ANDROID.md).
+
+## Social (façon TV Time)
+
+Depuis l'onglet **Profil → icône amis**, l'écran social propose :
+
+- **Trouver des amis** : recherche d'utilisateurs par nom, abonnement/désabonnement.
+- **Fil d'actualité** : ce que regardent, ajoutent et commentent les personnes suivies.
+- **Discussion** : sur chaque série/film, un onglet de commentaires avec réactions (❤️).
+
+Confidentialité : `POST /api/social/privacy { isPrivate }` rend un profil privé (activité et stats
+masquées aux non-abonnés). API : `/api/social/*`, `/api/users/*`, `/api/media/:id/comments`,
+`/api/comments/:id/react`.
 
 ## Import ZIP TV Time
 

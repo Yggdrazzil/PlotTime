@@ -25,6 +25,8 @@ model User {
   // Identité d'authentification : "password" (fallback e-mail/mdp) ou "google" | "facebook" (SSO).
   provider     String   @default("password")
   providerId   String?
+  // Social : un profil privé n'est visible que de ses abonnés (et de lui-même).
+  isPrivate    Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -35,6 +37,12 @@ model User {
   notifications   Notification[]
   ratings         Rating[]
   sessions        Session[]
+
+  // Graphe social (abonnements asymétriques, façon TV Time).
+  following       Follow[]          @relation("following")
+  followers       Follow[]          @relation("followers")
+  comments        Comment[]
+  reactions       CommentReaction[]
 
   // Un compte SSO est identifié de façon unique par (provider, providerId).
   // Les comptes "password" ont providerId = null (SQLite autorise plusieurs NULL).
@@ -98,6 +106,7 @@ model Media {
   providers         Provider[]
   credits           Credit[]
   importMappings    ImportMapping[]
+  comments          Comment[]
 
   @@index([type])
   @@index([title])
@@ -185,6 +194,7 @@ model Episode {
   statuses          UserEpisodeStatus[]
   watchEvents       WatchEvent[]
   ratings           Rating[]
+  comments          Comment[]
 
   @@unique([showId, seasonNumber, episodeNumber])
   @@index([showId])
@@ -462,4 +472,55 @@ model ApiCache {
 
   @@unique([source, cacheKey])
   @@index([expiresAt])
+}
+
+// --- Social (façon TV Time) -------------------------------------------------
+
+// Abonnement asymétrique : followerId suit followingId.
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("following", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("followers", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// Commentaire sur une série (mediaId) ou un épisode précis (episodeId).
+model Comment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  episodeId String?
+  episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reactions CommentReaction[]
+
+  @@index([mediaId])
+  @@index([episodeId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Réaction emoji à un commentaire (une par utilisateur et par commentaire).
+model CommentReaction {
+  id        String   @id @default(cuid())
+  commentId String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([commentId, userId])
+  @@index([commentId])
 }

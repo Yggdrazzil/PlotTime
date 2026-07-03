@@ -38,6 +38,9 @@ export default function ProfileScreen() {
         <Pressable style={[styles.bell, { top: insets.top + 8 }]} onPress={() => router.push('/settings')}>
           <Feather name="bell" size={22} color={COLORS.black} />
         </Pressable>
+        <Pressable style={[styles.friends, { top: insets.top + 8 }]} onPress={() => router.push('/social')}>
+          <Feather name="users" size={22} color="#fff" />
+        </Pressable>
         <Pressable style={[styles.dots, { top: insets.top + 8 }]} onPress={() => router.push('/settings')}>
           <Feather name="more-horizontal" size={26} color="#fff" />
         </Pressable>
@@ -152,6 +155,7 @@ function PosterRow({ title, items, heart, isMovie }: { title: string; items: Med
 const styles = StyleSheet.create({
   head: { height: 210, backgroundColor: '#20202a', justifyContent: 'flex-end' },
   bell: { position: 'absolute', left: 16, width: 46, height: 46, borderRadius: 23, backgroundColor: COLORS.yellow, alignItems: 'center', justifyContent: 'center' },
+  friends: { position: 'absolute', right: 56, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   dots: { position: 'absolute', right: 12, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headRow: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 20 },
   avatar: { width: 82, height: 82, borderRadius: 41, borderWidth: 2, borderColor: '#fff', backgroundColor: '#555' },

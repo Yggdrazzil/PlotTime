@@ -55,11 +55,18 @@ async function tvdbGet<T>(path: string, params: Record<string, string>, ttlMs: n
   });
   if (cached && cached.expiresAt > new Date()) return JSON.parse(cached.responseJson) as T;
 
-  const token = await getToken();
+  let token = await getToken();
   if (!token) return cached ? (JSON.parse(cached.responseJson) as T) : null;
 
   try {
-    const res = await fetch(`${TVDB_BASE}${cacheKey}`, { headers: { Authorization: `Bearer ${token}` } });
+    let res = await fetch(`${TVDB_BASE}${cacheKey}`, { headers: { Authorization: `Bearer ${token}` } });
+    // Jeton expiré/révoqué : on en redemande un et on réessaie une fois.
+    if (res.status === 401) {
+      cachedToken = null;
+      token = await getToken();
+      if (!token) return cached ? (JSON.parse(cached.responseJson) as T) : null;
+      res = await fetch(`${TVDB_BASE}${cacheKey}`, { headers: { Authorization: `Bearer ${token}` } });
+    }
     if (!res.ok) return cached ? (JSON.parse(cached.responseJson) as T) : null;
     const json = (await res.json()) as T;
     await prisma.apiCache.upsert({
@@ -128,19 +135,17 @@ export type TvdbEpisode = {
   runtime?: number;
 };
 
-// Épisodes "default" (paginés). On borne à 20 pages pour éviter les séries fleuves.
+// Épisodes "default" (paginés, page_size=500). On suit links.next jusqu'à null,
+// borné à 50 pages par sécurité.
 export async function tvdbSeriesEpisodes(tvdbId: string): Promise<TvdbEpisode[]> {
   const all: TvdbEpisode[] = [];
-  for (let page = 0; page < 20; page++) {
-    const data = await tvdbGet<{ data?: { episodes?: TvdbEpisode[] } }>(
-      `/series/${tvdbId}/episodes/default`,
-      { page: String(page) },
-      3 * DAY,
-    );
-    const eps = data?.data?.episodes ?? [];
-    if (eps.length === 0) break;
-    all.push(...eps);
-    if (eps.length < 100) break; // dernière page
+  for (let page = 0; page < 50; page++) {
+    const data = await tvdbGet<{
+      data?: { episodes?: TvdbEpisode[] };
+      links?: { next?: string | null };
+    }>(`/series/${tvdbId}/episodes/default`, { page: String(page) }, 3 * DAY);
+    all.push(...(data?.data?.episodes ?? []));
+    if (!data?.links?.next) break;
   }
   return all;
 }

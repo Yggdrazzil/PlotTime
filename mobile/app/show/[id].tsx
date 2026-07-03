@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -74,14 +74,19 @@ export default function ShowDetail() {
       </View>
 
       {isMovie ? (
-        <MovieBody media={media} detail={detail.data} onToggle={() => markMovie.mutate(media.userStatus !== 'completed')} />
+        <>
+          <MovieBody media={media} detail={detail.data} onToggle={() => markMovie.mutate(media.userStatus !== 'completed')} />
+          <CommentsTab mediaId={String(id)} />
+        </>
       ) : (
         <>
-          <TopTabs tabs={['À PROPOS', 'ÉPISODES']} active={tab} onChange={setTab} />
+          <TopTabs tabs={['À PROPOS', 'ÉPISODES', 'DISCUSSION']} active={tab} onChange={setTab} />
           {tab === 'À PROPOS' ? (
             <AboutTab media={media} detail={detail.data} interest={interest} setInterest={setInterest} />
-          ) : (
+          ) : tab === 'ÉPISODES' ? (
             <EpisodesTab showId={String(id)} onChange={refresh} />
+          ) : (
+            <CommentsTab mediaId={String(id)} />
           )}
         </>
       )}
@@ -316,4 +321,116 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 16, color: '#555' },
   sheetItem: { flexDirection: 'row', alignItems: 'center', gap: 16, height: 62, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   sheetLabel: { fontSize: 18, fontWeight: '600' },
+});
+
+type CommentDto = {
+  id: string;
+  body: string;
+  createdAt: string;
+  episodeId: string | null;
+  user: { id: string; displayName: string; avatarUrl: string | null };
+  isMine: boolean;
+  reactions: { total: number; byEmoji: Record<string, number>; mine: string | null };
+};
+
+// Discussion sociale (commentaires + réaction ❤️) sur une série ou un film.
+function CommentsTab({ mediaId }: { mediaId: string }) {
+  const qc = useQueryClient();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ['comments', mediaId],
+    queryFn: () => api.get<{ comments: CommentDto[] }>(`/api/media/${mediaId}/comments`),
+  });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['comments', mediaId] });
+
+  const post = async () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/media/${mediaId}/comments`, { body: text.trim() });
+      setText('');
+      invalidate();
+    } finally {
+      setBusy(false);
+    }
+  };
+  const react = async (c: CommentDto) => {
+    if (c.reactions.mine === '❤️') await api.del(`/api/comments/${c.id}/react`);
+    else await api.post(`/api/comments/${c.id}/react`, { emoji: '❤️' });
+    invalidate();
+  };
+  const remove = async (c: CommentDto) => {
+    await api.del(`/api/comments/${c.id}`);
+    invalidate();
+  };
+
+  return (
+    <View style={cstyles.wrap}>
+      <View style={cstyles.composer}>
+        <TextInput
+          style={cstyles.input}
+          placeholder="Partager un avis…"
+          placeholderTextColor={COLORS.textMuted}
+          value={text}
+          onChangeText={setText}
+          multiline
+        />
+        <Pressable
+          style={[cstyles.send, (!text.trim() || busy) && { opacity: 0.4 }]}
+          onPress={post}
+          disabled={!text.trim() || busy}
+        >
+          {busy ? <ActivityIndicator color="#000" /> : <Text style={cstyles.sendText}>PUBLIER</Text>}
+        </Pressable>
+      </View>
+      {isLoading ? (
+        <Loading />
+      ) : (data?.comments.length ?? 0) === 0 ? (
+        <EmptyState title="Aucun commentaire" message="Soyez le premier à réagir." />
+      ) : (
+        data!.comments.map((c) => (
+          <View key={c.id} style={cstyles.row}>
+            <View style={cstyles.avatar}>
+              <Text style={cstyles.avatarInit}>{c.user.displayName.slice(0, 1).toUpperCase()}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={cstyles.name}>{c.user.displayName}</Text>
+              <Text style={cstyles.body}>{c.body}</Text>
+              <View style={cstyles.actions}>
+                <Pressable style={cstyles.reactBtn} onPress={() => react(c)}>
+                  <Text style={[cstyles.reactText, c.reactions.mine === '❤️' && cstyles.reactActive]}>
+                    ❤️ {c.reactions.total > 0 ? c.reactions.total : ''}
+                  </Text>
+                </Pressable>
+                {c.isMine ? (
+                  <Pressable onPress={() => remove(c)} hitSlop={8}>
+                    <Text style={cstyles.delete}>Supprimer</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          </View>
+        ))
+      )}
+    </View>
+  );
+}
+
+const cstyles = StyleSheet.create({
+  wrap: { padding: 20 },
+  composer: { marginBottom: 20 },
+  input: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, minHeight: 60, padding: 12, fontSize: 16, textAlignVertical: 'top' },
+  send: { alignSelf: 'flex-end', marginTop: 10, backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 10 },
+  sendText: { fontWeight: '800', fontSize: 13, letterSpacing: 0.4 },
+  row: { flexDirection: 'row', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#20202a', alignItems: 'center', justifyContent: 'center' },
+  avatarInit: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  name: { fontSize: 15, fontWeight: '800' },
+  body: { fontSize: 16, lineHeight: 22, marginTop: 3 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 20, marginTop: 8 },
+  reactBtn: { paddingVertical: 2 },
+  reactText: { fontSize: 15, color: COLORS.textMuted },
+  reactActive: { color: COLORS.red, fontWeight: '700' },
+  delete: { fontSize: 14, color: COLORS.textMuted },
 });
