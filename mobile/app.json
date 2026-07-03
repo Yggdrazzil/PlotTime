@@ -23,13 +23,18 @@
         "backgroundColor": "#FFD400"
       },
       "edgeToEdgeEnabled": true,
-      "permissions": ["INTERNET"]
+      "permissions": [
+        "INTERNET"
+      ]
     },
     "web": {
       "bundler": "metro",
       "favicon": "./assets/icon.png"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
     "experiments": {
       "typedRoutes": true
     }
