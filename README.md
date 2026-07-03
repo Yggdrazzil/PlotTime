@@ -98,13 +98,17 @@ Détails et build APK : [mobile/README.md](mobile/README.md) et
 
 Depuis l'onglet **Profil → icône amis**, l'écran social propose :
 
-- **Trouver des amis** : recherche d'utilisateurs par nom, abonnement/désabonnement.
+- **Trouver des amis** : recherche d'utilisateurs par nom, abonnement/désabonnement, accès au
+  **profil public** (stats + séries récentes, masqué aux non-abonnés si privé).
 - **Fil d'actualité** : ce que regardent, ajoutent et commentent les personnes suivies.
-- **Discussion** : sur chaque série/film, un onglet de commentaires avec réactions (❤️).
+- **Discussion** : sur chaque série/film, commentaires avec **fils de réponses** et **réactions
+  multi-emoji** (❤️👍😂😮😢).
+- **Notifications** (icône cloche du profil, avec badge) : un ami commente ou met en favori, on
+  répond à votre commentaire, on y réagit.
 
 Confidentialité : `POST /api/social/privacy { isPrivate }` rend un profil privé (activité et stats
-masquées aux non-abonnés). API : `/api/social/*`, `/api/users/*`, `/api/media/:id/comments`,
-`/api/comments/:id/react`.
+masquées aux non-abonnés). API : `/api/social/*`, `/api/users/*`, `/api/media/:id/comments`
+(paramètre `parentId` pour répondre), `/api/comments/:id/react`, `/api/notifications`.
 
 ## Import ZIP TV Time
 

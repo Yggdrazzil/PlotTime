@@ -372,6 +372,16 @@ export async function showRoutes(app: FastifyInstance): Promise<void> {
       update: { isFavorite },
     });
     await createWatchEvent(request.userId, id, isFavorite ? 'favorited' : 'unfavorited');
+    if (isFavorite) {
+      const me = await prisma.user.findUnique({ where: { id: request.userId } });
+      const { notifyFollowers } = await import('../social/notify.js');
+      await notifyFollowers(request.userId, {
+        type: 'friend_favorite',
+        title: `${me?.displayName ?? 'Quelqu’un'} a ajouté ${media.localizedTitle ?? media.title} à ses favoris`,
+        imageUrl: media.posterPath,
+        mediaId: id,
+      });
+    }
     return { ok: true, isFavorite };
   });
 

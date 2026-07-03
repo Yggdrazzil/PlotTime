@@ -86,9 +86,9 @@ function FeedTab() {
             style={styles.feedRow}
             onPress={() => router.push(`/show/${it.media.id}${it.media.type === 'movie' ? '?type=movie' : ''}`)}
           >
-            <View style={styles.avatar}>
+            <Pressable style={styles.avatar} onPress={() => router.push(`/user/${it.user.id}`)}>
               <Text style={styles.avatarInit}>{it.user.displayName.slice(0, 1).toUpperCase()}</Text>
-            </View>
+            </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.feedText}>
                 <Text style={styles.feedName}>{it.user.displayName}</Text> {actionText(it)}{' '}
@@ -119,6 +119,7 @@ function FeedTab() {
 }
 
 function FriendsTab() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [q, setQ] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -174,12 +175,17 @@ function FriendsTab() {
             const following = overrides[u.id] ?? u.isFollowing ?? false;
             return (
               <View key={u.id} style={styles.userRow}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarInit}>{u.displayName.slice(0, 1).toUpperCase()}</Text>
-                </View>
-                <Text style={styles.userName} numberOfLines={1}>
-                  {u.displayName}
-                </Text>
+                <Pressable
+                  style={styles.userTap}
+                  onPress={() => router.push(`/user/${u.id}`)}
+                >
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarInit}>{u.displayName.slice(0, 1).toUpperCase()}</Text>
+                  </View>
+                  <Text style={styles.userName} numberOfLines={1}>
+                    {u.displayName}
+                  </Text>
+                </Pressable>
                 <Pressable
                   style={[styles.followBtn, following && styles.followingBtn]}
                   onPress={() => toggle(u)}
@@ -222,6 +228,7 @@ const styles = StyleSheet.create({
   searchbar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, height: 62 },
   input: { flex: 1, fontSize: 17, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 10 },
+  userTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
   userName: { flex: 1, fontSize: 17, fontWeight: '700' },
   followBtn: { minWidth: 96, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: COLORS.black, alignItems: 'center' },
   followingBtn: { backgroundColor: COLORS.chipGrey },

@@ -47,12 +47,16 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/api/notifications', async (request) => {
-    const notifications = await prisma.notification.findMany({
-      where: { userId: request.userId },
-      orderBy: { date: 'desc' },
-      take: 100,
-    });
+    const [notifications, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where: { userId: request.userId },
+        orderBy: { date: 'desc' },
+        take: 100,
+      }),
+      prisma.notification.count({ where: { userId: request.userId, isRead: false } }),
+    ]);
     return {
+      unreadCount,
       notifications: notifications.map((n) => ({
         id: n.id,
         type: n.type,
@@ -61,14 +65,31 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
         imageUrl: n.imageUrl,
         date: n.date.toISOString(),
         isRead: n.isRead,
+        meta: n.metadataJson ? (JSON.parse(n.metadataJson) as Record<string, string>) : {},
       })),
     };
+  });
+
+  app.get('/api/notifications/unread-count', async (request) => {
+    const unreadCount = await prisma.notification.count({
+      where: { userId: request.userId, isRead: false },
+    });
+    return { unreadCount };
   });
 
   app.post('/api/notifications/:id/read', async (request) => {
     const { id } = request.params as { id: string };
     await prisma.notification.updateMany({
       where: { id, userId: request.userId },
+      data: { isRead: true },
+    });
+    return { ok: true };
+  });
+
+  // Marque toutes les notifications comme lues.
+  app.post('/api/notifications/read', async (request) => {
+    await prisma.notification.updateMany({
+      where: { userId: request.userId, isRead: false },
       data: { isRead: true },
     });
     return { ok: true };

@@ -499,6 +499,10 @@ model Comment {
   media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
   episodeId String?
   episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  // Fil de discussion : une réponse pointe vers son commentaire parent.
+  parentId  String?
+  parent    Comment?  @relation("thread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("thread")
   body      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -508,6 +512,7 @@ model Comment {
   @@index([mediaId])
   @@index([episodeId])
   @@index([userId])
+  @@index([parentId])
   @@index([createdAt])
 }
 
@@ -521,6 +526,7 @@ model CommentReaction {
   emoji     String
   createdAt DateTime @default(now())
 
-  @@unique([commentId, userId])
+  // Un utilisateur peut poser plusieurs emojis différents sur un même commentaire.
+  @@unique([commentId, userId, emoji])
   @@index([commentId])
 }

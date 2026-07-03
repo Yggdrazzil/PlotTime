@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 import { serializeMedia } from '../media/serialize.js';
+import { notifyFollowers, notifyUser } from './notify.js';
 
 type PublicUser = { id: string; displayName: string; avatarUrl: string | null; isPrivate: boolean };
 
@@ -17,10 +18,10 @@ async function followingIdSet(userId: string): Promise<Set<string>> {
 
 function summarizeReactions(reactions: { emoji: string; userId: string }[], me: string) {
   const byEmoji: Record<string, number> = {};
-  let mine: string | null = null;
+  const mine: string[] = [];
   for (const r of reactions) {
     byEmoji[r.emoji] = (byEmoji[r.emoji] ?? 0) + 1;
-    if (r.userId === me) mine = r.emoji;
+    if (r.userId === me) mine.push(r.emoji);
   }
   return { total: reactions.length, byEmoji, mine };
 }
@@ -201,32 +202,49 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, isPrivate };
   });
 
-  // --- Commentaires + réactions -------------------------------------------
+  // --- Commentaires (avec fils de discussion) + réactions -----------------
   app.get('/api/media/:id/comments', async (request) => {
     const { id } = request.params as { id: string };
     const { episodeId } = z.object({ episodeId: z.string().optional() }).parse(request.query ?? {});
-    const comments = await prisma.comment.findMany({
+    const all = await prisma.comment.findMany({
       where: { mediaId: id, ...(episodeId ? { episodeId } : {}) },
       include: { user: true, reactions: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },
     });
-    return {
-      comments: comments.map((c) => ({
-        id: c.id,
-        body: c.body,
-        createdAt: c.createdAt.toISOString(),
-        episodeId: c.episodeId,
-        user: publicUser(c.user),
-        isMine: c.userId === request.userId,
-        reactions: summarizeReactions(c.reactions, request.userId),
-      })),
-    };
+    const me = request.userId;
+    const serialize = (c: (typeof all)[number]) => ({
+      id: c.id,
+      body: c.body,
+      createdAt: c.createdAt.toISOString(),
+      episodeId: c.episodeId,
+      parentId: c.parentId,
+      user: publicUser(c.user),
+      isMine: c.userId === me,
+      reactions: summarizeReactions(c.reactions, me),
+    });
+    const repliesByParent = new Map<string, ReturnType<typeof serialize>[]>();
+    for (const c of all) {
+      if (!c.parentId) continue;
+      const arr = repliesByParent.get(c.parentId) ?? [];
+      arr.push(serialize(c));
+      repliesByParent.set(c.parentId, arr);
+    }
+    // Commentaires racines, plus récents d'abord ; réponses en ordre chronologique.
+    const comments = all
+      .filter((c) => !c.parentId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((c) => ({ ...serialize(c), replies: repliesByParent.get(c.id) ?? [] }));
+    return { comments };
   });
 
   app.post('/api/media/:id/comments', async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = z
-      .object({ body: z.string().min(1).max(2000), episodeId: z.string().optional() })
+      .object({
+        body: z.string().min(1).max(2000),
+        episodeId: z.string().optional(),
+        parentId: z.string().optional(),
+      })
       .parse(request.body);
     const media = await prisma.media.findUnique({ where: { id } });
     if (!media) return reply.code(404).send({ error: 'not_found' });
@@ -234,9 +252,43 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
       const ep = await prisma.episode.findUnique({ where: { id: body.episodeId } });
       if (!ep) return reply.code(404).send({ error: 'episode_not_found' });
     }
+    let parent: { id: string; userId: string } | null = null;
+    if (body.parentId) {
+      const p = await prisma.comment.findUnique({ where: { id: body.parentId } });
+      if (!p || p.mediaId !== id) return reply.code(404).send({ error: 'parent_not_found' });
+      parent = { id: p.id, userId: p.userId };
+    }
     const comment = await prisma.comment.create({
-      data: { userId: request.userId, mediaId: id, episodeId: body.episodeId, body: body.body },
+      data: {
+        userId: request.userId,
+        mediaId: id,
+        episodeId: body.episodeId,
+        parentId: body.parentId,
+        body: body.body,
+      },
     });
+
+    const me = await prisma.user.findUnique({ where: { id: request.userId } });
+    const actorName = me?.displayName ?? 'Quelqu’un';
+    const title = media.localizedTitle ?? media.title;
+    if (parent) {
+      await notifyUser(parent.userId, request.userId, {
+        type: 'comment_reply',
+        title: `${actorName} a répondu à votre commentaire`,
+        body: body.body,
+        mediaId: id,
+        commentId: comment.id,
+      });
+    } else {
+      await notifyFollowers(request.userId, {
+        type: 'friend_comment',
+        title: `${actorName} a commenté ${title}`,
+        body: body.body,
+        imageUrl: media.posterPath,
+        mediaId: id,
+        commentId: comment.id,
+      });
+    }
     return { id: comment.id };
   });
 
@@ -245,26 +297,31 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
     const comment = await prisma.comment.findUnique({ where: { id } });
     if (!comment) return reply.code(404).send({ error: 'not_found' });
     if (comment.userId !== request.userId) return reply.code(403).send({ error: 'forbidden' });
-    await prisma.comment.delete({ where: { id } });
+    await prisma.comment.delete({ where: { id } }); // supprime aussi les réponses (cascade)
     return { ok: true };
   });
 
+  // Réactions multiples : chaque emoji est indépendant (toggle par emoji).
   app.post('/api/comments/:id/react', async (request, reply) => {
     const { id } = request.params as { id: string };
     const { emoji } = z.object({ emoji: z.string().min(1).max(8) }).parse(request.body);
     const comment = await prisma.comment.findUnique({ where: { id } });
     if (!comment) return reply.code(404).send({ error: 'not_found' });
-    await prisma.commentReaction.upsert({
-      where: { commentId_userId: { commentId: id, userId: request.userId } },
-      create: { commentId: id, userId: request.userId, emoji },
-      update: { emoji },
+    const existing = await prisma.commentReaction.findUnique({
+      where: { commentId_userId_emoji: { commentId: id, userId: request.userId, emoji } },
     });
-    return { ok: true };
-  });
-
-  app.delete('/api/comments/:id/react', async (request) => {
-    const { id } = request.params as { id: string };
-    await prisma.commentReaction.deleteMany({ where: { commentId: id, userId: request.userId } });
-    return { ok: true };
+    if (existing) {
+      await prisma.commentReaction.delete({ where: { id: existing.id } });
+      return { ok: true, reacted: false };
+    }
+    await prisma.commentReaction.create({ data: { commentId: id, userId: request.userId, emoji } });
+    const me = await prisma.user.findUnique({ where: { id: request.userId } });
+    await notifyUser(comment.userId, request.userId, {
+      type: 'comment_reaction',
+      title: `${me?.displayName ?? 'Quelqu’un'} a réagi ${emoji} à votre commentaire`,
+      mediaId: comment.mediaId,
+      commentId: comment.id,
+    });
+    return { ok: true, reacted: true };
   });
 }
