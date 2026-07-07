@@ -13,6 +13,7 @@ import { listRoutes } from './modules/lists/routes.js';
 import { settingsRoutes } from './modules/settings/routes.js';
 import { backupRoutes } from './modules/backup/routes.js';
 import { importTvtimeRoutes } from './modules/import-tvtime/routes.js';
+import { socialRoutes } from './modules/social/routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -22,8 +23,10 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await app.register(cors, {
     origin: (origin, cb) => {
+      // En développement, tout est autorisé (Expo web sur :8081, outils locaux).
+      if (env.NODE_ENV !== 'production') return cb(null, true);
       const allowed = env.CORS_ALLOWED_ORIGINS.split(',').map((o) => o.trim());
-      // Requêtes sans origin (curl, Capacitor natif) autorisées.
+      // Requêtes sans origin (curl, app native) autorisées.
       if (!origin || allowed.includes(origin)) cb(null, true);
       else cb(null, false);
     },
@@ -43,7 +46,17 @@ export async function buildApp(): Promise<FastifyInstance> {
     return reply.code(statusCode).send({ error: statusCode >= 500 ? 'internal_error' : error.message });
   });
 
-  app.get('/health', async () => ({ ok: true, app: env.APP_NAME, version: APP_VERSION }));
+  // `sources` permet de diagnostiquer la config d'un simple coup d'œil navigateur.
+  app.get('/health', async () => {
+    const { tvdbEnabled } = await import('./services/tvdb/index.js');
+    const { tmdbEnabled } = await import('./services/tmdb/index.js');
+    return {
+      ok: true,
+      app: env.APP_NAME,
+      version: APP_VERSION,
+      sources: { tvdb: tvdbEnabled(), tmdb: tmdbEnabled() },
+    };
+  });
 
   await app.register(authRoutes);
   await app.register(showRoutes);
@@ -55,6 +68,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(settingsRoutes);
   await app.register(backupRoutes);
   await app.register(importTvtimeRoutes);
+  await app.register(socialRoutes);
 
   return app;
 }

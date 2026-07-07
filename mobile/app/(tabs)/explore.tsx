@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { View, Text, TextInput, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator, Keyboard } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
+import { useDebounced } from '@/lib/useDebounced';
 import { COLORS } from '@/lib/theme';
 import { EmptyState, Loading } from '@/components/ui';
 
 type FeedItem = {
   id: string | null;
   tmdbId: string | null;
+  tvdbId: string | null;
   type: 'show' | 'movie';
   title: string;
   year: number | null;
@@ -20,23 +22,28 @@ type FeedItem = {
   inLibrary: boolean;
 };
 
+type PublicUser = { id: string; displayName: string; avatarUrl: string | null; isFollowing?: boolean };
+
 const PASTELS = ['#F5EFDC', '#DDE7EE', '#EFE0E0', '#E3EEDD'];
 
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
+  const [tab, setTab] = useState<'media' | 'users'>('media');
+  // Debounce : une requête quand l'utilisateur marque une pause, pas à chaque frappe.
+  const debouncedQuery = useDebounced(query.trim(), 300);
   const { data, isLoading } = useQuery({
     queryKey: ['explore', 'feed'],
     queryFn: () => api.get<{ feed: FeedItem[] }>('/api/explore/feed'),
     staleTime: 30 * 60_000,
   });
-  const search = useQuery({
-    queryKey: ['search', query],
-    queryFn: () => api.get<{ results: FeedItem[] }>(`/api/search?q=${encodeURIComponent(query)}&type=media`),
-    enabled: query.trim().length > 1,
-  });
 
   const searching = query.trim().length > 1;
+  const cancel = () => {
+    setQuery('');
+    setTab('media');
+    Keyboard.dismiss();
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white, paddingTop: insets.top }}>
@@ -44,21 +51,27 @@ export default function ExploreScreen() {
         <Feather name="search" size={24} color={searching ? COLORS.black : COLORS.textMuted} />
         <TextInput
           style={styles.input}
-          placeholder="Rechercher"
+          placeholder="Rechercher des séries et films"
           placeholderTextColor={COLORS.textMuted}
           value={query}
           onChangeText={setQuery}
           autoCapitalize="none"
         />
         {query ? (
-          <Pressable onPress={() => setQuery('')}>
-            <Feather name="x" size={20} color={COLORS.textMuted} />
+          <Pressable onPress={cancel} hitSlop={8}>
+            <Text style={styles.cancel}>Annuler</Text>
           </Pressable>
         ) : null}
       </View>
 
       {searching ? (
-        <SearchResults results={search.data?.results} loading={search.isLoading} query={query} />
+        <>
+          <View style={styles.tabs}>
+            <SearchTab label="SÉRIES ET FILMS" active={tab === 'media'} onPress={() => setTab('media')} />
+            <SearchTab label="UTILISATEURS" active={tab === 'users'} onPress={() => setTab('users')} />
+          </View>
+          {tab === 'media' ? <MediaResults query={debouncedQuery} rawQuery={query} /> : <UserResults query={debouncedQuery} />}
+        </>
       ) : (
         <Feed items={data?.feed} loading={isLoading} />
       )}
@@ -66,8 +79,221 @@ export default function ExploreScreen() {
   );
 }
 
+function SearchTab({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable style={[styles.tab, active && styles.tabActive]} onPress={onPress}>
+      <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// --- Résultats séries / films (façon TV Time) -------------------------------
+// Taper une ligne OUVRE la fiche (sans rien ajouter) ; seul le bouton + suit
+// la série (statut « Pas commencé ») ou ajoute le film à la watchlist.
+function MediaResults({ query, rawQuery }: { query: string; rawQuery: string }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [openingKey, setOpeningKey] = useState<string | null>(null);
+  const [addingKey, setAddingKey] = useState<string | null>(null);
+  const [followed, setFollowed] = useState<Record<string, boolean>>({});
+
+  const search = useQuery({
+    queryKey: ['search', query],
+    queryFn: () =>
+      api.get<{ results: FeedItem[]; sources?: { tmdb: boolean; tvdb: boolean } }>(
+        `/api/search?q=${encodeURIComponent(query)}&type=media`,
+      ),
+    enabled: query.length > 1,
+    placeholderData: keepPreviousData, // garde les résultats affichés pendant la frappe
+  });
+
+  // Résout l'id local d'un résultat externe (sans suivre), puis ouvre la fiche.
+  const open = async (r: FeedItem, key: string) => {
+    if (openingKey || addingKey) return;
+    if (r.id) {
+      router.push(`/show/${r.id}${r.type === 'movie' ? '?type=movie' : ''}`);
+      return;
+    }
+    setOpeningKey(key);
+    try {
+      const path =
+        r.tvdbId ? '/api/shows/add-from-tvdb' : r.type === 'movie' ? '/api/movies/add-from-tmdb' : '/api/shows/add-from-tmdb';
+      const body = r.tvdbId ? { tvdbId: r.tvdbId, follow: false } : { tmdbId: r.tmdbId, follow: false };
+      const res = await api.post<{ mediaId: string }>(path, body);
+      router.push(`/show/${res.mediaId}${r.type === 'movie' ? '?type=movie' : ''}`);
+    } finally {
+      setOpeningKey(null);
+    }
+  };
+
+  // Le + : suit la série / ajoute le film, sans quitter la liste.
+  const add = async (r: FeedItem, key: string) => {
+    if (addingKey) return;
+    setAddingKey(key);
+    try {
+      if (r.id) {
+        await api.post(r.type === 'movie' ? `/api/movies/${r.id}/watchlist` : `/api/shows/${r.id}/follow`);
+      } else if (r.tvdbId) {
+        await api.post('/api/shows/add-from-tvdb', { tvdbId: r.tvdbId, follow: true });
+      } else if (r.tmdbId) {
+        await api.post(r.type === 'movie' ? '/api/movies/add-from-tmdb' : '/api/shows/add-from-tmdb', {
+          tmdbId: r.tmdbId,
+          follow: true,
+        });
+      }
+      setFollowed((f) => ({ ...f, [key]: true }));
+      queryClient.invalidateQueries({ queryKey: ['shows'] });
+      queryClient.invalidateQueries({ queryKey: ['movies'] });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+    } finally {
+      setAddingKey(null);
+    }
+  };
+
+  if (search.isLoading) return <Loading />;
+  const results = search.data?.results;
+  const sources = search.data?.sources;
+  if (!results || results.length === 0) {
+    if (sources && !sources.tmdb && !sources.tvdb) {
+      return (
+        <EmptyState
+          title="Recherche externe non configurée"
+          message={
+            'Le serveur n’a aucune source de contenu active.\n' +
+            'Renseignez TVDB_ENABLED=true et TVDB_API_KEY (ou une clé TMDb) dans apps/server/.env, puis redémarrez le serveur.'
+          }
+        />
+      );
+    }
+    return <EmptyState title="Toutes nos excuses" message={`Nous n'avons trouvé aucun résultat pour « ${rawQuery.trim()} »`} />;
+  }
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingBottom: 24, paddingTop: 6 }} keyboardShouldPersistTaps="handled">
+      {results.map((r) => {
+        const key = `${r.type}-${r.id ?? r.tvdbId ?? r.tmdbId}`;
+        const poster = tmdbImage(r.posterPath, 'w185');
+        const isFollowed = followed[key] || r.inLibrary;
+        return (
+          <Pressable key={key} style={styles.resultRow} onPress={() => open(r, key)}>
+            {poster ? (
+              <Image source={{ uri: poster }} style={styles.resultPoster} resizeMode="cover" />
+            ) : (
+              <View style={[styles.resultPoster, styles.posterEmpty]}>
+                <Feather name="image" size={18} color="#b4b4b4" />
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.resultTitle} numberOfLines={1}>
+                {r.title}
+              </Text>
+              <View style={styles.resultMetaRow}>
+                <Feather name={r.type === 'show' ? 'tv' : 'film'} size={15} color={COLORS.textMuted} />
+                <Text style={styles.resultMeta}>
+                  {[r.type === 'show' ? 'Série' : 'Film', r.year].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            </View>
+            {openingKey === key || addingKey === key ? (
+              <View style={styles.addSquareGhost}>
+                <ActivityIndicator color={COLORS.black} size="small" />
+              </View>
+            ) : isFollowed ? (
+              <View style={styles.addedSquare}>
+                <Feather name="check" size={22} color={COLORS.textMuted} />
+              </View>
+            ) : (
+              <Pressable style={styles.addSquare} onPress={() => add(r, key)} hitSlop={6}>
+                <Feather name="plus" size={24} color="#E6B800" />
+              </Pressable>
+            )}
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+// --- Résultats utilisateurs (onglet UTILISATEURS, façon TV Time) ------------
+function UserResults({ query }: { query: string }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+
+  const search = useQuery({
+    queryKey: ['users', 'search', query],
+    queryFn: () => api.get<{ users: PublicUser[] }>(`/api/users/search?q=${encodeURIComponent(query)}`),
+    enabled: query.length > 1,
+    placeholderData: keepPreviousData,
+  });
+
+  const toggle = async (u: PublicUser) => {
+    const currently = overrides[u.id] ?? u.isFollowing ?? false;
+    setBusyId(u.id);
+    try {
+      if (currently) await api.del(`/api/social/follow/${u.id}`);
+      else await api.post(`/api/social/follow/${u.id}`);
+      setOverrides((o) => ({ ...o, [u.id]: !currently }));
+      queryClient.invalidateQueries({ queryKey: ['social', 'feed'] });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (search.isLoading) return <Loading />;
+  const users = search.data?.users ?? [];
+  if (users.length === 0)
+    return <EmptyState title="Toutes nos excuses" message={`Aucun utilisateur trouvé pour « ${query} »`} />;
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingBottom: 24, paddingTop: 6 }} keyboardShouldPersistTaps="handled">
+      {users.map((u) => {
+        const following = overrides[u.id] ?? u.isFollowing ?? false;
+        return (
+          <View key={u.id} style={styles.userRow}>
+            <Pressable style={styles.userTap} onPress={() => router.push(`/user/${u.id}`)}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarInit}>{u.displayName.slice(0, 1).toUpperCase()}</Text>
+              </View>
+              <Text style={styles.userName} numberOfLines={1}>
+                {u.displayName}
+              </Text>
+            </Pressable>
+            <Pressable style={[styles.followBtn, following && styles.followingBtn]} onPress={() => toggle(u)} disabled={busyId === u.id}>
+              {busyId === u.id ? (
+                <ActivityIndicator color={following ? COLORS.black : '#fff'} size="small" />
+              ) : (
+                <Text style={[styles.followText, following && styles.followingText]}>{following ? 'ABONNÉ' : 'SUIVRE'}</Text>
+              )}
+            </Pressable>
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 function Feed({ items, loading }: { items?: FeedItem[]; loading: boolean }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const [addingKey, setAddingKey] = useState<string | null>(null);
+
+  // Ajoute la recommandation à la bibliothèque puis ouvre sa fiche.
+  const add = async (f: FeedItem, key: string) => {
+    if (addingKey || !f.tmdbId) return;
+    setAddingKey(key);
+    try {
+      const path = f.type === 'movie' ? '/api/movies/add-from-tmdb' : '/api/shows/add-from-tmdb';
+      const res = await api.post<{ mediaId: string }>(path, { tmdbId: f.tmdbId });
+      queryClient.invalidateQueries({ queryKey: ['shows'] });
+      queryClient.invalidateQueries({ queryKey: ['movies'] });
+      router.push(`/show/${res.mediaId}${f.type === 'movie' ? '?type=movie' : ''}`);
+    } finally {
+      setAddingKey(null);
+    }
+  };
+
   if (loading) return <Loading />;
   if (!items || items.length === 0)
     return (
@@ -78,65 +304,37 @@ function Feed({ items, loading }: { items?: FeedItem[]; loading: boolean }) {
     );
   return (
     <ScrollView contentContainerStyle={{ paddingVertical: 8, paddingBottom: 24 }}>
-      {items.map((f, i) => (
-        <View key={`${f.type}-${f.tmdbId}`} style={styles.hero}>
-          <View style={styles.heroImg}>
-            <View style={styles.plus}>
-              <Feather name="plus" size={26} color={COLORS.yellow} />
-            </View>
-            {f.type === 'movie' ? (
-              <View style={styles.play}>
-                <View style={styles.playRing}>
-                  <Feather name="play" size={22} color="#fff" />
+      {items.map((f, i) => {
+        const key = `${f.type}-${f.tmdbId}`;
+        const image = tmdbImage(f.backdropPath, 'w780') ?? tmdbImage(f.posterPath, 'w500');
+        return (
+          <View key={key} style={styles.hero}>
+            <View style={styles.heroImg}>
+              {image ? <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+              <View style={styles.heroShade} />
+              <Pressable style={styles.plus} onPress={() => add(f, key)}>
+                {addingKey === key ? (
+                  <ActivityIndicator color={COLORS.yellow} />
+                ) : (
+                  <Feather name="plus" size={26} color={COLORS.yellow} />
+                )}
+              </Pressable>
+              <View style={styles.heroCap}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Feather name={f.type === 'show' ? 'tv' : 'film'} size={22} color="#fff" />
+                  <Text style={styles.heroTitle}>{f.title}</Text>
                 </View>
+                <Text style={styles.heroMeta}>{f.year ?? ''}</Text>
               </View>
-            ) : null}
-            <View style={styles.heroCap}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Feather name={f.type === 'show' ? 'tv' : 'film'} size={22} color="#fff" />
-                <Text style={styles.heroTitle}>{f.title}</Text>
-              </View>
-              <Text style={styles.heroMeta}>{f.year ?? ''}</Text>
             </View>
+            {f.overview ? (
+              <Text style={[styles.heroDesc, { backgroundColor: PASTELS[i % PASTELS.length] }]} numberOfLines={2}>
+                {f.overview}
+              </Text>
+            ) : null}
           </View>
-          {f.overview ? (
-            <Text style={[styles.heroDesc, { backgroundColor: PASTELS[i % PASTELS.length] }]} numberOfLines={2}>
-              {f.overview}
-            </Text>
-          ) : null}
-        </View>
-      ))}
-    </ScrollView>
-  );
-}
-
-function SearchResults({ results, loading, query }: { results?: FeedItem[]; loading: boolean; query: string }) {
-  const router = useRouter();
-  if (loading) return <Loading />;
-  if (!results || results.length === 0)
-    return <EmptyState title="Toutes nos excuses" message={`Nous n'avons trouvé aucun résultat pour « ${query} »`} />;
-  return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-      {results.map((r) => (
-        <Pressable
-          key={`${r.type}-${r.id ?? r.tmdbId}`}
-          style={styles.resultRow}
-          onPress={() => r.id && router.push(`/show/${r.id}${r.type === 'movie' ? '?type=movie' : ''}`)}
-        >
-          <View style={styles.resultPoster}>
-            <Feather name="image" size={18} color="#b4b4b4" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.resultTitle} numberOfLines={1}>
-              {r.title}
-            </Text>
-            <Text style={styles.resultMeta}>
-              {[r.type === 'show' ? 'Série' : 'Film', r.year].filter(Boolean).join(' · ')}
-            </Text>
-          </View>
-          {r.inLibrary ? <Text style={styles.followed}>SUIVI</Text> : null}
-        </Pressable>
-      ))}
+        );
+      })}
     </ScrollView>
   );
 }
@@ -144,18 +342,36 @@ function SearchResults({ results, loading, query }: { results?: FeedItem[]; load
 const styles = StyleSheet.create({
   searchbar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, height: 70 },
   input: { flex: 1, fontSize: 19, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
+  cancel: { color: COLORS.blue, fontSize: 17 },
+  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
+  tab: { paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 3, borderBottomColor: 'transparent', marginBottom: -1 },
+  tabActive: { borderBottomColor: COLORS.black },
+  tabText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.4, color: COLORS.textSoft },
+  tabTextActive: { color: COLORS.black },
+  resultRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingVertical: 10 },
+  resultPoster: { width: 74, aspectRatio: 2 / 3, borderRadius: 6, backgroundColor: '#e5e5e5' },
+  posterEmpty: { alignItems: 'center', justifyContent: 'center' },
+  resultTitle: { fontSize: 20, fontWeight: '700' },
+  resultMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  resultMeta: { fontSize: 15, color: COLORS.textMuted },
+  addSquare: { width: 44, height: 44, borderRadius: 10, borderWidth: 2.5, borderColor: COLORS.yellow, alignItems: 'center', justifyContent: 'center' },
+  addSquareGhost: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  addedSquare: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  userRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 10 },
+  userTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#20202a', alignItems: 'center', justifyContent: 'center' },
+  avatarInit: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  userName: { flex: 1, fontSize: 18, fontWeight: '700' },
+  followBtn: { minWidth: 96, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: COLORS.black, alignItems: 'center' },
+  followingBtn: { backgroundColor: COLORS.chipGrey },
+  followText: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.4 },
+  followingText: { color: COLORS.black },
   hero: { marginHorizontal: 20, marginBottom: 24, borderRadius: 5, overflow: 'hidden', ...{ elevation: 3 } },
   heroImg: { aspectRatio: 16 / 11, backgroundColor: '#26262e', justifyContent: 'flex-end' },
+  heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)' },
   plus: { position: 'absolute', right: 16, top: 16, width: 46, height: 46, borderRadius: 10, borderWidth: 2.5, borderColor: COLORS.yellow, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.25)' },
-  play: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  playRing: { width: 58, height: 58, borderRadius: 29, borderWidth: 3, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   heroCap: { padding: 14 },
   heroTitle: { color: '#fff', fontSize: 22, fontWeight: '800', flexShrink: 1 },
   heroMeta: { color: 'rgba(255,255,255,0.9)', fontSize: 14, marginTop: 2 },
   heroDesc: { padding: 16, fontSize: 16, lineHeight: 22 },
-  resultRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingVertical: 8 },
-  resultPoster: { width: 52, aspectRatio: 2 / 3, borderRadius: 3, backgroundColor: '#e5e5e5', alignItems: 'center', justifyContent: 'center' },
-  resultTitle: { fontSize: 18, fontWeight: '700' },
-  resultMeta: { fontSize: 14, color: COLORS.textMuted, marginTop: 2 },
-  followed: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted },
 });

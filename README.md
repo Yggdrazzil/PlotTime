@@ -1,11 +1,13 @@
 # SerieTime
 
-Application personnelle de suivi de séries, animés et films — pensée pour remplacer TV Time
-après la fermeture du service. Une **app mobile cross-platform React Native + Expo** (Android & iOS,
-visualisable avec Expo Go), adossée à un **serveur personnel Node/Fastify/Prisma/SQLite**.
+Application de suivi de séries, animés et films — pensée pour remplacer TV Time après la fermeture
+du service. Une **app mobile cross-platform React Native + Expo** (Android & iOS, visualisable avec
+Expo Go), adossée à un **serveur Node/Fastify/Prisma/SQLite**.
 
-> Usage strictement personnel. Aucune fonctionnalité sociale (pas d'amis, d'abonnés, de profils
-> publics ni de commentaires publics). Aucun asset propriétaire TV Time n'est réutilisé.
+Multi-comptes (e-mail + mot de passe) avec une **dimension sociale façon TV Time** : abonnements
+entre utilisateurs, fil d'activité des amis, commentaires et réactions sur les séries et épisodes.
+Chaque compte garde sa propre bibliothèque ; les profils privés ne sont visibles que de leurs
+abonnés. Aucun asset propriétaire TV Time n'est réutilisé.
 
 ## Architecture
 
@@ -41,8 +43,13 @@ pnpm dev:server                 # démarre l'API sur http://localhost:4000
 
 Vérifier : `curl http://localhost:4000/health` → `{"ok":true,"app":"SerieTime","version":"1.0.0"}`.
 
-Au premier lancement, aucun compte n'existe : l'app mobile propose alors de **créer le compte
-local** (nom d'affichage + mot de passe, e-mail optionnel).
+L'authentification est **multi-comptes par e-mail + mot de passe** : au premier lancement l'app
+propose de **créer un compte** (nom d'affichage + e-mail + mot de passe) ou de **se connecter**.
+Plusieurs personnes peuvent donc utiliser le même serveur, chacune avec sa propre bibliothèque.
+
+> Le SSO Google / Facebook est **prêt côté serveur** mais désactivé par défaut (voir
+> `GOOGLE_CLIENT_IDS` / `FACEBOOK_APP_ID` dans `.env`). Il nécessite un *development build* Expo
+> et n'est pas requis pour la prévisualisation Expo Go.
 
 ### Configuration TMDb (recommandé)
 
@@ -51,10 +58,19 @@ l'app fonctionne mais affiche des posters vides et ne peut pas enrichir la reche
 Renseignez `TMDB_API_KEY` (ou `TMDB_READ_ACCESS_TOKEN`) dans `.env`. **TVmaze** sert de fallback
 séries (épisodes, calendrier) et ne nécessite pas de clé.
 
-### Configuration optionnelle TheTVDB
+### Configuration TheTVDB (source de contenu séries)
 
-Désactivé par défaut. Activez-le (`TVDB_ENABLED=true`, `TVDB_API_KEY`, `TVDB_PIN`) uniquement si
-vos exports TV Time contiennent des identifiants TheTVDB et que le matching TMDb échoue.
+TheTVDB (la base historiquement utilisée par TV Time) peut alimenter directement l'app. Activez-la
+avec `TVDB_ENABLED=true` et `TVDB_API_KEY="votre-clé-v4"` (clé projet v4 sur
+[thetvdb.com/dashboard](https://www.thetvdb.com/dashboard) ; `TVDB_PIN` n'est requis que pour les
+clés « user-supported »). Une fois activée :
+
+- la **recherche** de séries renvoie les résultats TheTVDB (avec affiches), même sans clé TMDb ;
+- ajouter une série depuis la recherche crée la fiche locale avec ses **saisons et épisodes**
+  (`POST /api/shows/add-from-tvdb`).
+
+TMDb reste recommandé pour les films, les castings et les fournisseurs « où regarder ». Les clés
+API restent **exclusivement côté serveur**.
 
 Les clés API restent **exclusivement côté serveur** — jamais exposées au mobile.
 
@@ -68,11 +84,31 @@ npx expo start
 
 Scanne le QR code avec Expo Go (Android) ou l'appareil photo (iOS). Le téléphone doit être sur le
 **même Wi-Fi** que l'ordinateur, et le serveur joignable via l'**IP locale** (ex.
-`http://192.168.1.42:4000`, pas `localhost`). Au premier lancement l'app demande l'**URL du
-serveur**, teste `GET /health`, puis propose la connexion / création de compte.
+`http://192.168.1.42:4000`, pas `localhost`). En développement l'app demande l'**URL du serveur**,
+teste `GET /health`, puis propose la connexion / création de compte.
+
+Pour un déploiement public, renseigne l'URL du serveur dans `mobile/app.json`
+(`expo.extra.serverUrl`) : l'app s'y connecte alors automatiquement et l'écran « URL du serveur »
+disparaît — l'utilisateur n'a plus qu'à créer son compte.
 
 Détails et build APK : [mobile/README.md](mobile/README.md) et
 [docs/README_ANDROID.md](docs/README_ANDROID.md).
+
+## Social (façon TV Time)
+
+Depuis l'onglet **Profil → icône amis**, l'écran social propose :
+
+- **Trouver des amis** : recherche d'utilisateurs par nom, abonnement/désabonnement, accès au
+  **profil public** (stats + séries récentes, masqué aux non-abonnés si privé).
+- **Fil d'actualité** : ce que regardent, ajoutent et commentent les personnes suivies.
+- **Discussion** : sur chaque série/film, commentaires avec **fils de réponses** et **réactions
+  multi-emoji** (❤️👍😂😮😢).
+- **Notifications** (icône cloche du profil, avec badge) : un ami commente ou met en favori, on
+  répond à votre commentaire, on y réagit.
+
+Confidentialité : `POST /api/social/privacy { isPrivate }` rend un profil privé (activité et stats
+masquées aux non-abonnés). API : `/api/social/*`, `/api/users/*`, `/api/media/:id/comments`
+(paramètre `parentId` pour répondre), `/api/comments/:id/react`, `/api/notifications`.
 
 ## Import ZIP TV Time
 
@@ -121,10 +157,13 @@ pnpm test                       # unitaires (core) + intégration (API serveur)
 - L'enrichissement des métadonnées (posters, castings, providers) nécessite une clé TMDb.
 - L'app mobile met en cache les écrans consultés (TanStack Query) ; la recherche externe et
   l'import ZIP exigent le réseau et un serveur joignable.
-- Application mono-utilisateur par serveur (usage personnel).
+- Multi-comptes par serveur (e-mail + mot de passe). Le catalogue (métadonnées séries/films) est
+  partagé, mais la bibliothèque, la progression, les favoris et les stats sont **propres à chaque
+  compte**.
 
 ## Documentation
 
+- [docs/AVANCEMENT.md](docs/AVANCEMENT.md) — **état d'avancement du projet** (à mettre à jour après chaque évolution)
 - [docs/SPEC_SERIETIME.md](docs/SPEC_SERIETIME.md) — cahier des charges complet
 - [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) — arborescence, Prisma, routes, phases
 - [mobile/README.md](mobile/README.md) — app mobile Expo (lancer avec Expo Go, build APK)

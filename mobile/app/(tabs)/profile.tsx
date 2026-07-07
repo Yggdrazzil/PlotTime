@@ -27,6 +27,12 @@ export default function ProfileScreen() {
     queryKey: ['profile'],
     queryFn: () => api.get<ProfileResponse>('/api/profile'),
   });
+  const { data: unreadData } = useQuery({
+    queryKey: ['notifications', 'unread'],
+    queryFn: () => api.get<{ unreadCount: number }>('/api/notifications/unread-count'),
+    refetchInterval: 30_000,
+  });
+  const unread = unreadData?.unreadCount ?? 0;
 
   if (isLoading || !data) return <Loading />;
   const { user, stats } = data;
@@ -35,8 +41,16 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: COLORS.white }} contentContainerStyle={{ paddingBottom: 24 }}>
       <View style={styles.head}>
-        <Pressable style={[styles.bell, { top: insets.top + 8 }]} onPress={() => router.push('/settings')}>
+        <Pressable style={[styles.bell, { top: insets.top + 8 }]} onPress={() => router.push('/notifications')}>
           <Feather name="bell" size={22} color={COLORS.black} />
+          {unread > 0 ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
+            </View>
+          ) : null}
+        </Pressable>
+        <Pressable style={[styles.friends, { top: insets.top + 8 }]} onPress={() => router.push('/social')}>
+          <Feather name="users" size={22} color="#fff" />
         </Pressable>
         <Pressable style={[styles.dots, { top: insets.top + 8 }]} onPress={() => router.push('/settings')}>
           <Feather name="more-horizontal" size={26} color="#fff" />
@@ -152,6 +166,9 @@ function PosterRow({ title, items, heart, isMovie }: { title: string; items: Med
 const styles = StyleSheet.create({
   head: { height: 210, backgroundColor: '#20202a', justifyContent: 'flex-end' },
   bell: { position: 'absolute', left: 16, width: 46, height: 46, borderRadius: 23, backgroundColor: COLORS.yellow, alignItems: 'center', justifyContent: 'center' },
+  friends: { position: 'absolute', right: 56, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', top: 2, right: 2, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: COLORS.red, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   dots: { position: 'absolute', right: 12, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headRow: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 20 },
   avatar: { width: 82, height: 82, borderRadius: 41, borderWidth: 2, borderColor: '#fff', backgroundColor: '#555' },

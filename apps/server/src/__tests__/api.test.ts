@@ -86,17 +86,42 @@ describe('SerieTime API', () => {
     expect(res.json()).toMatchObject({ ok: true, app: 'SerieTime', version: '1.0.0' });
   });
 
-  it('setup crée le compte local et retourne un token', async () => {
-    const needs = await app.inject({ method: 'GET', url: '/api/auth/needs-setup' });
-    expect(needs.json().needsSetup).toBe(true);
+  it('register crée un compte et retourne un token', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/auth/setup',
-      payload: { displayName: 'Etienne', password: 'secret123' },
+      url: '/api/auth/register',
+      payload: { displayName: 'Etienne', email: 'etienne@example.com', password: 'secret123' },
     });
     expect(res.statusCode).toBe(200);
     token = res.json().token;
     expect(token).toBeTruthy();
+    expect(res.json().user.provider).toBe('password');
+  });
+
+  it('register refuse un e-mail déjà utilisé', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { displayName: 'Autre', email: 'etienne@example.com', password: 'secret123' },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('email_taken');
+  });
+
+  it('supporte plusieurs comptes indépendants', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { displayName: 'Bob', email: 'bob@example.com', password: 'secret123' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().user.id).not.toBe('');
+  });
+
+  it('expose les providers SSO configurés', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/auth/providers' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ password: true });
   });
 
   it('rejette les requêtes non authentifiées', async () => {
@@ -104,10 +129,18 @@ describe('SerieTime API', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('login fonctionne avec le mot de passe', async () => {
-    const bad = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { password: 'nope' } });
+  it('login fonctionne avec e-mail et mot de passe', async () => {
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { email: 'etienne@example.com', password: 'nope' },
+    });
     expect(bad.statusCode).toBe(401);
-    const ok = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { password: 'secret123' } });
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { email: 'etienne@example.com', password: 'secret123' },
+    });
     expect(ok.statusCode).toBe(200);
   });
 
@@ -300,6 +333,37 @@ describe('SerieTime API', () => {
       headers: auth(),
     });
     expect(banner.statusCode).toBe(200);
+  });
+
+  it('change l’affiche et la bannière d’un film', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/movies/profile', headers: auth() });
+    const movie = res.json().seen.find((m: { title: string }) => m.title === 'Mickey 17');
+    expect(movie).toBeTruthy();
+
+    const poster = await app.inject({
+      method: 'POST',
+      url: `/api/movies/${movie.id}/poster`,
+      payload: { posterPath: '/mickey-poster.jpg' },
+      headers: auth(),
+    });
+    expect(poster.statusCode).toBe(200);
+    const banner = await app.inject({
+      method: 'POST',
+      url: `/api/movies/${movie.id}/banner`,
+      payload: { backdropPath: '/mickey-banner.jpg' },
+      headers: auth(),
+    });
+    expect(banner.statusCode).toBe(200);
+
+    const images = await app.inject({ method: 'GET', url: `/api/movies/${movie.id}/images`, headers: auth() });
+    expect(images.statusCode).toBe(200);
+    expect(images.json().selectedPoster).toBe('/mickey-poster.jpg');
+    expect(images.json().selectedBackdrop).toBe('/mickey-banner.jpg');
+    expect(images.json().posters).toContain('/mickey-poster.jpg');
+
+    const detail = await app.inject({ method: 'GET', url: `/api/movies/${movie.id}`, headers: auth() });
+    expect(detail.json().media.posterPath).toBe('/mickey-poster.jpg');
+    expect(detail.json().media.backdropPath).toBe('/mickey-banner.jpg');
   });
 
   it('exporte une sauvegarde SerieTime', async () => {

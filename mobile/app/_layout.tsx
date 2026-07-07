@@ -22,6 +22,9 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="show/[id]" />
             <Stack.Screen name="settings" />
+            <Stack.Screen name="social" />
+            <Stack.Screen name="notifications" />
+            <Stack.Screen name="user/[id]" />
             <Stack.Screen name="import" />
           </Stack>
         </QueryClientProvider>

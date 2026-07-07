@@ -148,6 +148,16 @@ export async function movieRoutes(app: FastifyInstance): Promise<void> {
       update: { isFavorite },
     });
     await createWatchEvent(request.userId, id, isFavorite ? 'favorited' : 'unfavorited');
+    if (isFavorite) {
+      const me = await prisma.user.findUnique({ where: { id: request.userId } });
+      const { notifyFollowers } = await import('../social/notify.js');
+      await notifyFollowers(request.userId, {
+        type: 'friend_favorite',
+        title: `${me?.displayName ?? 'Quelqu’un'} a ajouté ${media.localizedTitle ?? media.title} à ses favoris`,
+        imageUrl: media.posterPath,
+        mediaId: id,
+      });
+    }
     return { ok: true, isFavorite };
   });
 
@@ -164,15 +174,71 @@ export async function movieRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
+  // Personnalisation de l'affiche et de la bannière (même API que les séries).
+  app.post('/api/movies/:id/poster', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { posterPath } = z.object({ posterPath: z.string() }).parse(request.body);
+    const media = await prisma.media.findFirst({ where: { id, type: 'movie' } });
+    if (!media) return reply.code(404).send({ error: 'not_found' });
+    await prisma.media.update({ where: { id }, data: { posterPath } });
+    return { ok: true };
+  });
+
+  app.post('/api/movies/:id/banner', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { backdropPath } = z.object({ backdropPath: z.string() }).parse(request.body);
+    const media = await prisma.media.findFirst({ where: { id, type: 'movie' } });
+    if (!media) return reply.code(404).send({ error: 'not_found' });
+    await prisma.media.update({ where: { id }, data: { backdropPath } });
+    return { ok: true };
+  });
+
+  // Images disponibles pour la personnalisation (TMDb + valeurs actuelles).
+  app.get('/api/movies/:id/images', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const media = await prisma.media.findFirst({ where: { id, type: 'movie' } });
+    if (!media) return reply.code(404).send({ error: 'not_found' });
+    let posters: string[] = media.posterPath ? [media.posterPath] : [];
+    let backdrops: string[] = media.backdropPath ? [media.backdropPath] : [];
+    if (media.tmdbId) {
+      const { tmdbImages } = await import('../../services/tmdb/images.js');
+      const images = await tmdbImages('movie', media.tmdbId).catch(() => null);
+      if (images) {
+        posters = [...new Set([...posters, ...images.posters])].slice(0, 30);
+        backdrops = [...new Set([...backdrops, ...images.backdrops])].slice(0, 30);
+      }
+    }
+    return {
+      posters,
+      backdrops,
+      selectedPoster: media.posterPath,
+      selectedBackdrop: media.backdropPath,
+    };
+  });
+
+  // Supprimer le film du suivi (équivalent « Supprimer » du menu, spec §32.7).
+  app.delete('/api/movies/:id/tracking', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const media = await prisma.media.findFirst({ where: { id, type: 'movie' } });
+    if (!media) return reply.code(404).send({ error: 'not_found' });
+    await prisma.userMediaStatus.deleteMany({ where: { userId: request.userId, mediaId: id } });
+    return { ok: true };
+  });
+
+  // `follow: false` : consultation de la fiche sans ajout à la watchlist.
   app.post('/api/movies/add-from-tmdb', async (request, reply) => {
-    const { tmdbId } = z.object({ tmdbId: z.string() }).parse(request.body);
+    const { tmdbId, follow } = z
+      .object({ tmdbId: z.string(), follow: z.boolean().default(true) })
+      .parse(request.body);
     const media = await ensureMediaFromTmdb('movie', tmdbId);
     if (!media) return reply.code(502).send({ error: 'tmdb_unavailable' });
-    await prisma.userMediaStatus.upsert({
-      where: { userId_mediaId: { userId: request.userId, mediaId: media.id } },
-      create: { userId: request.userId, mediaId: media.id, status: 'watchlist' },
-      update: {},
-    });
+    if (follow) {
+      await prisma.userMediaStatus.upsert({
+        where: { userId_mediaId: { userId: request.userId, mediaId: media.id } },
+        create: { userId: request.userId, mediaId: media.id, status: 'watchlist' },
+        update: {},
+      });
+    }
     return { mediaId: media.id };
   });
 }
