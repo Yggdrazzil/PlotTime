@@ -155,12 +155,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Fallback e-mail / mot de passe — inscription (multi-comptes).
-  app.post('/api/auth/register', async (request, reply) => {
+  // Rate limit serré : empêche le spam de création de comptes.
+  app.post('/api/auth/register', { config: { rateLimit: { max: 10, timeWindow: '10 minutes' } } }, async (request, reply) => {
     const body = z
       .object({
         displayName: z.string().min(1).max(80),
         email: z.string().email(),
-        password: z.string().min(6).max(200),
+        password: z.string().min(8).max(200),
       })
       .parse(request.body);
     const existing = await prisma.user.findFirst({
@@ -181,7 +182,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Fallback e-mail / mot de passe — connexion.
-  app.post('/api/auth/login', async (request, reply) => {
+  // Rate limit serré : ralentit fortement le brute-force de mots de passe.
+  app.post('/api/auth/login', { config: { rateLimit: { max: 10, timeWindow: '5 minutes' } } }, async (request, reply) => {
     const body = z.object({ email: z.string().email(), password: z.string() }).parse(request.body);
     const user = await prisma.user.findFirst({
       where: { provider: 'password', email: body.email },
@@ -189,6 +191,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!user?.passwordHash || !(await bcrypt.compare(body.password, user.passwordHash))) {
       return reply.code(401).send({ error: 'invalid_credentials' });
     }
+    // Purge opportuniste des sessions expirées de ce compte (pas de cron nécessaire).
+    await prisma.session.deleteMany({ where: { userId: user.id, expiresAt: { lt: new Date() } } });
     const session = await createSession(user.id);
     return { user: serializeUser(user), token: session.token, expiresAt: session.expiresAt };
   });
@@ -208,16 +212,20 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/auth/password', { preHandler: requireAuth }, async (request, reply) => {
     const body = z
-      .object({ currentPassword: z.string(), newPassword: z.string().min(6).max(200) })
+      .object({ currentPassword: z.string(), newPassword: z.string().min(8).max(200) })
       .parse(request.body);
     const user = await prisma.user.findUnique({ where: { id: request.userId } });
     if (!user?.passwordHash || !(await bcrypt.compare(body.currentPassword, user.passwordHash))) {
       return reply.code(401).send({ error: 'invalid_credentials' });
     }
+    const header = request.headers.authorization;
+    const currentToken = header?.slice(7) ?? '';
     await prisma.user.update({
       where: { id: user.id },
       data: { passwordHash: await bcrypt.hash(body.newPassword, 10) },
     });
+    // Changement de mot de passe : invalide toutes les AUTRES sessions.
+    await prisma.session.deleteMany({ where: { userId: user.id, token: { not: currentToken } } });
     return { ok: true };
   });
 }

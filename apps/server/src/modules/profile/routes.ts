@@ -104,8 +104,8 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
       .object({
         displayName: z.string().min(1).max(80).optional(),
         email: z.string().email().nullable().optional(),
-        avatarUrl: z.string().nullable().optional(),
-        coverUrl: z.string().nullable().optional(),
+        avatarUrl: z.string().max(800_000).nullable().optional(),
+        coverUrl: z.string().max(800_000).nullable().optional(),
         birthYear: z.number().int().min(1900).max(2100).nullable().optional(),
         gender: z.string().nullable().optional(),
         countryCode: z.string().length(2).optional(),

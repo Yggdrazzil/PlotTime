@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
 import { APP_VERSION, env } from './config/env.js';
 import { authRoutes } from './modules/auth/routes.js';
@@ -36,6 +37,13 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(multipart, {
     limits: { fileSize: env.MAX_IMPORT_ZIP_SIZE_MB * 1024 * 1024, files: 1 },
   });
+
+  // Anti brute-force / spam : plafond global généreux (usage normal jamais gêné),
+  // et plafond serré appliqué manuellement sur login/register (voir auth/routes).
+  // Désactivé en test pour ne pas fausser la suite.
+  if (env.NODE_ENV !== 'test') {
+    await app.register(rateLimit, { global: false, max: 300, timeWindow: '1 minute' });
+  }
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {

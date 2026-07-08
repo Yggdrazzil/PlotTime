@@ -23,11 +23,13 @@ export async function backupRoutes(app: FastifyInstance): Promise<void> {
         prisma.mediaList.findMany({ where: { userId } }),
         prisma.listItem.findMany({ where: { list: { userId } } }),
       ]);
+    // Jamais de secret dans l'export (le fichier circule hors de l'app).
+    const { passwordHash: _passwordHash, ...safeUser } = user ?? ({} as Record<string, unknown>);
     return {
       app: 'SerieTime',
       version: APP_VERSION,
       exportedAt: new Date().toISOString(),
-      data: { user, media, shows, seasons, episodes, mediaStatuses, episodeStatuses, watchEvents, lists, listItems },
+      data: { user: safeUser, media, shows, seasons, episodes, mediaStatuses, episodeStatuses, watchEvents, lists, listItems },
     };
   });
 
@@ -79,42 +81,72 @@ export async function backupRoutes(app: FastifyInstance): Promise<void> {
       return out;
     };
 
+    // Tables du CATALOGUE (partagées entre tous les comptes) : on complète les
+    // manquants mais on n'écrase JAMAIS une ligne existante — sinon un fichier de
+    // sauvegarde forgé pourrait modifier le catalogue vu par tout le monde.
     await restore(d.media, (r) => {
       const row = revive(r) as never;
-      return prisma.media.upsert({ where: { id: String(r['id']) }, create: row, update: row });
+      return prisma.media.upsert({ where: { id: String(r['id']) }, create: row, update: {} });
     });
     await restore(d.shows, (r) => {
       const row = revive(r) as never;
-      return prisma.show.upsert({ where: { id: String(r['id']) }, create: row, update: row });
+      return prisma.show.upsert({ where: { id: String(r['id']) }, create: row, update: {} });
     });
     await restore(d.seasons, (r) => {
       const row = revive(r) as never;
-      return prisma.season.upsert({ where: { id: String(r['id']) }, create: row, update: row });
+      return prisma.season.upsert({ where: { id: String(r['id']) }, create: row, update: {} });
     });
     await restore(d.episodes, (r) => {
       const row = revive(r) as never;
-      return prisma.episode.upsert({ where: { id: String(r['id']) }, create: row, update: row });
+      return prisma.episode.upsert({ where: { id: String(r['id']) }, create: row, update: {} });
     });
-    await restore(d.mediaStatuses, (r) => {
-      const row = { ...revive(r), userId } as never;
-      return prisma.userMediaStatus.upsert({ where: { id: String(r['id']) }, create: row, update: row });
-    });
-    await restore(d.episodeStatuses, (r) => {
-      const row = { ...revive(r), userId } as never;
-      return prisma.userEpisodeStatus.upsert({ where: { id: String(r['id']) }, create: row, update: row });
-    });
-    await restore(d.lists, (r) => {
-      const row = { ...revive(r), userId } as never;
-      return prisma.mediaList.upsert({ where: { id: String(r['id']) }, create: row, update: row });
-    });
-    await restore(d.listItems, (r) => {
+
+    // Tables PERSONNELLES : la mise à jour est strictement bornée aux lignes de
+    // l'appelant (updateMany scoping par userId) ; sinon création. Un id qui
+    // appartient à un autre compte échoue en création (contrainte unique) et la
+    // ligne est simplement ignorée : impossible de voler/écraser autrui.
+    const restoreOwned = async (
+      rows: Record<string, unknown>[],
+      update: (id: string, row: never) => Promise<{ count: number }>,
+      create: (id: string, row: never) => Promise<unknown>,
+    ) =>
+      restore(rows, async (r) => {
+        const id = String(r['id']);
+        const row = { ...revive(r), userId } as never;
+        const updated = await update(id, row);
+        if (updated.count === 0) await create(id, row);
+      });
+
+    await restoreOwned(
+      d.mediaStatuses,
+      (id, row) => prisma.userMediaStatus.updateMany({ where: { id, userId }, data: row }),
+      (id, row) => prisma.userMediaStatus.create({ data: { ...(row as object), id } as never }),
+    );
+    await restoreOwned(
+      d.episodeStatuses,
+      (id, row) => prisma.userEpisodeStatus.updateMany({ where: { id, userId }, data: row }),
+      (id, row) => prisma.userEpisodeStatus.create({ data: { ...(row as object), id } as never }),
+    );
+    await restoreOwned(
+      d.lists,
+      (id, row) => prisma.mediaList.updateMany({ where: { id, userId }, data: row }),
+      (id, row) => prisma.mediaList.create({ data: { ...(row as object), id } as never }),
+    );
+    // Les items de liste appartiennent à l'utilisateur via leur liste.
+    await restore(d.listItems, async (r) => {
+      const id = String(r['id']);
+      const listId = String(r['listId']);
+      const owned = await prisma.mediaList.findFirst({ where: { id: listId, userId }, select: { id: true } });
+      if (!owned) return;
       const row = revive(r) as never;
-      return prisma.listItem.upsert({ where: { id: String(r['id']) }, create: row, update: row });
+      const updated = await prisma.listItem.updateMany({ where: { id, list: { userId } }, data: row });
+      if (updated.count === 0) await prisma.listItem.create({ data: { ...(row as object), id } as never });
     });
-    await restore(d.watchEvents, (r) => {
-      const row = { ...revive(r), userId } as never;
-      return prisma.watchEvent.upsert({ where: { id: String(r['id']) }, create: row, update: row });
-    });
+    await restoreOwned(
+      d.watchEvents,
+      (id, row) => prisma.watchEvent.updateMany({ where: { id, userId }, data: row }),
+      (id, row) => prisma.watchEvent.create({ data: { ...(row as object), id } as never }),
+    );
 
     return { ok: true };
   });

@@ -97,6 +97,13 @@ export async function analyzeImport(importId: string): Promise<ImportAnalysisSum
   const zip = new AdmZip(zipPath);
 
   const parsedFiles: ParsedFile[] = [];
+  // Bornes anti « zip bomb » : nombre d'entrées et volume décompressé TOTAL
+  // plafonnés (la taille déclarée par l'en-tête peut mentir, on mesure le réel).
+  const MAX_ENTRIES = 500;
+  const MAX_ENTRY_BYTES = 50 * 1024 * 1024;
+  const MAX_TOTAL_BYTES = 200 * 1024 * 1024;
+  let entries = 0;
+  let totalBytes = 0;
   for (const entry of zip.getEntries()) {
     if (entry.isDirectory) continue;
     // Protection Zip Slip : les entrées ne sont jamais extraites sur disque,
@@ -105,8 +112,12 @@ export async function analyzeImport(importId: string): Promise<ImportAnalysisSum
     if (name.includes('..') || path.isAbsolute(name)) continue;
     const lower = name.toLowerCase();
     if (!lower.endsWith('.csv') && !lower.endsWith('.json') && !lower.endsWith('.txt')) continue;
-    if (entry.header.size > 50 * 1024 * 1024) continue;
-    const content = entry.getData().toString('utf-8');
+    if (++entries > MAX_ENTRIES) break;
+    if (entry.header.size > MAX_ENTRY_BYTES) continue;
+    const data = entry.getData();
+    totalBytes += data.length;
+    if (data.length > MAX_ENTRY_BYTES || totalBytes > MAX_TOTAL_BYTES) break;
+    const content = data.toString('utf-8');
     parsedFiles.push(parseFileContent(name, content));
   }
 

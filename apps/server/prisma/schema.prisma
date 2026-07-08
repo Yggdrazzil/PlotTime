@@ -396,9 +396,11 @@ model Credit {
 
 model Import {
   id          String   @id @default(cuid())
+  // Propriétaire : toutes les routes /api/import/tvtime/* sont scopées dessus.
+  userId      String?
   source      String
   fileName    String
-  fileHash    String   @unique
+  fileHash    String
   status      String // ImportStatus
   summaryJson String?
   errorJson   String?
@@ -407,6 +409,9 @@ model Import {
   updatedAt   DateTime @updatedAt
 
   mappings    ImportMapping[]
+
+  @@unique([userId, fileHash])
+  @@index([userId])
 }
 
 model ImportMapping {

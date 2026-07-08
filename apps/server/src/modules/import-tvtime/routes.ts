@@ -34,7 +34,8 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
     }
     const hash = sha256(buffer);
     const force = (request.query as { force?: string }).force === 'true';
-    const duplicate = await prisma.import.findUnique({ where: { fileHash: hash } });
+    // Dédoublonnage par utilisateur : le même fichier peut être importé par deux amis.
+    const duplicate = await prisma.import.findFirst({ where: { fileHash: hash, userId: request.userId } });
     if (duplicate && !force) {
       return reply.code(409).send({
         error: 'already_imported',
@@ -48,6 +49,7 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
     }
     const importRow = await prisma.import.create({
       data: {
+        userId: request.userId,
         source: 'tvtime',
         fileName: file.filename ?? 'export.zip',
         fileHash: hash,
@@ -60,7 +62,7 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/import/tvtime/:id/analyze', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const importRow = await prisma.import.findUnique({ where: { id } });
+    const importRow = await prisma.import.findFirst({ where: { id, userId: request.userId } });
     if (!importRow) return reply.code(404).send({ error: 'not_found' });
     try {
       const summary = await analyzeImport(id);
@@ -77,7 +79,7 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/import/tvtime/:id/confirm', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const importRow = await prisma.import.findUnique({ where: { id } });
+    const importRow = await prisma.import.findFirst({ where: { id, userId: request.userId } });
     if (!importRow) return reply.code(404).send({ error: 'not_found' });
     if (importRow.status !== 'analyzed' && importRow.status !== 'imported') {
       return reply.code(409).send({ error: 'not_analyzed' });
@@ -88,8 +90,8 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/import/tvtime/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const importRow = await prisma.import.findUnique({
-      where: { id },
+    const importRow = await prisma.import.findFirst({
+      where: { id, userId: request.userId },
       include: { mappings: { select: { matchStatus: true } } },
     });
     if (!importRow) return reply.code(404).send({ error: 'not_found' });
@@ -106,9 +108,13 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  // Liste des imports (historique).
-  app.get('/api/import/tvtime', async () => {
-    const imports = await prisma.import.findMany({ orderBy: { createdAt: 'desc' }, take: 20 });
+  // Liste des imports (historique) — ceux de l'utilisateur uniquement.
+  app.get('/api/import/tvtime', async (request) => {
+    const imports = await prisma.import.findMany({
+      where: { userId: request.userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
     return {
       imports: imports.map((i) => ({
         importId: i.id,
@@ -121,7 +127,7 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/import/tvtime/:id/unresolved', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const importRow = await prisma.import.findUnique({ where: { id } });
+    const importRow = await prisma.import.findFirst({ where: { id, userId: request.userId } });
     if (!importRow) return reply.code(404).send({ error: 'not_found' });
     const mappings = await prisma.importMapping.findMany({
       where: { importId: id, matchStatus: 'unresolved' },
@@ -167,7 +173,9 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
           .optional(),
       })
       .parse(request.body);
-    const mapping = await prisma.importMapping.findFirst({ where: { id: body.mappingId, importId: id } });
+    const mapping = await prisma.importMapping.findFirst({
+      where: { id: body.mappingId, importId: id, import: { userId: request.userId } },
+    });
     if (!mapping) return reply.code(404).send({ error: 'not_found' });
 
     const raw = fromJson<Record<string, unknown>>(mapping.rawJson, {});
@@ -202,7 +210,7 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
     });
 
     // Si l'import est déjà confirmé, appliquer immédiatement.
-    const importRow = await prisma.import.findUnique({ where: { id } });
+    const importRow = await prisma.import.findFirst({ where: { id, userId: request.userId } });
     if (importRow?.status === 'imported') {
       await applyMapping(request.userId, id, mapping.id);
     }
@@ -212,7 +220,9 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/import/tvtime/:id/ignore', async (request, reply) => {
     const { id } = request.params as { id: string };
     const { mappingId } = z.object({ mappingId: z.string() }).parse(request.body);
-    const mapping = await prisma.importMapping.findFirst({ where: { id: mappingId, importId: id } });
+    const mapping = await prisma.importMapping.findFirst({
+      where: { id: mappingId, importId: id, import: { userId: request.userId } },
+    });
     if (!mapping) return reply.code(404).send({ error: 'not_found' });
     await prisma.importMapping.update({ where: { id: mappingId }, data: { matchStatus: 'ignored' } });
     return { ok: true };
@@ -220,7 +230,7 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/import/tvtime/:id/report', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const importRow = await prisma.import.findUnique({ where: { id } });
+    const importRow = await prisma.import.findFirst({ where: { id, userId: request.userId } });
     if (!importRow) return reply.code(404).send({ error: 'not_found' });
     const mappings = await prisma.importMapping.findMany({
       where: { importId: id },
