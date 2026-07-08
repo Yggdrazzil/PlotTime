@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Image, Share } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -522,6 +522,13 @@ function EpThumb({ stillPath }: { stillPath?: string | null }) {
 function EpisodesTab({ showId, onChange }: { showId: string; onChange: () => void }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState<Record<number, boolean>>({});
+  // Snackbar « Marquer tout comme non vu » (2ᵉ appui sur la coche maîtresse).
+  const [confirmUnmark, setConfirmUnmark] = useState(false);
+  useEffect(() => {
+    if (!confirmUnmark) return;
+    const t = setTimeout(() => setConfirmUnmark(false), 4000);
+    return () => clearTimeout(t);
+  }, [confirmUnmark]);
   const { data, isLoading } = useQuery({
     queryKey: ['show', showId, 'episodes'],
     queryFn: () => api.get<{ seasons: SeasonData[]; nextEpisode: EpisodeDto | null }>(`/api/shows/${showId}/episodes`),
@@ -539,76 +546,132 @@ function EpisodesTab({ showId, onChange }: { showId: string; onChange: () => voi
     mutationFn: (seasonNumber?: number) => api.post(`/api/shows/${showId}/mark-all-watched`, seasonNumber ? { seasonNumber } : {}),
     onSettled: refresh,
   });
+  const markAllUnwatched = useMutation({
+    mutationFn: (seasonNumber?: number) => api.post(`/api/shows/${showId}/mark-all-unwatched`, seasonNumber ? { seasonNumber } : {}),
+    onSettled: refresh,
+  });
 
   if (isLoading || !data) return <Loading />;
   if (data.seasons.length === 0) return <EmptyState title="Aucun épisode" />;
 
+  // Épisodes spéciaux (saison 0) toujours en bas de la liste (façon TV Time).
+  const isSpecial = (s: SeasonData) => s.seasonNumber === 0;
+  const seasons = [...data.seasons].sort((a, b) => {
+    if (isSpecial(a) !== isSpecial(b)) return isSpecial(a) ? 1 : -1;
+    return a.seasonNumber - b.seasonNumber;
+  });
+
+  // « À jour » (comme TV Time) = tous les épisodes réguliers DÉJÀ DIFFUSÉS sont
+  // vus (les épisodes non diffusés et les spéciaux n'entrent pas en compte).
+  // data.nextEpisode = prochain épisode régulier diffusé non vu : null ⇒ à jour.
+  const anyWatched = seasons.some((s) => s.watchedCount > 0);
+  const caughtUp = anyWatched && !data.nextEpisode;
+
+  const onMasterPress = () => {
+    if (caughtUp) setConfirmUnmark(true);
+    else markAll.mutate(undefined);
+  };
+  const doUnmarkAll = () => {
+    setConfirmUnmark(false);
+    markAllUnwatched.mutate(undefined);
+  };
+
   return (
-    <ScrollView style={{ backgroundColor: COLORS.pageMuted }} contentContainerStyle={{ paddingBottom: 40 }}>
-      {data.nextEpisode ? (
-        <View style={{ paddingTop: 20, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight, backgroundColor: COLORS.white }}>
-          <Text style={[styles.sectionTitle, { paddingHorizontal: 24 }]}>Démarrer le suivi</Text>
-          <View style={{ padding: 12 }}>
-            <View style={styles.eprow}>
-              <EpThumb stillPath={data.nextEpisode.stillPath} />
-              <View style={{ flex: 1, padding: 12 }}>
-                <Text style={styles.epCode}>{episodeCode(data.nextEpisode.seasonNumber, data.nextEpisode.episodeNumber)}</Text>
-                <Text numberOfLines={1}>{data.nextEpisode.title}</Text>
-              </View>
-              <View style={{ justifyContent: 'center', paddingRight: 14 }}>
-                <CheckCircle checked={data.nextEpisode.watched} onPress={() => toggleEp.mutate(data.nextEpisode!)} />
+    <View style={{ flex: 1 }}>
+      <ScrollView style={{ backgroundColor: COLORS.pageMuted }} contentContainerStyle={{ paddingBottom: 40 }}>
+        {data.nextEpisode ? (
+          <View style={{ paddingTop: 20, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight, backgroundColor: COLORS.white }}>
+            <Text style={[styles.sectionTitle, { paddingHorizontal: 24 }]}>{anyWatched ? 'Continuer le suivi' : 'Démarrer le suivi'}</Text>
+            <View style={{ padding: 12 }}>
+              <View style={styles.eprow}>
+                <EpThumb stillPath={data.nextEpisode.stillPath} />
+                <View style={{ flex: 1, padding: 12 }}>
+                  <Text style={styles.epCode}>{episodeCode(data.nextEpisode.seasonNumber, data.nextEpisode.episodeNumber)}</Text>
+                  <Text numberOfLines={1}>{data.nextEpisode.title}</Text>
+                </View>
+                <View style={{ justifyContent: 'center', paddingRight: 14 }}>
+                  <CheckCircle checked={data.nextEpisode.watched} onPress={() => toggleEp.mutate(data.nextEpisode!)} />
+                </View>
               </View>
             </View>
           </View>
-        </View>
-      ) : null}
+        ) : null}
 
-      <View style={{ paddingTop: 20 }}>
-        <View style={[styles.sectionHeadRow, { marginBottom: 0 }]}>
-          <Text style={styles.sectionTitle}>Tous les épisodes</Text>
-          <Pressable style={styles.markAllBtn} onPress={() => markAll.mutate(undefined)}>
-            <Feather name="check" size={18} color={COLORS.black} />
-          </Pressable>
-        </View>
-        <View style={{ padding: 12 }}>
-          {data.seasons.map((s) => {
-            const isOpen = open[s.seasonNumber];
-            const done = s.totalCount > 0 && s.watchedCount === s.totalCount;
-            return (
-              <View key={s.id} style={{ marginBottom: 12 }}>
-                <Pressable
-                  style={[styles.season, isOpen && styles.seasonOpen]}
-                  onPress={() => setOpen((o) => ({ ...o, [s.seasonNumber]: !o[s.seasonNumber] }))}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={styles.seasonTitle}>{s.title}</Text>
-                    <Feather name={isOpen ? 'chevron-up' : 'chevron-down'} size={22} color={COLORS.black} />
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={styles.seasonProg}>{s.watchedCount}/{s.totalCount}</Text>
-                    <CheckCircle size={44} checked={done} onPress={() => markAll.mutate(s.seasonNumber)} />
-                  </View>
-                </Pressable>
-                {isOpen
-                  ? s.episodes.map((e) => (
-                      <View key={e.id} style={styles.eprow}>
-                        <EpThumb stillPath={e.stillPath} />
-                        <View style={{ flex: 1, padding: 10 }}>
-                          <Text style={styles.epCode}>{episodeCode(e.seasonNumber, e.episodeNumber)}</Text>
-                          <Text numberOfLines={2}>{e.title}</Text>
-                        </View>
-                        <View style={{ justifyContent: 'center', paddingRight: 14 }}>
-                          <CheckCircle size={44} checked={e.watched} onPress={() => toggleEp.mutate(e)} />
-                        </View>
+        <View style={{ paddingTop: 20 }}>
+          <View style={[styles.sectionHeadRow, { marginBottom: 0 }]}>
+            <Text style={styles.sectionTitle}>Tous les épisodes</Text>
+            <Pressable style={styles.markAllBtn} onPress={onMasterPress} accessibilityLabel="Tout marquer">
+              <Feather name="check" size={18} color={COLORS.black} />
+            </Pressable>
+          </View>
+          <View style={{ padding: 12 }}>
+            {seasons.map((s) => {
+              const isOpen = open[s.seasonNumber];
+              const done = s.totalCount > 0 && s.watchedCount === s.totalCount;
+              const started = s.watchedCount > 0;
+              const pct = s.totalCount > 0 ? Math.min(100, (s.watchedCount / s.totalCount) * 100) : 0;
+              const label = isSpecial(s) ? 'Épisodes spéciaux' : s.title;
+              return (
+                <View key={s.id} style={{ marginBottom: 12 }}>
+                  <Pressable
+                    style={styles.season}
+                    onPress={() => setOpen((o) => ({ ...o, [s.seasonNumber]: !o[s.seasonNumber] }))}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <Text style={styles.seasonTitle} numberOfLines={1}>{label}</Text>
+                      <Feather name={isOpen ? 'chevron-up' : 'chevron-down'} size={22} color={COLORS.black} />
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={styles.seasonProg}>{s.watchedCount}/{s.totalCount}</Text>
+                      <CheckCircle
+                        size={44}
+                        checked={done}
+                        checkedBg={COLORS.green}
+                        checkedFg="#fff"
+                        onPress={() => (done ? markAllUnwatched.mutate(s.seasonNumber) : markAll.mutate(s.seasonNumber))}
+                      />
+                    </View>
+                    {/* Barre de progression : jaune en cours, verte terminée. */}
+                    {started ? (
+                      <View style={[styles.progressTrack, { backgroundColor: done ? COLORS.green : COLORS.yellowSoft }]}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            { width: `${pct}%`, backgroundColor: done ? COLORS.green : COLORS.yellow },
+                          ]}
+                        />
                       </View>
-                    ))
-                  : null}
-              </View>
-            );
-          })}
+                    ) : null}
+                  </Pressable>
+                  {isOpen
+                    ? s.episodes.map((e) => (
+                        <View key={e.id} style={styles.eprow}>
+                          <EpThumb stillPath={e.stillPath} />
+                          <View style={{ flex: 1, padding: 10 }}>
+                            <Text style={styles.epCode}>{episodeCode(e.seasonNumber, e.episodeNumber)}</Text>
+                            <Text numberOfLines={2}>{e.title}</Text>
+                          </View>
+                          <View style={{ justifyContent: 'center', paddingRight: 14 }}>
+                            <CheckCircle size={44} checked={e.watched} onPress={() => toggleEp.mutate(e)} />
+                          </View>
+                        </View>
+                      ))
+                    : null}
+                </View>
+              );
+            })}
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+
+      {/* Confirmation « Marquer tout comme non vu » (cf TV Time). */}
+      {confirmUnmark ? (
+        <Pressable style={styles.unmarkBar} onPress={doUnmarkAll}>
+          <Feather name="eye-off" size={22} color={COLORS.black} />
+          <Text style={styles.unmarkText}>Marquer tout comme non vu</Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -638,9 +701,12 @@ const styles = StyleSheet.create({
   epCode: { fontSize: 19, fontFamily: FONTS.extraBold },
   markAllBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: COLORS.black, alignItems: 'center', justifyContent: 'center' },
   season: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 76, paddingHorizontal: 20, backgroundColor: COLORS.white, borderRadius: 5, ...SHADOW.season },
-  seasonOpen: { borderBottomWidth: 3, borderBottomColor: COLORS.yellow },
-  seasonTitle: { fontSize: 24, fontFamily: FONTS.extraBold },
+  seasonTitle: { fontSize: 24, fontFamily: FONTS.extraBold, flexShrink: 1 },
   seasonProg: { fontFamily: FONTS.regular, fontSize: 17, marginRight: 14 },
+  progressTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 5, borderBottomLeftRadius: 5, borderBottomRightRadius: 5, overflow: 'hidden' },
+  progressFill: { position: 'absolute', left: 0, bottom: 0, top: 0, borderBottomLeftRadius: 5 },
+  unmarkBar: { position: 'absolute', left: 12, right: 12, bottom: 20, backgroundColor: COLORS.white, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 18, ...SHADOW.card },
+  unmarkText: { fontSize: 17, fontFamily: FONTS.semiBold, color: COLORS.black },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
   sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: COLORS.white, borderTopLeftRadius: 5, borderTopRightRadius: 5, paddingBottom: 20 },
   statusRow: { backgroundColor: COLORS.chipGrey, borderBottomWidth: 3, borderBottomColor: COLORS.yellow, height: 62, justifyContent: 'center', paddingHorizontal: 24 },
