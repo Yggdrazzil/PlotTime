@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
-import { COLORS } from '@/lib/theme';
+import { COLORS, FONTS } from '@/lib/theme';
 import { Loading } from '@/components/ui';
 
 type RecentShow = { id: string; title: string; posterPath: string | null; type: string };
@@ -140,24 +140,24 @@ const styles = StyleSheet.create({
   header: { backgroundColor: '#20202a', alignItems: 'center', paddingBottom: 22, paddingHorizontal: 20 },
   back: { position: 'absolute', left: 12, top: 0, paddingTop: 8, height: 60, justifyContent: 'center' },
   avatar: { width: 88, height: 88, borderRadius: 44, borderWidth: 2, borderColor: '#fff', backgroundColor: '#555', alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  avatarInit: { color: '#fff', fontSize: 34, fontWeight: '800' },
-  name: { color: '#fff', fontSize: 24, fontWeight: '800', marginTop: 12 },
+  avatarInit: { color: '#fff', fontSize: 34, fontFamily: FONTS.extraBold },
+  name: { color: '#fff', fontSize: 24, fontFamily: FONTS.extraBold, marginTop: 12 },
   followRow: { flexDirection: 'row', gap: 20, marginTop: 8 },
-  followCount: { color: 'rgba(255,255,255,0.85)', fontSize: 14 },
-  followNum: { color: '#fff', fontWeight: '800' },
+  followCount: { color: 'rgba(255,255,255,0.85)', fontFamily: FONTS.regular, fontSize: 14 },
+  followNum: { color: '#fff', fontFamily: FONTS.extraBold },
   followBtn: { marginTop: 16, minWidth: 140, paddingHorizontal: 24, paddingVertical: 11, borderRadius: 999, backgroundColor: COLORS.yellow, alignItems: 'center' },
   followingBtn: { backgroundColor: '#fff' },
-  followText: { fontWeight: '800', fontSize: 14, letterSpacing: 0.5, color: COLORS.black },
+  followText: { fontFamily: FONTS.extraBold, fontSize: 14, letterSpacing: 0.5, color: COLORS.black },
   followingText: { color: COLORS.black },
   counters: { flexDirection: 'row', marginTop: 20 },
   counter: { flex: 1, alignItems: 'center', paddingVertical: 6 },
   counterBorder: { borderLeftWidth: 1, borderLeftColor: COLORS.borderLight },
-  counterN: { fontSize: 24, fontWeight: '800' },
-  counterL: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
-  sectionTitle: { fontSize: 20, fontWeight: '800', paddingHorizontal: 20, marginBottom: 12 },
+  counterN: { fontSize: 24, fontFamily: FONTS.extraBold },
+  counterL: { fontFamily: FONTS.regular, fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
+  sectionTitle: { fontSize: 20, fontFamily: FONTS.extraBold, paddingHorizontal: 20, marginBottom: 12 },
   poster: { width: 108, aspectRatio: 2 / 3, borderRadius: 4, backgroundColor: '#e5e5e5' },
   posterEmpty: { alignItems: 'center', justifyContent: 'center' },
   locked: { alignItems: 'center', padding: 40, gap: 8 },
-  lockedText: { fontSize: 18, fontWeight: '700', marginTop: 8 },
-  lockedSub: { fontSize: 15, color: COLORS.textMuted },
+  lockedText: { fontSize: 18, fontFamily: FONTS.bold, marginTop: 8 },
+  lockedSub: { fontFamily: FONTS.regular, fontSize: 15, color: COLORS.textMuted },
 });

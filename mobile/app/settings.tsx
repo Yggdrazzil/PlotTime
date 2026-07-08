@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
-import { COLORS } from '@/lib/theme';
+import { COLORS, FONTS } from '@/lib/theme';
 import { PageHeader } from '@/components/PageHeader';
 
 const TABS = ['COMPTE', 'APPLICATION', 'À VENIR'];
@@ -108,15 +108,15 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function Field({ label, value, blue }: { label: string; value: string; blue?: boolean }) {
   return (
     <View style={{ paddingVertical: 12 }}>
-      <Text style={{ fontSize: 17 }}>{label}</Text>
-      <Text style={{ fontSize: 17, color: blue ? COLORS.blue : COLORS.textMuted }}>{value}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 17, color: blue ? COLORS.blue : COLORS.textMuted }}>{value}</Text>
     </View>
   );
 }
 function Row({ label, onPress }: { label: string; onPress?: () => void }) {
   return (
     <Pressable style={styles.row} onPress={onPress}>
-      <Text style={{ fontSize: 19 }}>{label}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 19 }}>{label}</Text>
       <Feather name="chevron-right" size={22} color={COLORS.black} />
     </Pressable>
   );
@@ -125,8 +125,8 @@ function ToggleRow({ label, sub, on, onToggle }: { label: string; sub?: string; 
   return (
     <View style={styles.toggleRow}>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 19 }}>{label}</Text>
-        {sub ? <Text style={{ fontSize: 14, color: COLORS.textMuted }}>{sub}</Text> : null}
+        <Text style={{ fontFamily: FONTS.regular, fontSize: 19 }}>{label}</Text>
+        {sub ? <Text style={{ fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textMuted }}>{sub}</Text> : null}
       </View>
       <Pressable style={[styles.toggle, on && styles.toggleOn]} onPress={() => onToggle(!on)}>
         <View style={[styles.knob, on && styles.knobOn]} />
@@ -138,7 +138,7 @@ function RadioRow({ label, on, onPress }: { label: string; on: boolean; onPress:
   return (
     <Pressable style={[styles.row, { justifyContent: 'flex-start', gap: 16 }]} onPress={onPress}>
       <View style={[styles.radio, on && styles.radioOn]}>{on ? <Feather name="check" size={14} color={COLORS.black} /> : null}</View>
-      <Text style={{ fontSize: 18 }}>{label}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 18 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -149,11 +149,11 @@ function Divider() {
 const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 15 },
-  tabText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.5, color: COLORS.textSoft },
+  tabText: { fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.5, color: COLORS.textSoft },
   tabActive: { color: COLORS.black },
   under: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, backgroundColor: 'transparent' },
   underActive: { backgroundColor: COLORS.black },
-  sectionTitle: { fontSize: 23, fontWeight: '800', paddingHorizontal: 24, paddingTop: 28 },
+  sectionTitle: { fontSize: 23, fontFamily: FONTS.extraBold, paddingHorizontal: 24, paddingTop: 28 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 16 },
   toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, gap: 16 },
   toggle: { width: 52, height: 30, borderRadius: 15, backgroundColor: '#ddd', padding: 3 },
@@ -163,8 +163,8 @@ const styles = StyleSheet.create({
   radio: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
   radioOn: { backgroundColor: COLORS.yellow, borderColor: COLORS.yellow },
   divider: { height: 1, backgroundColor: COLORS.borderLight, marginVertical: 12 },
-  logout: { fontSize: 15, fontWeight: '800', letterSpacing: 0.6 },
+  logout: { fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
   cacheBtn: { borderWidth: 2, borderColor: COLORS.black, borderRadius: 999, paddingVertical: 14, alignItems: 'center' },
-  cacheText: { fontSize: 14, fontWeight: '800', letterSpacing: 0.6 },
-  version: { textAlign: 'center', paddingVertical: 24, fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1 },
+  cacheText: { fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
+  version: { textAlign: 'center', paddingVertical: 24, fontSize: 13, fontFamily: FONTS.bold, color: COLORS.textMuted, letterSpacing: 1 },
 });

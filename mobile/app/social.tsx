@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import { useDebounced } from '@/lib/useDebounced';
-import { COLORS } from '@/lib/theme';
+import { COLORS, FONTS } from '@/lib/theme';
 import { EmptyState, Loading } from '@/components/ui';
 
 type PublicUser = { id: string; displayName: string; avatarUrl: string | null; isFollowing?: boolean };
@@ -213,28 +213,28 @@ function FriendsTab() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 52 },
-  title: { fontSize: 20, fontWeight: '800' },
+  title: { fontSize: 20, fontFamily: FONTS.extraBold },
   tabs: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 4 },
   tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive: { borderBottomColor: COLORS.yellow },
-  tabText: { fontSize: 15, fontWeight: '700', color: COLORS.textMuted },
+  tabText: { fontSize: 15, fontFamily: FONTS.bold, color: COLORS.textMuted },
   tabTextActive: { color: COLORS.black },
   feedRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 12 },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#20202a', alignItems: 'center', justifyContent: 'center' },
-  avatarInit: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  feedText: { fontSize: 15, lineHeight: 21, color: COLORS.black },
-  feedName: { fontWeight: '800' },
-  feedMedia: { fontWeight: '700', color: COLORS.blue },
-  feedSub: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
-  feedComment: { fontSize: 14, color: COLORS.text, marginTop: 4, fontStyle: 'italic' },
+  avatarInit: { color: '#fff', fontSize: 18, fontFamily: FONTS.extraBold },
+  feedText: { fontFamily: FONTS.regular, fontSize: 15, lineHeight: 21, color: COLORS.black },
+  feedName: { fontFamily: FONTS.extraBold },
+  feedMedia: { fontFamily: FONTS.bold, color: COLORS.blue },
+  feedSub: { fontFamily: FONTS.regular, fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
+  feedComment: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.text, marginTop: 4, fontStyle: 'italic' },
   poster: { width: 40, aspectRatio: 2 / 3, borderRadius: 3, backgroundColor: '#e5e5e5', alignItems: 'center', justifyContent: 'center' },
   searchbar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, height: 62 },
-  input: { flex: 1, fontSize: 17, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
+  input: { flex: 1, fontFamily: FONTS.regular, fontSize: 17, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 10 },
   userTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  userName: { flex: 1, fontSize: 17, fontWeight: '700' },
+  userName: { flex: 1, fontSize: 17, fontFamily: FONTS.bold },
   followBtn: { minWidth: 96, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: COLORS.black, alignItems: 'center' },
   followingBtn: { backgroundColor: COLORS.chipGrey },
-  followText: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.4 },
+  followText: { color: '#fff', fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
   followingText: { color: COLORS.black },
 });

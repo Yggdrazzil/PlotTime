@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, checkHealth, ApiError } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { CONFIGURED_SERVER_URL } from '@/lib/config';
-import { COLORS } from '@/lib/theme';
+import { COLORS, FONTS } from '@/lib/theme';
 
 type Step = 'server' | 'auth';
 type Mode = 'login' | 'register';
@@ -212,17 +212,17 @@ export default function Setup() {
 }
 
 const styles = StyleSheet.create({
-  brand: { fontSize: 34, fontWeight: '800' },
-  lead: { fontSize: 17, color: COLORS.textMuted, marginTop: 24 },
-  label: { fontSize: 14, fontWeight: '700', marginTop: 24 },
-  input: { borderBottomWidth: 1, borderBottomColor: COLORS.border, fontSize: 18, paddingVertical: 10, marginTop: 6 },
-  error: { color: COLORS.red, fontSize: 15, marginTop: 12 },
-  success: { color: COLORS.green, fontSize: 15, fontWeight: '600', marginTop: 12 },
+  brand: { fontSize: 34, fontFamily: FONTS.extraBold },
+  lead: { fontFamily: FONTS.regular, fontSize: 17, color: COLORS.textMuted, marginTop: 24 },
+  label: { fontSize: 14, fontFamily: FONTS.bold, marginTop: 24 },
+  input: { borderBottomWidth: 1, borderBottomColor: COLORS.border, fontFamily: FONTS.regular, fontSize: 18, paddingVertical: 10, marginTop: 6 },
+  error: { color: COLORS.red, fontFamily: FONTS.regular, fontSize: 15, marginTop: 12 },
+  success: { color: COLORS.green, fontSize: 15, fontFamily: FONTS.semiBold, marginTop: 12 },
   btnOutline: { borderWidth: 2, borderColor: COLORS.black, borderRadius: 999, paddingVertical: 15, marginTop: 36, alignItems: 'center' },
-  btnOutlineText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.6 },
+  btnOutlineText: { fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
   btnYellow: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingVertical: 15, marginTop: 28, alignItems: 'center' },
-  btnYellowText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.6 },
+  btnYellowText: { fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
   disabled: { opacity: 0.4 },
-  link: { color: COLORS.blue, fontSize: 15, marginTop: 24 },
-  linkMuted: { color: COLORS.textSoft, fontSize: 14, marginTop: 20 },
+  link: { color: COLORS.blue, fontFamily: FONTS.regular, fontSize: 15, marginTop: 24 },
+  linkMuted: { color: COLORS.textSoft, fontFamily: FONTS.regular, fontSize: 14, marginTop: 20 },
 });

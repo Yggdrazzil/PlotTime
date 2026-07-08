@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Image, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Image, TextInput, ActivityIndicator, Alert, Modal } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
+import { COUNTRIES, countryName } from '@/lib/countries';
 import { useAppStore } from '@/lib/store';
-import { COLORS } from '@/lib/theme';
+import { COLORS, FONTS } from '@/lib/theme';
 import { Loading } from '@/components/ui';
 import type { ProfileUser } from '@/app/(tabs)/profile';
 
@@ -35,6 +36,8 @@ export default function EditProfile() {
   const [country, setCountry] = useState('FR');
   const [initialized, setInitialized] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [genderOpen, setGenderOpen] = useState(false);
+  const [countryOpen, setCountryOpen] = useState(false);
 
   // Pré-remplit depuis le profil chargé.
   useEffect(() => {
@@ -189,53 +192,86 @@ export default function EditProfile() {
           />
         </View>
 
-        <View style={styles.field}>
+        {/* Sexe — valeur bleue, menu déroulant (façon TV Time) */}
+        <Pressable style={styles.field} onPress={() => setGenderOpen(true)}>
           <Text style={styles.label}>Sexe</Text>
-          <View style={styles.chips}>
-            {GENDERS.map((g) => (
+          <Text style={[styles.value, !gender && styles.valueEmpty]}>
+            {GENDERS.find((g) => g.value === gender)?.label ?? 'Choisir'}
+          </Text>
+        </Pressable>
+
+        {/* Pays — valeur bleue, menu déroulant avec noms complets (façon TV Time) */}
+        <Pressable style={styles.field} onPress={() => setCountryOpen(true)}>
+          <Text style={styles.label}>Pays</Text>
+          <Text style={styles.value}>{countryName(country) ?? 'Choisir'}</Text>
+        </Pressable>
+      </ScrollView>
+
+      {/* Menu déroulant Sexe */}
+      <Modal visible={genderOpen} transparent animationType="fade" onRequestClose={() => setGenderOpen(false)}>
+        <Pressable style={styles.overlay} onPress={() => setGenderOpen(false)} />
+        <View style={styles.sheet}>
+          {GENDERS.map((g, i) => (
+            <Pressable
+              key={g.value}
+              style={[styles.sheetItem, i === GENDERS.length - 1 && { borderBottomWidth: 0 }]}
+              onPress={() => { setGender(g.value); setGenderOpen(false); }}
+            >
+              <Text style={styles.sheetLabel}>{g.label}</Text>
+              {gender === g.value ? <Feather name="check" size={22} color={COLORS.black} /> : null}
+            </Pressable>
+          ))}
+        </View>
+      </Modal>
+
+      {/* Menu déroulant Pays (liste complète, noms en toutes lettres) */}
+      <Modal visible={countryOpen} animationType="slide" onRequestClose={() => setCountryOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: COLORS.white, paddingTop: insets.top }}>
+          <View style={styles.header}>
+            <Pressable onPress={() => setCountryOpen(false)} hitSlop={12}>
+              <Feather name="chevron-left" size={28} color={COLORS.black} />
+            </Pressable>
+            <Text style={styles.title}>Pays</Text>
+            <View style={{ width: 28 }} />
+          </View>
+          <ScrollView>
+            {COUNTRIES.map((c) => (
               <Pressable
-                key={g.value}
-                style={[styles.chip, gender === g.value && styles.chipActive]}
-                onPress={() => setGender(gender === g.value ? null : g.value)}
+                key={c.code}
+                style={styles.countryRow}
+                onPress={() => { setCountry(c.code); setCountryOpen(false); }}
               >
-                <Text style={[styles.chipText, gender === g.value && styles.chipTextActive]}>{g.label}</Text>
+                <Text style={[styles.countryName, country === c.code && styles.countrySelected]}>{c.name}</Text>
+                {country === c.code ? <Feather name="check" size={22} color={COLORS.black} /> : null}
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
         </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Pays (code ISO à 2 lettres)</Text>
-          <TextInput
-            style={styles.input}
-            value={country}
-            onChangeText={(t) => setCountry(t.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase())}
-            autoCapitalize="characters"
-            placeholder="FR"
-            placeholderTextColor={COLORS.textSoft}
-          />
-        </View>
-      </ScrollView>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 54, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  title: { fontSize: 18, fontWeight: '800' },
-  save: { color: COLORS.black, fontSize: 15, fontWeight: '800', letterSpacing: 0.4 },
+  title: { fontSize: 18, fontFamily: FONTS.extraBold },
+  save: { color: COLORS.black, fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#e5e5e5' },
   avatarEmpty: { alignItems: 'center', justifyContent: 'center' },
   cover: { width: 96, height: 64, borderRadius: 6, backgroundColor: '#e5e5e5' },
-  link: { color: COLORS.blue, fontSize: 17 },
+  link: { color: COLORS.blue, fontFamily: FONTS.regular, fontSize: 17 },
   field: { paddingHorizontal: 20, paddingTop: 18 },
-  label: { fontSize: 15, color: COLORS.textMuted },
-  input: { fontSize: 18, color: COLORS.blue, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8, marginTop: 4 },
-  section: { fontSize: 22, fontWeight: '800', paddingHorizontal: 20, paddingTop: 28 },
-  chips: { flexDirection: 'row', gap: 10, marginTop: 10 },
-  chip: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 8 },
-  chipActive: { backgroundColor: COLORS.yellow, borderColor: COLORS.yellow },
-  chipText: { fontSize: 15, fontWeight: '700', color: COLORS.textMuted },
-  chipTextActive: { color: COLORS.black },
+  label: { fontFamily: FONTS.regular, fontSize: 15, color: COLORS.textMuted },
+  input: { fontFamily: FONTS.regular, fontSize: 18, color: COLORS.blue, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8, marginTop: 4 },
+  section: { fontSize: 22, fontFamily: FONTS.extraBold, paddingHorizontal: 20, paddingTop: 28 },
+  value: { fontFamily: FONTS.regular, fontSize: 18, color: COLORS.blue, paddingVertical: 8, marginTop: 4, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  valueEmpty: { color: COLORS.textSoft },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: COLORS.white, borderTopLeftRadius: 8, borderTopRightRadius: 8, paddingBottom: 24 },
+  sheetItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 60, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
+  sheetLabel: { fontFamily: FONTS.regular, fontSize: 18 },
+  countryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
+  countryName: { fontFamily: FONTS.regular, fontSize: 17 },
+  countrySelected: { fontFamily: FONTS.bold },
 });

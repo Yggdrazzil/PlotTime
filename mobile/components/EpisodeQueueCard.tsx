@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import type { QueueItemDto } from '@/lib/types';
 import { episodeCode } from '@/lib/format';
 import { tmdbImage } from '@/lib/api';
-import { COLORS, RADIUS, SHADOW } from '@/lib/theme';
+import { COLORS, RADIUS, SHADOW, FONTS } from '@/lib/theme';
 import { ShowPill, Badge, CheckCircle } from './ui';
 
 const BADGE_MAP: Record<string, { label: string; variant: 'black' | 'yellow' }> = {
@@ -72,9 +72,9 @@ const styles = StyleSheet.create({
   thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 4 },
   codeRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  code: { fontSize: 26, fontWeight: '800' },
-  plus: { fontSize: 15, fontWeight: '800' },
-  epTitle: { fontSize: 18 },
+  code: { fontSize: 26, fontFamily: FONTS.extraBold },
+  plus: { fontSize: 15, fontFamily: FONTS.extraBold },
+  epTitle: { fontFamily: FONTS.regular, fontSize: 18 },
   badges: { flexDirection: 'row', gap: 8, marginTop: 2 },
   checkWrap: { justifyContent: 'center', paddingRight: 16 },
 });
