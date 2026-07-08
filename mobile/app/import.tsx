@@ -14,15 +14,14 @@ type Summary = {
   toVerify: number;
   unresolved: number;
   duplicatesIgnored: number;
-  progress?: { phase: 'apply' | 'artwork' | 'episodes' | 'done'; done: number; total: number };
+  progress?: { phase: 'apply' | 'artwork' | 'done'; done: number; total: number };
 };
 
 type Step = 'idle' | 'uploading' | 'analyzing' | 'analyzed' | 'importing' | 'done';
 
 const PHASE_LABEL: Record<string, string> = {
-  apply: 'Import des séries et de la progression…',
-  artwork: 'Récupération des affiches…',
-  episodes: 'Récupération des épisodes…',
+  apply: 'Étape 1/2 · Séries, films, progression et favoris…',
+  artwork: 'Étape 2/2 · Récupération des affiches…',
   done: 'Terminé',
 };
 
