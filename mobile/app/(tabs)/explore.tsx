@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import { useDebounced } from '@/lib/useDebounced';
-import { COLORS, FONTS, SHADOW } from '@/lib/theme';
+import { COLORS, FONTS } from '@/lib/theme';
 import { EmptyState, Loading } from '@/components/ui';
 
 type FeedItem = {
@@ -578,6 +578,9 @@ function Feed({
   }
 
   const rotate = pos.x.interpolate({ inputRange: [-WIN_W, 0, WIN_W], outputRange: ['-9deg', '0deg', '9deg'] });
+  // La carte du dessous grandit vers 1 à mesure qu'on éloigne la carte du dessus
+  // (effet de pile fluide façon Tinder).
+  const nextScale = pos.x.interpolate({ inputRange: [-WIN_W, 0, WIN_W], outputRange: [1, 0.94, 1], extrapolate: 'clamp' });
   const likeOp = pos.x.interpolate({ inputRange: [0, SWIPE_X], outputRange: [0, 1], extrapolate: 'clamp' });
   const nopeOp = pos.x.interpolate({ inputRange: [-SWIPE_X, 0], outputRange: [1, 0], extrapolate: 'clamp' });
   const dejaOp = pos.y.interpolate({ inputRange: [0, SWIPE_Y], outputRange: [0, 1], extrapolate: 'clamp' });
@@ -606,10 +609,10 @@ function Feed({
           <>
             {/* carte suivante en dessous (effet de pile) */}
             {upcoming ? (
-              <View style={[styles.deckCard, { transform: [{ scale: 0.96 }] }]} pointerEvents="none">
+              <Animated.View style={[styles.deckCard, { transform: [{ scale: nextScale }] }]} pointerEvents="none">
                 {cardImg(upcoming) ? <Image source={{ uri: cardImg(upcoming)! }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
                 <View style={styles.deckShade} />
-              </View>
+              </Animated.View>
             ) : null}
 
             {/* carte courante, déplaçable */}
@@ -647,6 +650,7 @@ function Feed({
                 {current.overview ? (
                   <Text style={styles.deckOverview} numberOfLines={2}>{current.overview}</Text>
                 ) : null}
+                <Text style={styles.deckHint}>Touche pour les détails · glisse pour trier</Text>
               </View>
             </Animated.View>
           </>
@@ -662,21 +666,6 @@ function Feed({
           </View>
         )}
       </View>
-
-      {/* Boutons (équivalents des swipes) */}
-      {current ? (
-        <View style={styles.deckActions}>
-          <Pressable style={[styles.actBtn, styles.actNope]} onPress={() => fling(-WIN_W * 1.5, doPasInteresse)} hitSlop={8}>
-            <Feather name="x" size={30} color={COLORS.red} />
-          </Pressable>
-          <Pressable style={[styles.actBtn, styles.actInfo]} onPress={() => openFiche(current)} hitSlop={8}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Feather name="info" size={24} color="#fff" />}
-          </Pressable>
-          <Pressable style={[styles.actBtn, styles.actLike]} onPress={() => fling(WIN_W * 1.5, doAVoir)} hitSlop={8}>
-            <Feather name="heart" size={28} color={COLORS.black} />
-          </Pressable>
-        </View>
-      ) : null}
 
       {/* Panneau détails (tap) : posé sur l'image comme TikTok (image visible au-dessus) */}
       {detail && current ? (
@@ -788,7 +777,7 @@ const styles = StyleSheet.create({
   catChipDark: { backgroundColor: 'rgba(255,255,255,0.14)' },
   deckHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, gap: 10 },
   deckRefresh: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', marginLeft: 'auto', backgroundColor: 'rgba(0,0,0,0.35)' },
-  deckCard: { ...StyleSheet.absoluteFillObject, margin: 10, borderRadius: 18, overflow: 'hidden', backgroundColor: '#1a1a22', justifyContent: 'flex-end' },
+  deckCard: { ...StyleSheet.absoluteFillObject, margin: 6, borderRadius: 18, overflow: 'hidden', backgroundColor: '#1a1a22', justifyContent: 'flex-end' },
   deckShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.28)' },
   tagLike: { position: 'absolute', top: 60, left: 24, borderWidth: 4, borderColor: COLORS.green, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, transform: [{ rotate: '-14deg' }] },
   tagLikeText: { color: COLORS.green, fontFamily: FONTS.extraBold, fontSize: 28, letterSpacing: 1 },
@@ -807,11 +796,6 @@ const styles = StyleSheet.create({
   deckEndMsg: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15, textAlign: 'center' },
   deckEndBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 13, marginTop: 8 },
   deckEndBtnText: { fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.5 },
-  deckActions: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 26, paddingVertical: 14 },
-  actBtn: { alignItems: 'center', justifyContent: 'center', borderRadius: 999, ...SHADOW.card },
-  actNope: { width: 62, height: 62, backgroundColor: '#fff', borderWidth: 2, borderColor: COLORS.red },
-  actInfo: { width: 50, height: 50, backgroundColor: '#33333d' },
-  actLike: { width: 62, height: 62, backgroundColor: COLORS.yellow },
   // --- Panneau détails (tap) : posé sur l'image, façon TikTok ---
   detailSheet: { position: 'absolute', left: 0, right: 0, top: '30%', bottom: 0, backgroundColor: 'rgba(8,8,12,0.94)', borderTopLeftRadius: 22, borderTopRightRadius: 22, zIndex: 20 },
   detailGrip: { alignSelf: 'center', paddingTop: 8, paddingBottom: 6 },
