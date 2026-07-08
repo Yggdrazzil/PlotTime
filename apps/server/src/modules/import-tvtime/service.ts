@@ -21,7 +21,13 @@ import {
 import { prisma } from '../../db/client.js';
 import { env } from '../../config/env.js';
 import { toJson, fromJson } from '../../utils/json.js';
-import { tmdbEnabled, tmdbSearch, ensureMediaFromTmdb } from '../../services/tmdb/index.js';
+import {
+  tmdbEnabled,
+  tmdbSearch,
+  ensureMediaFromTmdb,
+  tmdbFindByExternalId,
+  syncShowEpisodesFromTmdb,
+} from '../../services/tmdb/index.js';
 import { markEpisodeWatched, recalculateShowStatus } from '../media/actions.js';
 
 const IMPORTS_DIR = path.resolve('data/imports');
@@ -247,8 +253,13 @@ export async function analyzeImport(importId: string): Promise<ImportAnalysisSum
     let decision: MappingRaw['decision'] = best && best.score >= 70 ? 'existing' : null;
     let tmdbSuggestionId: string | undefined;
 
-    // TMDb : suggestions supplémentaires si configuré.
-    if ((!best || best.score < 90) && tmdbEnabled() && media.mediaType !== 'unknown') {
+    // TMDb : suggestions supplémentaires si configuré. On saute la recherche
+    // quand le média a déjà un id externe (tvdb/tmdb/imdb) : il s'auto-résout
+    // (score 100) et une recherche serait inutile — crucial pour les gros
+    // imports (ex. ~945 séries TV Time, toutes avec un id TheTVDB : sinon
+    // l'analyse ferait ~945 appels TMDb et dépasserait le temps d'une requête).
+    const hasExternalId = Boolean(media.tvdbId || media.tmdbId || media.imdbId);
+    if ((!best || best.score < 90) && tmdbEnabled() && media.mediaType !== 'unknown' && !hasExternalId) {
       const remote = await tmdbSearch(media.title, media.mediaType === 'movie' ? 'movie' : 'tv', media.year).catch(
         () => [],
       );
@@ -413,7 +424,12 @@ async function ensureMediaForMapping(raw: MappingRaw, matchedMediaId: string | n
   return media.id;
 }
 
-export async function applyMapping(userId: string, importId: string, mappingId: string): Promise<void> {
+export async function applyMapping(
+  userId: string,
+  importId: string,
+  mappingId: string,
+  preloadedEpisodes?: Map<string, NormalizedImportedEpisode[]>,
+): Promise<void> {
   const mapping = await prisma.importMapping.findUniqueOrThrow({ where: { id: mappingId } });
   const raw = fromJson<MappingRaw | null>(mapping.rawJson, null);
   if (!raw) return;
@@ -477,7 +493,7 @@ export async function applyMapping(userId: string, importId: string, mappingId: 
 
   // Épisodes vus
   if (media.type === 'show' && media.show) {
-    const episodesIndex = await loadEpisodesIndex(importId);
+    const episodesIndex = preloadedEpisodes ?? (await loadEpisodesIndex(importId));
     const keys = new Set<string>();
     if (normalized.tvdbId) keys.add(`tvdb:${normalized.tvdbId}`);
     keys.add(`show:${normalizeTitle(normalized.title)}`);
@@ -517,16 +533,9 @@ export async function applyMapping(userId: string, importId: string, mappingId: 
         },
         update: { status: 'watched', watchedAt: epWatchedAt },
       });
-      await prisma.watchEvent.create({
-        data: {
-          userId,
-          mediaId,
-          episodeId: dbEpisode.id,
-          eventType: 'watched',
-          eventDate: epWatchedAt,
-          source: 'import:tvtime',
-        },
-      });
+      // Pas de watchEvent par épisode ici : un import TV Time peut contenir des
+      // dizaines de milliers d'épisodes, ça inonderait le fil d'activité. Le
+      // statut « vu » (userEpisodeStatus) suffit à la progression.
     }
     if (episodes.length > 0) {
       await recalculateShowStatus(userId, media.show.id, lastWatched);
@@ -534,41 +543,126 @@ export async function applyMapping(userId: string, importId: string, mappingId: 
   }
 }
 
-export async function confirmImport(userId: string, importId: string): Promise<{ applied: number }> {
-  const mappings = await prisma.importMapping.findMany({
-    where: { importId, matchStatus: { in: ['matched_auto', 'matched_manual'] } },
-  });
-  let applied = 0;
-  const errors: { mappingId: string; title: string; error: string }[] = [];
-  for (const mapping of mappings) {
-    try {
-      await applyMapping(userId, importId, mapping.id);
-      applied++;
-    } catch (err) {
-      errors.push({
-        mappingId: mapping.id,
-        title: mapping.sourceTitle,
-        error: err instanceof Error ? err.message : String(err),
+export type ImportProgress = {
+  phase: 'apply' | 'artwork' | 'episodes' | 'done';
+  done: number;
+  total: number;
+};
+
+// Progression stockée dans summaryJson (à côté du résumé d'analyse) : pas de
+// migration nécessaire, l'app la lit via GET /api/import/tvtime/:id.
+async function setProgress(importId: string, progress: ImportProgress): Promise<void> {
+  const row = await prisma.import.findUnique({ where: { id: importId } });
+  const summary = fromJson<Record<string, unknown>>(row?.summaryJson ?? null, {});
+  summary.progress = progress;
+  await prisma.import.update({ where: { id: importId }, data: { summaryJson: toJson(summary) } });
+}
+
+// Enrichit une série importée depuis TMDb : résout l'id TVDB → TMDb (l'export
+// TV Time ne donne que des ids TheTVDB), pose l'affiche, puis (optionnel) la
+// liste d'épisodes complète. L'upsert d'épisodes par (série, saison, numéro)
+// enrichit les épisodes-placeholder posés à l'import sans perdre les « vu ».
+async function enrichImportedShow(mediaId: string, opts: { episodes: boolean }): Promise<void> {
+  const media = await prisma.media.findUnique({ where: { id: mediaId }, include: { show: true } });
+  if (!media || media.type !== 'show') return;
+  if (!media.tmdbId && media.tvdbId && tmdbEnabled()) {
+    const found = await tmdbFindByExternalId(String(media.tvdbId), 'tvdb_id').catch(() => null);
+    const tv = found?.tv_results?.[0];
+    if (tv) {
+      await prisma.media.update({
+        where: { id: mediaId },
+        data: {
+          tmdbId: String(tv.id),
+          posterPath: media.posterPath ?? tv.poster_path ?? undefined,
+          backdropPath: media.backdropPath ?? tv.backdrop_path ?? undefined,
+          overview: media.overview ?? tv.overview ?? undefined,
+          year: media.year ?? (tv.first_air_date ? new Date(tv.first_air_date).getFullYear() : undefined),
+        },
       });
     }
   }
+  if (opts.episodes) {
+    await syncShowEpisodesFromTmdb(mediaId).catch(() => undefined);
+  }
+}
+
+// Lance l'import en tâche de fond et rend la main immédiatement : le volume
+// (jusqu'à ~1000 séries / des dizaines de milliers d'épisodes) dépasse de loin
+// le temps d'une requête HTTP. L'app suit la progression via le statut.
+export async function confirmImport(userId: string, importId: string): Promise<{ status: string; total: number }> {
+  const mappings = await prisma.importMapping.findMany({
+    where: { importId, matchStatus: { in: ['matched_auto', 'matched_manual'] } },
+    select: { id: true },
+  });
+  const total = mappings.length;
+  await setProgress(importId, { phase: 'apply', done: 0, total });
+  await prisma.import.update({ where: { id: importId }, data: { status: 'importing', errorJson: null } });
+  void runImportJob(userId, importId, mappings.map((m) => m.id)).catch(async (err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    await prisma.import
+      .update({ where: { id: importId }, data: { status: 'failed', errorJson: toJson({ message }) } })
+      .catch(() => undefined);
+  });
+  return { status: 'importing', total };
+}
+
+async function runImportJob(userId: string, importId: string, mappingIds: string[]): Promise<void> {
+  const episodesIndex = await loadEpisodesIndex(importId);
+  const errors: { mappingId: string; title: string; error: string }[] = [];
+  const total = mappingIds.length;
+
+  // Phase 1 — statuts, favoris, épisodes vus (rapide, aucun appel réseau).
+  let done = 0;
+  for (const mappingId of mappingIds) {
+    try {
+      await applyMapping(userId, importId, mappingId, episodesIndex);
+    } catch (err) {
+      const mapping = await prisma.importMapping.findUnique({ where: { id: mappingId } }).catch(() => null);
+      errors.push({ mappingId, title: mapping?.sourceTitle ?? '?', error: err instanceof Error ? err.message : String(err) });
+    }
+    if (++done % 20 === 0 || done === total) await setProgress(importId, { phase: 'apply', done, total });
+  }
+
+  const showMappings = await prisma.importMapping.findMany({
+    where: {
+      importId,
+      matchStatus: { in: ['matched_auto', 'matched_manual'] },
+      sourceType: 'show',
+      matchedMediaId: { not: null },
+    },
+    select: { matchedMediaId: true },
+  });
+  const showIds = [...new Set(showMappings.map((m) => m.matchedMediaId).filter((x): x is string => !!x))];
+
+  if (tmdbEnabled() && showIds.length > 0) {
+    // Phase 2 — affiches d'abord : la grille se remplit vite.
+    done = 0;
+    for (const mediaId of showIds) {
+      await enrichImportedShow(mediaId, { episodes: false }).catch(() => undefined);
+      if (++done % 10 === 0 || done === showIds.length) await setProgress(importId, { phase: 'artwork', done, total: showIds.length });
+    }
+    // Phase 3 — listes d'épisodes complètes (plus lent, en arrière-plan).
+    done = 0;
+    for (const mediaId of showIds) {
+      await enrichImportedShow(mediaId, { episodes: true }).catch(() => undefined);
+      if (++done % 10 === 0 || done === showIds.length) await setProgress(importId, { phase: 'episodes', done, total: showIds.length });
+    }
+  }
+
+  await setProgress(importId, { phase: 'done', done: total, total });
   await prisma.import.update({
     where: { id: importId },
-    data: {
-      status: 'imported',
-      errorJson: errors.length > 0 ? toJson(errors) : null,
-    },
+    data: { status: 'imported', errorJson: errors.length > 0 ? toJson(errors) : null },
   });
   await prisma.notification.create({
     data: {
       userId,
       type: 'import_done',
       title: 'Import terminé',
-      body: `${applied} éléments importés depuis votre archive TV Time.`,
+      body: `${total - errors.length} séries/films importés depuis votre archive TV Time.`,
       date: new Date(),
     },
   });
-  return { applied };
 }
 
 export { markEpisodeWatched };

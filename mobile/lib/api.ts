@@ -46,11 +46,38 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
+// Envoi de fichier (multipart) : utilisé par l'import TV Time. On NE fixe PAS
+// le Content-Type — le navigateur/RN pose lui-même le boundary du multipart.
+async function upload<T>(path: string, file: Blob, filename: string): Promise<T> {
+  const { token } = useAppStore.getState();
+  const serverUrl = resolvedServerUrl();
+  if (!serverUrl) throw new ApiError(0, 'no_server');
+  const form = new FormData();
+  // Le 3e argument (filename) est requis côté serveur (@fastify/multipart).
+  form.append('file', file as Blob, filename);
+  const res = await fetch(`${serverUrl}${path}`, {
+    method: 'POST',
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: form,
+  });
+  const data = await res.json().catch(() => null);
+  if (res.status === 401) {
+    if (token && !path.startsWith('/api/auth/')) {
+      useAppStore.getState().logout();
+      router.replace('/setup');
+    }
+    throw new ApiError(401, (data && data.error) || 'unauthorized');
+  }
+  if (!res.ok) throw new ApiError(res.status, (data && data.error) || 'request_failed');
+  return data as T;
+}
+
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   del: <T>(path: string) => request<T>('DELETE', path),
+  upload,
 };
 
 // Construit l'URL d'une image. Les chemins TMDb (« /abc.jpg ») sont préfixés ;

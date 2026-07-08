@@ -31,6 +31,25 @@ const FILE_KEYWORDS: [FileKind, RegExp][] = [
   ['profile', /(user|profile)/i],
 ];
 
+// Fichiers de l'export TV Time qu'on sait traiter, mappés explicitement.
+// L'export réel contient ~60 fichiers ; sans cette liste blanche, l'heuristique
+// par mots-clés classe à tort commentaires, votes d'émotion, images perso, etc.
+// comme des séries/films → camelote. On ne traite QUE ces fichiers-là.
+const TVTIME_KNOWN: [RegExp, FileKind][] = [
+  [/^followed_tv_show(_source)?\.csv$/i, 'shows'],
+  [/^user_tv_show_data\.csv$/i, 'shows'],
+  [/^user_show_special_status\.csv$/i, 'shows'],
+  [/^tracking-prod-records(-v2)?\.csv$/i, 'episodes_watched'],
+  [/^(show[_-])?seen[_-]?episode.*\.csv$/i, 'episodes_watched'],
+  [/^watched_on_episode\.csv$/i, 'episodes_watched'],
+];
+
+// Fichiers système / bruyants de l'export TV Time : toujours ignorés. Sans ça,
+// ex. comments-prod-comments.csv devient 60 « films », where-to-watch 10 « à
+// voir », recommended_show_excluded des séries suivies… (constaté sur un export réel).
+const TVTIME_IGNORE =
+  /(comment|emotion|where-to-watch|recommend|custom_show_image|addiction|character|count-by-timeframe|deployment|install|badge|friend|token|device|ip_address|notification|webhook|session|leaderboard|social|facebook|setting|personal_data|statistic|connection|customization|appsflyer|ad_identifier|gdpr|platform|mail_sent|last_updated|votes|lists-prod|stats-prod)/i;
+
 // Column keywords that refine detection when the filename is ambiguous.
 const EPISODE_COLUMNS = /^(episode(_?number)?|season(_?number)?|episode_season_number|s\d+e\d+)$/i;
 const MOVIE_COLUMNS = /^(movie_?(title|name|id)|release_date)$/i;
@@ -41,6 +60,18 @@ export function detectFileKind(path: string, rows: RawRecord[]): FileKind {
   const hasMovieColumns = columns.some((c) => MOVIE_COLUMNS.test(c.trim()));
 
   const base = path.split('/').pop() ?? path;
+
+  // 1) Fichiers TV Time connus : mapping explicite (prioritaire).
+  for (const [re, kind] of TVTIME_KNOWN) {
+    if (re.test(base)) {
+      if (kind === 'shows' && hasEpisodeColumns) return 'episodes_watched';
+      return kind;
+    }
+  }
+  // 2) Fichiers système/bruyants de l'export TV Time : ignorés.
+  if (TVTIME_IGNORE.test(base)) return 'unknown';
+
+  // 3) Heuristique générique par mots-clés (autres sources / fixtures de test).
   for (const [kind, re] of FILE_KEYWORDS) {
     if (re.test(base)) {
       if (kind === 'shows' && hasEpisodeColumns) return 'episodes_watched';
@@ -117,7 +148,7 @@ const FIELD_ALIASES: Record<string, string[]> = {
   addedAt: ['added_at', 'created_at', 'followed_at', 'date_added'],
   rating: ['rating', 'note', 'score', 'stars'],
   status: ['status', 'state', 'show_status', 'watch_status'],
-  favorite: ['favorite', 'is_favorite', 'favourite', 'favorited'],
+  favorite: ['favorite', 'is_favorite', 'favourite', 'favorited', 'is_favorited'],
   tvdbId: ['tvdb_id', 'tvdbid', 'thetvdb_id', 'series_id', 'tv_show_id', 'show_id'],
   tvdbEpisodeId: ['episode_id', 'tvdb_episode_id'],
   tmdbId: ['tmdb_id', 'tmdbid', 'themoviedb_id', 'movie_id'],

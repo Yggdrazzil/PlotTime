@@ -60,10 +60,20 @@ export function normalizeImportedMedia(record: RawRecord, fileKind: FileKind): N
 
   const isWatched = parseBoolSafe(pickField(record, 'isWatched'));
   let status = typeof pickField(record, 'status') === 'string' ? String(pickField(record, 'status')) : undefined;
+  // TV Time range « favorite » et « for_later » dans la même colonne status
+  // (user_show_special_status.csv). « favorite » n'est pas un statut de suivi :
+  // on le bascule en favori et on laisse le statut se déduire ailleurs.
+  let favoriteFromStatus = false;
+  if (status && status.trim().toLowerCase() === 'favorite') {
+    favoriteFromStatus = true;
+    status = undefined;
+  }
   if (!status) {
     if (fileKind === 'watchlist') status = 'watchlist';
     else if (isWatched === true) status = 'watched';
   }
+  const isFavorite =
+    fileKind === 'favorites' || favoriteFromStatus || parseBoolSafe(pickField(record, 'favorite')) === true;
 
   return {
     source: 'tvtime',
@@ -75,7 +85,7 @@ export function normalizeImportedMedia(record: RawRecord, fileKind: FileKind): N
     ...ids,
     status,
     rating: parseFloatSafe(pickField(record, 'rating')),
-    isFavorite: fileKind === 'favorites' ? true : parseBoolSafe(pickField(record, 'favorite')),
+    isFavorite,
     addedAt: parseDateSafe(pickField(record, 'addedAt')),
     watchedAt: parseDateSafe(pickField(record, 'watchedAt')),
     listNames: typeof listName === 'string' && listName.trim() ? [listName.trim()] : undefined,
