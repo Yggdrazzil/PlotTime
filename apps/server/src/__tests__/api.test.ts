@@ -222,7 +222,16 @@ describe('SerieTime API', () => {
       headers: auth(),
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().applied).toBe(4);
+    // L'import tourne désormais en tâche de fond : la confirmation rend la main
+    // aussitôt (statut « importing »), on attend qu'il se termine.
+    expect(res.json().status).toBe('importing');
+    let status = '';
+    for (let i = 0; i < 100 && status !== 'imported'; i++) {
+      const s = await app.inject({ method: 'GET', url: `/api/import/tvtime/${importId}`, headers: auth() });
+      status = s.json().status;
+      if (status !== 'imported') await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(status).toBe('imported');
   });
 
   it('résout manuellement un mapping par création', async () => {

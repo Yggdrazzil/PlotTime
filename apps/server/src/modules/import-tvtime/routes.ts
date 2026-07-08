@@ -85,7 +85,7 @@ export async function importTvtimeRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(409).send({ error: 'not_analyzed' });
     }
     const result = await confirmImport(request.userId, id);
-    return { importId: id, status: 'imported', ...result };
+    return { importId: id, ...result };
   });
 
   app.get('/api/import/tvtime/:id', async (request, reply) => {
