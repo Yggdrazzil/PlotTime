@@ -66,6 +66,16 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
 
+### 2026-07-08 — Claude (5)
+- **Police de l'app : Rubik → Mulish** (partout, web + natif). Rubik, ronde et
+  large, rendait le texte « trop gros / grossier » vs TV Time même en bold et à
+  taille réduite. **Mulish** (sans-serif humaniste fine) colle au rendu net et
+  léger de TV Time — choisi par Étienne après comparaison visuelle (Rubik / Inter
+  / Montserrat / Mulish sur la carte « À voir »). `lib/theme.ts` (FONTS),
+  `app/_layout.tsx` (chargement), CLAUDE.md mis à jour ; paquets de polices
+  inutilisés retirés (rubik/inter/montserrat), seul `@expo-google-fonts/mulish`
+  reste. Règle inchangée : `fontFamily: FONTS.x`, jamais `fontWeight`.
+
 ### 2026-07-08 — Claude (4)
 - **Cartes « À voir » (onglet Séries) recalées pixel à pixel sur TV Time** — un
   gros delta de mise en page avait été signalé (cartes/texte trop grands, code
