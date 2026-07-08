@@ -13,3 +13,9 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     cpus: "1.0"
+    # Rotation des logs : borne l'espace disque (sinon json-file grandit sans fin).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
