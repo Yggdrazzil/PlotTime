@@ -74,6 +74,17 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
 
+### 2026-07-08 — Claude (2)
+- **Police Rubik** partout (native + web) : la plus proche de la géométrique
+  arrondie de TV Time parmi les polices libres ; graisses embarquées
+  (regular→extraBold), règle « fontFamily, jamais fontWeight » dans CLAUDE.md.
+- **Écran « Modifier le profil » conforme à TV Time** : Sexe et Pays en valeurs
+  bleues avec **menus déroulants** (liste des pays en toutes lettres,
+  `lib/countries.ts`), fin du champ code ISO.
+- Règles d'équipe documentées dans CLAUDE.md : un seul code pour app native et
+  web app (redéployer l'export web après fusion), design = copie fidèle de
+  TV Time (aucune liberté, comparer aux captures de référence).
+
 ### 2026-07-08 — Claude
 - **Sauvegarde du profil fiabilisée** : la photo de profil est compressée côté
   app (512 px ≈ 100 Ko via expo-image-manipulator) — les photos brutes en

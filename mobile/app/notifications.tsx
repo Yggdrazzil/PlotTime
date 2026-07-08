@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
-import { COLORS } from '@/lib/theme';
+import { COLORS, FONTS } from '@/lib/theme';
 import { EmptyState, Loading } from '@/components/ui';
 
 type Notif = {
@@ -90,11 +90,11 @@ export default function Notifications() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 52 },
-  title: { fontSize: 20, fontWeight: '800' },
+  title: { fontSize: 20, fontFamily: FONTS.extraBold },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   unread: { backgroundColor: COLORS.yellowSoft },
   iconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.chipGrey, alignItems: 'center', justifyContent: 'center' },
-  rowTitle: { fontSize: 15, fontWeight: '700', lineHeight: 20 },
-  rowBody: { fontSize: 14, color: COLORS.textMuted, marginTop: 2 },
+  rowTitle: { fontSize: 15, fontFamily: FONTS.bold, lineHeight: 20 },
+  rowBody: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textMuted, marginTop: 2 },
   poster: { width: 40, aspectRatio: 2 / 3, borderRadius: 3, backgroundColor: '#e5e5e5' },
 });

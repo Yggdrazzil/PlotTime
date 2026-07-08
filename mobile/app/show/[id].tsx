@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import type { EpisodeDto, MediaDto } from '@/lib/types';
 import { episodeCode } from '@/lib/format';
-import { COLORS, RADIUS, SHADOW } from '@/lib/theme';
+import { COLORS, RADIUS, SHADOW, FONTS } from '@/lib/theme';
 import { TopTabs, CheckCircle, Loading, EmptyState } from '@/components/ui';
 
 const INTEREST = ['LES ACTEURS', 'LA PRÉMISSE', 'LES CRÉATEURS', 'LA CHAÎNE/LA PLATEFORME', "LA FRANCHISE OU L'UNIVERS", 'AUTRE'];
@@ -418,8 +418,8 @@ function ListsSheet({
 
 const pstyles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 54, paddingBottom: 12 },
-  title: { fontSize: 20, fontWeight: '800' },
-  section: { fontSize: 18, fontWeight: '800', marginBottom: 12 },
+  title: { fontSize: 20, fontFamily: FONTS.extraBold },
+  section: { fontSize: 18, fontFamily: FONTS.extraBold, marginBottom: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   posterWrap: { width: '31%', aspectRatio: 2 / 3, borderRadius: 6, overflow: 'hidden', backgroundColor: '#e5e5e5' },
   poster: { width: '100%', height: '100%' },
@@ -428,12 +428,12 @@ const pstyles = StyleSheet.create({
   selected: { borderWidth: 3, borderColor: COLORS.yellow },
   check: { position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: 13, backgroundColor: COLORS.black, alignItems: 'center', justifyContent: 'center' },
   busy: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
-  emptyNote: { color: COLORS.textMuted, fontSize: 15 },
-  listCount: { color: COLORS.textMuted, fontSize: 15 },
+  emptyNote: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15 },
+  listCount: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15 },
   newListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 24, paddingVertical: 16 },
-  newListInput: { flex: 1, borderBottomWidth: 1, borderBottomColor: COLORS.border, fontSize: 17, paddingVertical: 8 },
+  newListInput: { flex: 1, borderBottomWidth: 1, borderBottomColor: COLORS.border, fontFamily: FONTS.regular, fontSize: 17, paddingVertical: 8 },
   newListBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
-  newListBtnText: { fontWeight: '800', fontSize: 13, letterSpacing: 0.4 },
+  newListBtnText: { fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
 });
 
 function AboutTab({ media, detail, interest, setInterest }: any) {
@@ -481,7 +481,7 @@ function MovieBody({ media, detail, onToggle }: any) {
       <View style={[styles.section, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Feather name="eye" size={22} color={COLORS.black} />
-          <Text style={{ fontSize: 17 }}>{seen ? 'Vu' : 'Pas vu'}</Text>
+          <Text style={{ fontFamily: FONTS.regular, fontSize: 17 }}>{seen ? 'Vu' : 'Pas vu'}</Text>
         </View>
         <CheckCircle checked={seen} onPress={onToggle} />
       </View>
@@ -617,36 +617,36 @@ const styles = StyleSheet.create({
   heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
   addBar: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: COLORS.yellow, paddingTop: 18, alignItems: 'center' },
   addBarRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  addBarText: { fontSize: 17, fontWeight: '800', letterSpacing: 0.6 },
+  addBarText: { fontSize: 17, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
   heroBtns: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14 },
   heroTitleWrap: { padding: 20 },
-  heroTitle: { color: '#fff', fontSize: 27, fontWeight: '800' },
-  heroSub: { color: 'rgba(255,255,255,0.9)', fontSize: 15, marginTop: 2 },
+  heroTitle: { color: '#fff', fontSize: 27, fontFamily: FONTS.extraBold },
+  heroSub: { color: 'rgba(255,255,255,0.9)', fontFamily: FONTS.regular, fontSize: 15, marginTop: 2 },
   section: { padding: 22, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   sectionHeadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, marginBottom: 14 },
-  sectionTitle: { fontSize: 24, fontWeight: '800' },
-  muted: { color: COLORS.textMuted, fontSize: 16, marginTop: 8 },
-  overview: { fontSize: 18, lineHeight: 26, marginTop: 16 },
+  sectionTitle: { fontSize: 24, fontFamily: FONTS.extraBold },
+  muted: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 16, marginTop: 8 },
+  overview: { fontFamily: FONTS.regular, fontSize: 18, lineHeight: 26, marginTop: 16 },
   provBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.provider, borderRadius: 999, paddingHorizontal: 24, paddingVertical: 12, alignSelf: 'flex-start', marginTop: 12 },
-  provText: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  question: { textAlign: 'center', fontSize: 14, fontWeight: '700', marginBottom: 16 },
+  provText: { color: '#fff', fontSize: 15, fontFamily: FONTS.extraBold },
+  question: { textAlign: 'center', fontSize: 14, fontFamily: FONTS.bold, marginBottom: 16 },
   qbtn: { backgroundColor: COLORS.chipGrey, borderRadius: 6, paddingVertical: 16, marginBottom: 12, alignItems: 'center' },
   qbtnSel: { backgroundColor: COLORS.yellow },
-  qbtnText: { fontSize: 14, fontWeight: '700' },
+  qbtnText: { fontSize: 14, fontFamily: FONTS.bold },
   eprow: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 5, minHeight: 92, overflow: 'hidden', marginBottom: 8, ...SHADOW.card },
   epThumb: { width: 90, backgroundColor: '#e5e5e5' },
-  epCode: { fontSize: 19, fontWeight: '800' },
+  epCode: { fontSize: 19, fontFamily: FONTS.extraBold },
   markAllBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: COLORS.black, alignItems: 'center', justifyContent: 'center' },
   season: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 76, paddingHorizontal: 20, backgroundColor: COLORS.white, borderRadius: 5, ...SHADOW.season },
   seasonOpen: { borderBottomWidth: 3, borderBottomColor: COLORS.yellow },
-  seasonTitle: { fontSize: 24, fontWeight: '800' },
-  seasonProg: { fontSize: 17, marginRight: 14 },
+  seasonTitle: { fontSize: 24, fontFamily: FONTS.extraBold },
+  seasonProg: { fontFamily: FONTS.regular, fontSize: 17, marginRight: 14 },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
   sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: COLORS.white, borderTopLeftRadius: 5, borderTopRightRadius: 5, paddingBottom: 20 },
   statusRow: { backgroundColor: COLORS.chipGrey, borderBottomWidth: 3, borderBottomColor: COLORS.yellow, height: 62, justifyContent: 'center', paddingHorizontal: 24 },
-  statusText: { fontSize: 16, color: '#555' },
+  statusText: { fontFamily: FONTS.regular, fontSize: 16, color: '#555' },
   sheetItem: { flexDirection: 'row', alignItems: 'center', gap: 16, height: 62, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  sheetLabel: { fontSize: 18, fontWeight: '600' },
+  sheetLabel: { fontSize: 18, fontFamily: FONTS.semiBold },
 });
 
 type CommentDto = {
@@ -790,22 +790,22 @@ function CommentsTab({ mediaId }: { mediaId: string }) {
 const cstyles = StyleSheet.create({
   wrap: { padding: 20 },
   composer: { marginBottom: 20 },
-  input: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, minHeight: 60, padding: 12, fontSize: 16, textAlignVertical: 'top' },
+  input: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, minHeight: 60, padding: 12, fontFamily: FONTS.regular, fontSize: 16, textAlignVertical: 'top' },
   send: { alignSelf: 'flex-end', marginTop: 10, backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 10 },
-  sendText: { fontWeight: '800', fontSize: 13, letterSpacing: 0.4 },
+  sendText: { fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
   row: { flexDirection: 'row', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   replyRow: { borderBottomWidth: 0, paddingVertical: 8, marginLeft: 8, borderLeftWidth: 2, borderLeftColor: COLORS.borderLight, paddingLeft: 12 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#20202a', alignItems: 'center', justifyContent: 'center' },
-  avatarInit: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  name: { fontSize: 15, fontWeight: '800' },
-  body: { fontSize: 16, lineHeight: 22, marginTop: 3 },
+  avatarInit: { color: '#fff', fontSize: 16, fontFamily: FONTS.extraBold },
+  name: { fontSize: 15, fontFamily: FONTS.extraBold },
+  body: { fontFamily: FONTS.regular, fontSize: 16, lineHeight: 22, marginTop: 3 },
   reactBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   chip: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   chipActive: { borderColor: COLORS.yellow, backgroundColor: COLORS.yellowSoft },
-  chipText: { fontSize: 14 },
+  chipText: { fontFamily: FONTS.regular, fontSize: 14 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 20, marginTop: 8 },
-  action: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
+  action: { fontSize: 14, color: COLORS.textMuted, fontFamily: FONTS.semiBold },
   replyComposer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-  replyInput: { flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15 },
+  replyInput: { flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: FONTS.regular, fontSize: 15 },
   replySend: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
 });

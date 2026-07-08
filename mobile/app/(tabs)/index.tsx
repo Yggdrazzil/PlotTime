@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { QueueItemDto, UpcomingItemDto } from '@/lib/types';
 import { queueGroupLabel, episodeCode, timeHHMM } from '@/lib/format';
-import { COLORS, RADIUS, SHADOW } from '@/lib/theme';
+import { COLORS, RADIUS, SHADOW, FONTS } from '@/lib/theme';
 import { PillHeader, TopTabs, EmptyState, Loading, ShowPill, Badge, CheckCircle } from '@/components/ui';
 import { EpisodeQueueCard } from '@/components/EpisodeQueueCard';
 
@@ -136,9 +136,9 @@ const styles = StyleSheet.create({
   thumb: { width: 96, backgroundColor: '#e5e5e5', alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 4 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' },
-  time: { fontSize: 14, fontWeight: '700' },
-  ch: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
-  code: { fontSize: 26, fontWeight: '800' },
-  epTitle: { fontSize: 18 },
-  multi: { color: COLORS.blue, fontSize: 15, marginTop: 6 },
+  time: { fontSize: 14, fontFamily: FONTS.bold },
+  ch: { fontSize: 12, fontFamily: FONTS.bold, textTransform: 'uppercase' },
+  code: { fontSize: 26, fontFamily: FONTS.extraBold },
+  epTitle: { fontFamily: FONTS.regular, fontSize: 18 },
+  multi: { color: COLORS.blue, fontFamily: FONTS.regular, fontSize: 15, marginTop: 6 },
 });

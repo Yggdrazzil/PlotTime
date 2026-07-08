@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '@/lib/theme';
+import { COLORS, FONTS } from '@/lib/theme';
 
 const ICONS: Record<string, keyof typeof Feather.glyphMap> = {
   index: 'tv',
@@ -47,6 +47,6 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 const styles = StyleSheet.create({
   bar: { flexDirection: 'row', backgroundColor: COLORS.white, borderTopWidth: 1, borderTopColor: COLORS.border },
   item: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 8 },
-  label: { fontSize: 11 },
+  label: { fontFamily: FONTS.regular, fontSize: 11 },
   dot: { position: 'absolute', top: -2, right: -4, width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.red },
 });

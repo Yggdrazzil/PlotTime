@@ -50,6 +50,25 @@ IP : `ipconfig | Select-String "IPv4"`.
 - Le collègue travaille sur des branches courtes par fonctionnalité, fusionnées
   dans `main` via PR.
 
+## App native et web app : un seul code
+
+La web app (https://serietime.studio-vives.fr) est **l'export web du même
+projet Expo** (`mobile/`) : toute modification de `mobile/` vaut pour les deux.
+Il n'y a JAMAIS de changement « côté app » à reporter « côté web » — en
+revanche, la prod web est un build statique : **après fusion dans `main`,
+redéployer** (`npx expo export -p web` sur le VPS, géré par Benjamin).
+Écrire le code compatible avec les deux plateformes (tester sur web via
+`npx expo start --web` quand un module natif est utilisé — le charger
+dynamiquement avec garde d'erreur, cf. expo-image-picker).
+
+## Design : copie fidèle de TV Time (règle produit)
+
+Objectif assumé : **répliquer l'esthétique et le fonctionnement de TV Time**
+(références : `docs/screenshots/reference/`). Pas de liberté créative — en cas
+de doute, comparer à la capture. Police : Rubik (voir `FONTS` dans
+`mobile/lib/theme.ts`) ; toujours utiliser `fontFamily: FONTS.x`, jamais
+`fontWeight` (Android ne synthétise pas les graisses embarquées).
+
 ## Suivi d'avancement (règle d'équipe)
 
 **Après chaque modification ou ajout de fonctionnalité, mettre à jour

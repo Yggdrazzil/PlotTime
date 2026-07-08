@@ -1,9 +1,18 @@
 import React from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  useFonts,
+  Rubik_400Regular,
+  Rubik_500Medium,
+  Rubik_600SemiBold,
+  Rubik_700Bold,
+  Rubik_800ExtraBold,
+} from '@expo-google-fonts/rubik';
 import { COLORS } from '@/lib/theme';
 
 const queryClient = new QueryClient({
@@ -11,6 +20,21 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
+  // Police de l'app (voir FONTS dans lib/theme.ts) — chargée avant tout rendu.
+  const [fontsLoaded] = useFonts({
+    Rubik_400Regular,
+    Rubik_500Medium,
+    Rubik_600SemiBold,
+    Rubik_700Bold,
+    Rubik_800ExtraBold,
+  });
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}>
+        <ActivityIndicator color={COLORS.black} />
+      </View>
+    );
+  }
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

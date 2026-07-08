@@ -1,4 +1,16 @@
 // Design tokens SerieTime (spec §10) — blanc, noir, jaune, mobile-first.
+
+// Police unique de l'app (native + web) : Rubik, la plus proche de la
+// géométrique arrondie de TV Time parmi les polices libres. Les styles
+// utilisent une famille par graisse (pas de fontWeight : Android ne
+// synthétise pas les graisses des polices embarquées).
+export const FONTS = {
+  regular: 'Rubik_400Regular',
+  medium: 'Rubik_500Medium',
+  semiBold: 'Rubik_600SemiBold',
+  bold: 'Rubik_700Bold',
+  extraBold: 'Rubik_800ExtraBold',
+} as const;
 export const COLORS = {
   bg: '#FFFFFF',
   pageMuted: '#F2F2F2',

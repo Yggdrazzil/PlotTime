@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import { useDebounced } from '@/lib/useDebounced';
-import { COLORS } from '@/lib/theme';
+import { COLORS, FONTS } from '@/lib/theme';
 import { EmptyState, Loading } from '@/components/ui';
 
 type FeedItem = {
@@ -341,37 +341,37 @@ function Feed({ items, loading }: { items?: FeedItem[]; loading: boolean }) {
 
 const styles = StyleSheet.create({
   searchbar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, height: 70 },
-  input: { flex: 1, fontSize: 19, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
-  cancel: { color: COLORS.blue, fontSize: 17 },
+  input: { flex: 1, fontFamily: FONTS.regular, fontSize: 19, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
+  cancel: { color: COLORS.blue, fontFamily: FONTS.regular, fontSize: 17 },
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   tab: { paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 3, borderBottomColor: 'transparent', marginBottom: -1 },
   tabActive: { borderBottomColor: COLORS.black },
-  tabText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.4, color: COLORS.textSoft },
+  tabText: { fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.4, color: COLORS.textSoft },
   tabTextActive: { color: COLORS.black },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingVertical: 10 },
   resultPoster: { width: 74, aspectRatio: 2 / 3, borderRadius: 6, backgroundColor: '#e5e5e5' },
   posterEmpty: { alignItems: 'center', justifyContent: 'center' },
-  resultTitle: { fontSize: 20, fontWeight: '700' },
+  resultTitle: { fontSize: 20, fontFamily: FONTS.bold },
   resultMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  resultMeta: { fontSize: 15, color: COLORS.textMuted },
+  resultMeta: { fontFamily: FONTS.regular, fontSize: 15, color: COLORS.textMuted },
   addSquare: { width: 44, height: 44, borderRadius: 10, borderWidth: 2.5, borderColor: COLORS.yellow, alignItems: 'center', justifyContent: 'center' },
   addSquareGhost: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   addedSquare: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 10 },
   userTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
   avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#20202a', alignItems: 'center', justifyContent: 'center' },
-  avatarInit: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  userName: { flex: 1, fontSize: 18, fontWeight: '700' },
+  avatarInit: { color: '#fff', fontSize: 18, fontFamily: FONTS.extraBold },
+  userName: { flex: 1, fontSize: 18, fontFamily: FONTS.bold },
   followBtn: { minWidth: 96, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: COLORS.black, alignItems: 'center' },
   followingBtn: { backgroundColor: COLORS.chipGrey },
-  followText: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.4 },
+  followText: { color: '#fff', fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
   followingText: { color: COLORS.black },
   hero: { marginHorizontal: 20, marginBottom: 24, borderRadius: 5, overflow: 'hidden', ...{ elevation: 3 } },
   heroImg: { aspectRatio: 16 / 11, backgroundColor: '#26262e', justifyContent: 'flex-end' },
   heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)' },
   plus: { position: 'absolute', right: 16, top: 16, width: 46, height: 46, borderRadius: 10, borderWidth: 2.5, borderColor: COLORS.yellow, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.25)' },
   heroCap: { padding: 14 },
-  heroTitle: { color: '#fff', fontSize: 22, fontWeight: '800', flexShrink: 1 },
-  heroMeta: { color: 'rgba(255,255,255,0.9)', fontSize: 14, marginTop: 2 },
-  heroDesc: { padding: 16, fontSize: 16, lineHeight: 22 },
+  heroTitle: { color: '#fff', fontSize: 22, fontFamily: FONTS.extraBold, flexShrink: 1 },
+  heroMeta: { color: 'rgba(255,255,255,0.9)', fontFamily: FONTS.regular, fontSize: 14, marginTop: 2 },
+  heroDesc: { padding: 16, fontFamily: FONTS.regular, fontSize: 16, lineHeight: 22 },
 });

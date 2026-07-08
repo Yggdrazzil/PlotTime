@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '@/lib/theme';
+import { COLORS, FONTS } from '@/lib/theme';
 
 export function PageHeader({ title, right }: { title: string; right?: React.ReactNode }) {
   const router = useRouter();
@@ -25,6 +25,6 @@ const styles = StyleSheet.create({
   wrap: { backgroundColor: COLORS.white },
   bar: { height: 60, alignItems: 'center', justifyContent: 'center' },
   back: { position: 'absolute', left: 8, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 20, fontWeight: '700' },
+  title: { fontSize: 20, fontFamily: FONTS.bold },
   right: { position: 'absolute', right: 12 },
 });
