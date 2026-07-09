@@ -4,6 +4,7 @@ import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 import { serializeMedia } from '../media/serialize.js';
 import { createWatchEvent } from '../media/actions.js';
+import { nextFavoriteOrder } from '../media/favorites.js';
 import {
   ensureMediaFromTmdb,
   syncCreditsFromTmdb,
@@ -143,10 +144,15 @@ export async function movieRoutes(app: FastifyInstance): Promise<void> {
       where: { userId_mediaId: { userId: request.userId, mediaId: id } },
     });
     const isFavorite = !(existing?.isFavorite ?? false);
+    // Nouvel ajout : horodaté et placé en fin de l'ordre personnalisé ;
+    // retrait : on libère sa place dans l'ordre.
+    const fav = isFavorite
+      ? { isFavorite, favoritedAt: new Date(), favoriteOrder: await nextFavoriteOrder(request.userId, 'movie') }
+      : { isFavorite, favoritedAt: null, favoriteOrder: null };
     await prisma.userMediaStatus.upsert({
       where: { userId_mediaId: { userId: request.userId, mediaId: id } },
-      create: { userId: request.userId, mediaId: id, status: 'watchlist', isFavorite },
-      update: { isFavorite },
+      create: { userId: request.userId, mediaId: id, status: 'watchlist', ...fav },
+      update: fav,
     });
     await createWatchEvent(request.userId, id, isFavorite ? 'favorited' : 'unfavorited');
     if (isFavorite) {

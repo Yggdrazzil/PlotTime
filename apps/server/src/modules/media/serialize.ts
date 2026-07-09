@@ -21,6 +21,8 @@ export function serializeMedia(media: Media, status?: UserMediaStatus | null): M
     imdbId: media.imdbId,
     userStatus: (status?.status as MediaDto['userStatus']) ?? null,
     isFavorite: status?.isFavorite ?? false,
+    favoriteOrder: status?.favoriteOrder ?? null,
+    favoritedAt: status?.favoritedAt?.toISOString() ?? null,
     rating: status?.rating ?? null,
   };
 }

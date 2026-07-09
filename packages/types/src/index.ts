@@ -83,6 +83,9 @@ export type MediaDto = {
   imdbId?: string | null;
   userStatus?: UserMediaState | null;
   isFavorite?: boolean;
+  // Ordre personnalisé + date d'ajout aux favoris (pages « préférés »).
+  favoriteOrder?: number | null;
+  favoritedAt?: string | null;
   rating?: number | null;
 };
 

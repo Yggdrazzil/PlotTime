@@ -63,6 +63,7 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
       prisma.userMediaStatus.findMany({
         where: { userId: request.userId, media: { type: 'show' }, isFavorite: true },
         include: { media: true },
+        orderBy: [{ favoriteOrder: { sort: 'asc', nulls: 'last' } }, { favoritedAt: 'asc' }],
         take: 12,
       }),
       prisma.userMediaStatus.findMany({
@@ -74,6 +75,7 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
       prisma.userMediaStatus.findMany({
         where: { userId: request.userId, media: { type: 'movie' }, isFavorite: true },
         include: { media: true },
+        orderBy: [{ favoriteOrder: { sort: 'asc', nulls: 'last' } }, { favoritedAt: 'asc' }],
         take: 12,
       }),
       // Compteurs sociaux de l'en-tête (façon TV Time : abonnements / abonnés / commentaires).
@@ -136,7 +138,33 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
         ...(query.type ? { media: { type: query.type } } : {}),
       },
       include: { media: true },
+      // « Ordre de l'utilisateur » (drag & drop) ; les favoris jamais ordonnés
+      // (données antérieures à la fonctionnalité) arrivent en fin de liste.
+      orderBy: [{ favoriteOrder: { sort: 'asc', nulls: 'last' } }, { favoritedAt: 'asc' }],
     });
     return { favorites: statuses.map((s) => serializeMedia(s.media, s)) };
+  });
+
+  // Réordonnancement des favoris (drag & drop façon TV Time) : reçoit la liste
+  // complète des ids dans le nouvel ordre et réécrit les positions.
+  app.post('/api/profile/favorites/reorder', async (request, reply) => {
+    const body = z
+      .object({ type: z.enum(['show', 'movie']), ids: z.array(z.string()).max(1000) })
+      .parse(request.body);
+    const statuses = await prisma.userMediaStatus.findMany({
+      where: { userId: request.userId, isFavorite: true, media: { type: body.type } },
+      select: { mediaId: true },
+    });
+    const known = new Set(statuses.map((s) => s.mediaId));
+    if (!body.ids.every((id) => known.has(id))) return reply.code(400).send({ error: 'unknown_favorite' });
+    await prisma.$transaction(
+      body.ids.map((mediaId, index) =>
+        prisma.userMediaStatus.update({
+          where: { userId_mediaId: { userId: request.userId, mediaId } },
+          data: { favoriteOrder: index },
+        }),
+      ),
+    );
+    return { ok: true };
   });
 }
