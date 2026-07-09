@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-09** (Claude) — pages « préférés » copie TV Time : tri, cœurs, drag & drop, partage
+Dernière mise à jour : **2026-07-09** (Claude) — onglet Séries : retour aux deux onglets À VOIR / À VENIR (historique au scroll, décision d'équipe)
 
 ---
 
@@ -65,6 +65,14 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 ## Journal des modifications
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
+
+### 2026-07-09 — Claude (5)
+- **Onglet Séries : retour à la version TV Time** (décision d'équipe
+  Étienne/Benjamin) — revert de « l'historique dans son onglet dédié »
+  (PR #24) : de nouveau **deux onglets seulement** (À VOIR / À VENIR),
+  l'« Historique de visionnage » se dévoile en **scrollant vers le haut**
+  au-dessus de « À voir » (scroll initial calé dessous, décocher renvoie
+  l'épisode dans « À voir »).
 
 ### 2026-07-09 — Claude (4)
 - **Pages « Séries/Films préférés » : copie complète de TV Time** (ajout,
