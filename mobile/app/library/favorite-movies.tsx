@@ -6,9 +6,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import type { MediaDto } from '@/lib/types';
 import { COLORS, FONTS } from '@/lib/theme';
-import { Loading, LoadError, EmptyState } from '@/components/ui';
+import { LoadError, EmptyState } from '@/components/ui';
 import { LibHeader, Grid, MovieCell } from '@/components/library';
 import { Pop } from '@/components/anim';
+import { GridSkeleton } from '@/components/skeletons';
 
 export default function FavoriteMoviesScreen() {
   const [picker, setPicker] = useState(false);
@@ -23,7 +24,7 @@ export default function FavoriteMoviesScreen() {
     <Pop style={{ backgroundColor: COLORS.white }}>
       <LibHeader title="Films préférés" />
       {isLoading ? (
-        <Loading />
+        <GridSkeleton />
       ) : isError && !data ? (
         <LoadError onRetry={refetch} busy={isRefetching} />
       ) : (

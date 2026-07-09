@@ -8,10 +8,11 @@ import { api, tmdbImage } from '@/lib/api';
 import type { EpisodeDto, MediaDto, QueueItemDto, UpcomingItemDto } from '@/lib/types';
 import { queueGroupLabel, episodeCode, airTimeLabel } from '@/lib/format';
 import { COLORS, SHADOW, FONTS } from '@/lib/theme';
-import { PillHeader, TopTabs, EmptyState, Loading, LoadError, ShowPill, Badge, CheckCircle } from '@/components/ui';
+import { PillHeader, TopTabs, EmptyState, LoadError, ShowPill, Badge, CheckCircle } from '@/components/ui';
 import { EpisodeQueueCard } from '@/components/EpisodeQueueCard';
 import { useTabResetSeq } from '@/lib/tabReset';
 import { AppearItem } from '@/components/anim';
+import { QueueSkeleton } from '@/components/skeletons';
 
 export default function ShowsScreen() {
   const insets = useSafeAreaInsets();
@@ -84,7 +85,7 @@ function QueueView() {
     },
   });
 
-  if (isLoading) return <Loading />;
+  if (isLoading) return <QueueSkeleton />;
   if (isError && !data) return <LoadError onRetry={refetch} busy={isRefetching} />;
   // Du plus ancien au plus récent : le dernier épisode coché juste au-dessus
   // de la section « À voir » (cf. TV Time).
@@ -154,7 +155,7 @@ function UpcomingView() {
     queryKey: ['shows', 'upcoming'],
     queryFn: () => api.get<{ groups: { label: string; items: UpcomingItemDto[] }[] }>('/api/shows/upcoming'),
   });
-  if (isLoading) return <Loading />;
+  if (isLoading) return <QueueSkeleton />;
   if (isError && !data) return <LoadError onRetry={refetch} busy={isRefetching} />;
   if (!data || data.groups.length === 0)
     return <EmptyState title="Aucun épisode à venir" message="Les prochaines diffusions apparaîtront ici." />;

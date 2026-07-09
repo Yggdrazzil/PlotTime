@@ -6,9 +6,10 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { MediaDto } from '@/lib/types';
 import { COLORS, FONTS } from '@/lib/theme';
-import { Loading, LoadError, EmptyState } from '@/components/ui';
+import { LoadError, EmptyState } from '@/components/ui';
 import { LibHeader, SectionPill, Grid, MovieCell } from '@/components/library';
 import { Pop } from '@/components/anim';
+import { GridSkeleton } from '@/components/skeletons';
 
 type Sort = 'last_watched' | 'last_added' | 'alpha';
 type Filter = 'all' | 'seen' | 'unseen';
@@ -46,7 +47,7 @@ export default function LibraryMoviesScreen() {
         }
       />
       {isLoading ? (
-        <Loading />
+        <GridSkeleton />
       ) : isError && !data ? (
         <LoadError onRetry={refetch} busy={isRefetching} />
       ) : seen.length === 0 && unseen.length === 0 ? (

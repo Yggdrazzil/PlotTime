@@ -5,9 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { COLORS, FONTS } from '@/lib/theme';
-import { Loading, LoadError, EmptyState } from '@/components/ui';
+import { LoadError, EmptyState } from '@/components/ui';
 import { LibHeader, SectionPill, Grid, ShowCell, type LibraryShow } from '@/components/library';
 import { Pop, AppearItem } from '@/components/anim';
+import { GridSkeleton } from '@/components/skeletons';
 
 type Sort = 'default' | 'added' | 'alpha';
 type Progress = 'all' | 'watching' | 'not_started' | 'watchlist' | 'up_to_date' | 'completed' | 'abandoned';
@@ -85,7 +86,7 @@ export default function LibraryShowsScreen() {
         }
       />
       {isLoading ? (
-        <Loading />
+        <GridSkeleton />
       ) : isError && !data ? (
         <LoadError onRetry={refetch} busy={isRefetching} />
       ) : (

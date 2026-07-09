@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, ActivityIndicator, Image, Animated, 
 import { Feather } from '@expo/vector-icons';
 import { COLORS, RADIUS, FONTS } from '@/lib/theme';
 import { useReduceMotion } from '@/lib/useReduceMotion';
+import { PressableScale } from '@/components/anim';
 
 const ANIM_NATIVE = Platform.OS !== 'web';
 
@@ -83,7 +84,7 @@ export function CheckCircle({
 
 export function Poster({ title, uri, onPress, width }: { title: string; uri: string | null; onPress?: () => void; width?: number }) {
   return (
-    <Pressable style={[styles.poster, width ? { width } : { flex: 1 }]} onPress={onPress}>
+    <PressableScale style={[styles.poster, width ? { width } : { flex: 1 }]} onPress={onPress}>
       {uri ? (
         // L'image couvre TOUT le cadre (pas de padding -> pas de bord gris, comme TV Time).
         <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -95,7 +96,7 @@ export function Poster({ title, uri, onPress, width }: { title: string; uri: str
           </Text>
         </View>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 

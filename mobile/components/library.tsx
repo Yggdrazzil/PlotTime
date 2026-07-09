@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tmdbImage } from '@/lib/api';
 import type { MediaDto } from '@/lib/types';
 import { COLORS, FONTS } from '@/lib/theme';
-import { AnimatedFill } from '@/components/anim';
+import { AnimatedFill, PressableScale } from '@/components/anim';
 
 // Progression d'une série basée sur les épisodes DIFFUSÉS (fournie par l'API).
 export type LibraryShow = MediaDto & {
@@ -62,7 +62,7 @@ export function ShowCell({ show, bar = true }: { show: LibraryShow; bar?: boolea
   const done = total > 0 && watched >= total;
   const pct = total > 0 ? Math.min(100, (watched / total) * 100) : 0;
   return (
-    <Pressable style={styles.cell} onPress={() => router.push(`/show/${show.id}`)}>
+    <PressableScale style={styles.cell} onPress={() => router.push(`/show/${show.id}`)}>
       <View style={styles.posterBox}>
         {uri ? (
           <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -80,7 +80,7 @@ export function ShowCell({ show, bar = true }: { show: LibraryShow; bar?: boolea
           </View>
         ) : null}
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -89,7 +89,7 @@ export function MovieCell({ movie }: { movie: MediaDto }) {
   const router = useRouter();
   const uri = tmdbImage(movie.posterPath);
   return (
-    <Pressable style={styles.cell} onPress={() => router.push(`/show/${movie.id}?type=movie`)}>
+    <PressableScale style={styles.cell} onPress={() => router.push(`/show/${movie.id}?type=movie`)}>
       <View style={styles.posterBox}>
         {uri ? (
           <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -102,7 +102,7 @@ export function MovieCell({ movie }: { movie: MediaDto }) {
           </View>
         )}
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }
 

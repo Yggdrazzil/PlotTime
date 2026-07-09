@@ -9,7 +9,7 @@ import type { EpisodeDto, MediaDto } from '@/lib/types';
 import { episodeCode } from '@/lib/format';
 import { COLORS, RADIUS, SHADOW, FONTS } from '@/lib/theme';
 import { TopTabs, CheckCircle, Loading, LoadError, EmptyState } from '@/components/ui';
-import { AnimatedFill, Pop } from '@/components/anim';
+import { AnimatedFill, Pop, SlideUpBar } from '@/components/anim';
 
 const INTEREST = ['LES ACTEURS', 'LA PRÉMISSE', 'LES CRÉATEURS', 'LA CHAÎNE/LA PLATEFORME', "LA FRANCHISE OU L'UNIVERS", 'AUTRE'];
 const STATUS_LABELS: Record<string, string> = {
@@ -204,14 +204,12 @@ export default function ShowDetail() {
           )}
         </Pressable>
       ) : null}
-      {justAdded || toast ? (
-        <View style={[styles.addBar, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.addBarRow}>
-            <Feather name="check" size={24} color={COLORS.black} />
-            <Text style={styles.addBarText}>{toast ?? (isMovie ? 'AJOUTÉ !' : 'AJOUTÉE !')}</Text>
-          </View>
+      <SlideUpBar visible={!!(justAdded || toast)} style={[styles.addBar, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={styles.addBarRow}>
+          <Feather name="check" size={24} color={COLORS.black} />
+          <Text style={styles.addBarText}>{toast ?? (isMovie ? 'AJOUTÉ !' : 'AJOUTÉE !')}</Text>
         </View>
-      ) : null}
+      </SlideUpBar>
 
       <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
         <Pressable style={styles.overlay} onPress={() => setMenu(false)} />

@@ -66,6 +66,16 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
 
+### 2026-07-08 — Claude (10)
+- **Vague d'animations 2** (toujours API `Animated`, reduce-motion respecté) :
+  - **Skeleton loaders pulsants** à la place du spinner (`components/skeletons.tsx`
+    + `Skeleton`) : file « À voir » (cartes fantômes) et pages profil (grille
+    d'affiches). Le layout ne saute plus quand les données arrivent.
+  - **Bandeau « AJOUTÉE ! » / toast qui remonte** depuis le bas avec fondu
+    (`SlideUpBar`) sur la fiche série/film.
+  - **Effet d'enfoncement au tap** sur les affiches (profil, grilles library)
+    via `PressableScale` (scale appliqué au Pressable → zéro impact layout).
+
 ### 2026-07-08 — Claude (9)
 - **Animations pour rendre l'app vivante** (API `Animated` intégrée, pas de
   nouvelle dépendance ; fonctionne web + natif ; respecte « Réduire les

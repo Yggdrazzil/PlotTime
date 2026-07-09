@@ -5,9 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import { COLORS, FONTS } from '@/lib/theme';
-import { Loading, LoadError, EmptyState } from '@/components/ui';
+import { LoadError, EmptyState } from '@/components/ui';
 import { LibHeader, Grid, ShowCell, type LibraryShow } from '@/components/library';
 import { Pop } from '@/components/anim';
+import { GridSkeleton } from '@/components/skeletons';
 
 export default function FavoriteShowsScreen() {
   const [picker, setPicker] = useState(false);
@@ -22,7 +23,7 @@ export default function FavoriteShowsScreen() {
     <Pop style={{ backgroundColor: COLORS.white }}>
       <LibHeader title="Séries préférées" />
       {isLoading ? (
-        <Loading />
+        <GridSkeleton />
       ) : isError && !data ? (
         <LoadError onRetry={refetch} busy={isRefetching} />
       ) : (

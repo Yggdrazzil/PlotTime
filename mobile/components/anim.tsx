@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Platform, View, type ViewStyle, type StyleProp } from 'react-native';
+import { Animated, Easing, Platform, Pressable, type ViewStyle, type StyleProp } from 'react-native';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 
 // Le fil natif accélère opacity/transform sur mobile ; sur le web (plateforme
@@ -95,33 +95,87 @@ export function AppearItem({
   );
 }
 
-// Bouton animé : léger enfoncement (scale) au press. Enveloppe un contenu
-// pressable pour donner un retour tactile « vivant » sans clignotement.
-export function PressBounce({
+// Pressable avec léger enfoncement (scale) au press : retour tactile « vivant ».
+// Le transform est appliqué au Pressable lui-même → aucun impact sur le layout
+// (utilisable directement sur une affiche, une carte, un bouton).
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+export function PressableScale({
   children,
   onPress,
   style,
-  scaleTo = 0.94,
+  scaleTo = 0.96,
+  disabled,
 }: {
   children: React.ReactNode;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   scaleTo?: number;
+  disabled?: boolean;
 }) {
   const reduce = useReduceMotion();
   const scale = useRef(new Animated.Value(1)).current;
-  const to = (val: number) =>
-    Animated.spring(scale, { toValue: val, useNativeDriver: NATIVE, friction: 6, tension: 180 }).start();
+  const to = (val: number, friction: number) =>
+    Animated.spring(scale, { toValue: val, useNativeDriver: NATIVE, friction, tension: 200 }).start();
   return (
-    <View
-      // Pressable-like via onStartShouldSetResponder pour marcher web + natif.
-      onStartShouldSetResponder={() => true}
-      onResponderGrant={() => !reduce && to(scaleTo)}
-      onResponderRelease={() => { if (!reduce) to(1); onPress?.(); }}
-      onResponderTerminate={() => !reduce && to(1)}
-      style={style}
+    <AnimatedPressable
+      onPress={onPress}
+      disabled={disabled}
+      onPressIn={() => !reduce && to(scaleTo, 7)}
+      onPressOut={() => !reduce && to(1, 5)}
+      style={[style, { transform: [{ scale }] }]}
     >
-      <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>
-    </View>
+      {children}
+    </AnimatedPressable>
+  );
+}
+
+// Bloc « squelette » qui pulse doucement pendant les chargements (à la place
+// d'un simple spinner) : l'app paraît réactive et le layout ne saute pas.
+export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
+  const reduce = useReduceMotion();
+  const v = useRef(new Animated.Value(0.5)).current;
+  useEffect(() => {
+    if (reduce) { v.setValue(0.7); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 750, easing: Easing.inOut(Easing.ease), useNativeDriver: NATIVE }),
+        Animated.timing(v, { toValue: 0.5, duration: 750, easing: Easing.inOut(Easing.ease), useNativeDriver: NATIVE }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reduce, v]);
+  return <Animated.View style={[{ backgroundColor: '#e4e4e4', borderRadius: 6, opacity: v }, style]} />;
+}
+
+// Barre qui remonte depuis le bas avec fondu selon `visible` (ex. bandeau
+// « AJOUTÉE ! » de TV Time). Reste montée mais inerte quand cachée.
+export function SlideUpBar({
+  visible,
+  children,
+  style,
+  distance = 90,
+}: {
+  visible: boolean;
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  distance?: number;
+}) {
+  const reduce = useReduceMotion();
+  const v = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduce) { v.setValue(visible ? 1 : 0); return; }
+    Animated.spring(v, { toValue: visible ? 1 : 0, useNativeDriver: NATIVE, friction: 9, tension: 90 }).start();
+  }, [visible, reduce, v]);
+  return (
+    <Animated.View
+      pointerEvents={visible ? 'auto' : 'none'}
+      style={[
+        style,
+        { opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [distance, 0] }) }] },
+      ]}
+    >
+      {children}
+    </Animated.View>
   );
 }
