@@ -223,6 +223,10 @@ model UserMediaStatus {
 
   status        String // UserMediaState
   isFavorite    Boolean   @default(false)
+  // Ordre personnalisé des favoris (drag & drop façon TV Time) + date d'ajout
+  // aux favoris (tris « Derniers/Premiers ajouts »).
+  favoriteOrder Int?
+  favoritedAt   DateTime?
   isHidden      Boolean   @default(false)
   personalNote  String?
   rating        Float?

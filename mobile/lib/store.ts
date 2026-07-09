@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { FavSortKey, MediaType } from '@/lib/types';
 
 export type UserInfo = {
   id: string;
@@ -17,9 +18,12 @@ type AppState = {
   hydrated: boolean;
   // Couverture choisie dans /profile/cover, récupérée par /profile/edit.
   coverPick: string | null;
+  // Tri choisi sur les pages « préférés » (persisté, comme TV Time).
+  favSort: Record<MediaType, FavSortKey>;
   setServerUrl: (url: string) => void;
   setAuth: (token: string, user: UserInfo) => void;
   setCoverPick: (url: string | null) => void;
+  setFavSort: (kind: MediaType, sort: FavSortKey) => void;
   logout: () => void;
 };
 
@@ -31,9 +35,11 @@ export const useAppStore = create<AppState>()(
       user: null,
       hydrated: false,
       coverPick: null,
+      favSort: { show: 'user', movie: 'user' },
       setServerUrl: (url) => set({ serverUrl: url.replace(/\/+$/, '') }),
       setAuth: (token, user) => set({ token, user }),
       setCoverPick: (url) => set({ coverPick: url }),
+      setFavSort: (kind, sort) => set((s) => ({ favSort: { ...s.favSort, [kind]: sort } })),
       logout: () => set({ token: null, user: null }),
     }),
     {
@@ -45,7 +51,7 @@ export const useAppStore = create<AppState>()(
           ? { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} }
           : AsyncStorage,
       ),
-      partialize: (s) => ({ serverUrl: s.serverUrl, token: s.token, user: s.user }),
+      partialize: (s) => ({ serverUrl: s.serverUrl, token: s.token, user: s.user, favSort: s.favSort }),
       onRehydrateStorage: () => (state) => {
         useAppStore.setState({ hydrated: true });
       },

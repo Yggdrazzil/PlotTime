@@ -1,4 +1,6 @@
 export type MediaType = 'show' | 'movie';
+// Tri des pages « préférés » (feuille TRIER PAR, façon TV Time).
+export type FavSortKey = 'user' | 'recent' | 'oldest' | 'az' | 'za';
 export type UserMediaState =
   | 'watching' | 'completed' | 'watchlist' | 'paused' | 'abandoned' | 'not_started';
 
@@ -15,6 +17,9 @@ export type MediaDto = {
   genres?: string | null;
   userStatus?: UserMediaState | null;
   isFavorite?: boolean;
+  // Ordre personnalisé + date d'ajout aux favoris (pages « préférés »).
+  favoriteOrder?: number | null;
+  favoritedAt?: string | null;
   rating?: number | null;
 };
 

@@ -18,6 +18,9 @@ export type LibraryShow = MediaDto & {
 const GAP = 8;
 const SIDE = 12;
 export const COLS = 3;
+// Cotes exportées pour la grille réordonnable (DragGrid) : mêmes espacements.
+export const GRID_GAP = GAP;
+export const GRID_SIDE = SIDE;
 // Largeur d'une affiche pour une grille de 3 colonnes (cotes TV Time).
 export const CELL_W = (Dimensions.get('window').width - SIDE * 2 - GAP * (COLS - 1)) / COLS;
 

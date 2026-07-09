@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-09** (Claude) — couverture du profil derrière la barre de statut + cotes « pixel perfect » Explorer/Profil
+Dernière mise à jour : **2026-07-09** (Claude) — pages « préférés » copie TV Time : tri, cœurs, drag & drop, partage
 
 ---
 
@@ -65,6 +65,31 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 ## Journal des modifications
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
+
+### 2026-07-09 — Claude (4)
+- **Pages « Séries/Films préférés » : copie complète de TV Time** (ajout,
+  ordre, tri, partage) :
+  - **Serveur** : colonnes `favoriteOrder`/`favoritedAt` sur `UserMediaStatus`
+    (migration `favorite_order`) — un nouvel ajout arrive horodaté en fin
+    d'ordre, un retrait libère sa place ; favoris triés par ordre utilisateur
+    partout (profil + `/api/profile/favorites`) ; nouvel endpoint
+    `POST /api/profile/favorites/reorder` (drag & drop). **4 tests ajoutés**
+    (58 tests serveur verts).
+  - **Page principale** (`components/favorites.tsx`, partagée séries/films) :
+    en-tête chevron + « ... », grand titre à gauche, bouton jaune, rangée
+    TRIER PAR ouvrant la **feuille de tri** TV Time (Ordre de l'utilisateur /
+    Derniers ajouts / Premiers ajouts / A-Z / Z-A, pastille jaune cochée,
+    ANNULER / APPLIQUER grisé sans changement) — tri **persisté** par type
+    (zustand). Menu « ... » : carte flottante **Réordonner les éléments** /
+    **Partager** (partage natif, presse-papiers en secours web).
+  - **Ajouter/Supprimer** : page TV Time — chevron retour + titre « Séries »/
+    « Films », **recherche filtrante**, liste alphabétique, **cœur rouge**
+    plein (favori) / contour gris, avec rebond.
+  - **Réordonnancement drag & drop** (`app/library/reorder-favorites.tsx` +
+    `components/DragGrid.tsx`, sans dépendance : Animated + PanResponder,
+    web + natif) : « Faites glisser et déposez... », appui long qui soulève
+    l'affiche, les autres glissent en ressort, auto-défilement près des bords,
+    sauvegarde à chaque dépôt, « Terminé » pour revenir.
 
 ### 2026-07-09 — Claude (3)
 - **Profil : couverture derrière la barre de statut** (comme TV Time). En natif
