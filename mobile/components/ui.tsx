@@ -1,7 +1,10 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator, Image, Animated, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { COLORS, RADIUS, FONTS } from '@/lib/theme';
+import { useReduceMotion } from '@/lib/useReduceMotion';
+
+const ANIM_NATIVE = Platform.OS !== 'web';
 
 export function PillHeader({ label }: { label: string }) {
   return (
@@ -45,16 +48,35 @@ export function CheckCircle({
   checkedBg?: string;
   checkedFg?: string;
 }) {
+  const reduce = useReduceMotion();
+  const scale = useRef(new Animated.Value(1)).current;
+  const prev = useRef(checked);
+  // Pop ressort quand l'état coché change (feedback « vivant » du visionnage).
+  useEffect(() => {
+    if (prev.current === checked) return;
+    prev.current = checked;
+    if (reduce) return;
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.8, duration: 90, useNativeDriver: ANIM_NATIVE }),
+      Animated.spring(scale, { toValue: 1, friction: 4, tension: 150, useNativeDriver: ANIM_NATIVE }),
+    ]).start();
+  }, [checked, reduce, scale]);
   return (
     <Pressable
       onPress={onPress}
       hitSlop={8}
-      style={[
-        styles.check,
-        { width: size, height: size, borderRadius: size / 2, backgroundColor: checked ? checkedBg : COLORS.checkBg },
-      ]}
+      // Léger enfoncement pendant l'appui, en plus du pop au changement d'état.
+      onPressIn={() => !reduce && Animated.spring(scale, { toValue: 0.9, useNativeDriver: ANIM_NATIVE, friction: 6, tension: 200 }).start()}
+      onPressOut={() => !reduce && Animated.spring(scale, { toValue: 1, useNativeDriver: ANIM_NATIVE, friction: 5, tension: 160 }).start()}
     >
-      <Feather name="check" size={size * 0.42} color={checked ? checkedFg : '#9B9B9B'} />
+      <Animated.View
+        style={[
+          styles.check,
+          { width: size, height: size, borderRadius: size / 2, backgroundColor: checked ? checkedBg : COLORS.checkBg, transform: [{ scale }] },
+        ]}
+      >
+        <Feather name="check" size={size * 0.42} color={checked ? checkedFg : '#9B9B9B'} />
+      </Animated.View>
     </Pressable>
   );
 }

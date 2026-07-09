@@ -47,17 +47,21 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.white } }}>
+          {/* Transitions natives (iOS/Android) : glissement fluide entre écrans.
+              Sur le web, ces options sont ignorées → l'animation « Pop » au montage
+              de chaque page prend le relais. */}
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.white }, animation: 'slide_from_right' }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="setup" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="show/[id]" />
+            <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+            {/* La fiche « pop » depuis le bas, comme l'ouverture d'une fiche TV Time. */}
+            <Stack.Screen name="show/[id]" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="settings" />
             <Stack.Screen name="social" />
             <Stack.Screen name="notifications" />
             <Stack.Screen name="user/[id]" />
-            <Stack.Screen name="profile/edit" />
-            <Stack.Screen name="profile/cover" />
+            <Stack.Screen name="profile/edit" options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="profile/cover" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="library/shows" />
             <Stack.Screen name="library/movies" />
             <Stack.Screen name="library/favorite-shows" />

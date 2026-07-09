@@ -66,6 +66,23 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
 
+### 2026-07-08 — Claude (9)
+- **Animations pour rendre l'app vivante** (API `Animated` intégrée, pas de
+  nouvelle dépendance ; fonctionne web + natif ; respecte « Réduire les
+  animations » via `lib/useReduceMotion.ts`) :
+  - **Barres de progression qui se remplissent** en douceur quand on coche un
+    épisode (composant `AnimatedFill`) — fiche série (barres de saisons + barre
+    globale sous la bannière) et grilles du profil.
+  - **Coche (`CheckCircle`)** : pop élastique au changement d'état + léger
+    enfoncement au press.
+  - **Ouverture des pages en « pop »** (fondu + montée + scale) sur la fiche
+    série/film et les pages profil (composant `Pop`) ; + transitions natives
+    du `Stack` (fiche depuis le bas, glissement latéral) côté iOS/Android.
+  - **Entrée en cascade** des cartes « À voir » et des sections du profil
+    (`AppearItem`).
+  - **Icône d'onglet** qui « pop » quand l'onglet devient actif.
+  - Composants réutilisables dans `components/anim.tsx`.
+
 ### 2026-07-08 — Claude (8)
 - **Onglet HISTORIQUE retiré** (il n'existe pas dans TV Time) : l'onglet Séries
   garde `À VOIR` / `À VENIR`, et l'**historique de visionnage réapparaît en

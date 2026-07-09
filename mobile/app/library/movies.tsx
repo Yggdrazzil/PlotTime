@@ -8,6 +8,7 @@ import type { MediaDto } from '@/lib/types';
 import { COLORS, FONTS } from '@/lib/theme';
 import { Loading, LoadError, EmptyState } from '@/components/ui';
 import { LibHeader, SectionPill, Grid, MovieCell } from '@/components/library';
+import { Pop } from '@/components/anim';
 
 type Sort = 'last_watched' | 'last_added' | 'alpha';
 type Filter = 'all' | 'seen' | 'unseen';
@@ -35,7 +36,7 @@ export default function LibraryMoviesScreen() {
   const unseen = data?.unseen ?? [];
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+    <Pop style={{ backgroundColor: COLORS.white }}>
       <LibHeader
         title="Films"
         right={
@@ -77,7 +78,7 @@ export default function LibraryMoviesScreen() {
         onClose={() => setSheet(false)}
         onApply={(s, f) => { setSort(s); setFilter(f); setSheet(false); }}
       />
-    </View>
+    </Pop>
   );
 }
 

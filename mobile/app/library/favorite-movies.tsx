@@ -8,6 +8,7 @@ import type { MediaDto } from '@/lib/types';
 import { COLORS, FONTS } from '@/lib/theme';
 import { Loading, LoadError, EmptyState } from '@/components/ui';
 import { LibHeader, Grid, MovieCell } from '@/components/library';
+import { Pop } from '@/components/anim';
 
 export default function FavoriteMoviesScreen() {
   const [picker, setPicker] = useState(false);
@@ -19,7 +20,7 @@ export default function FavoriteMoviesScreen() {
   const favs = all.filter((m) => m.isFavorite);
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+    <Pop style={{ backgroundColor: COLORS.white }}>
       <LibHeader title="Films préférés" />
       {isLoading ? (
         <Loading />
@@ -42,7 +43,7 @@ export default function FavoriteMoviesScreen() {
         </ScrollView>
       )}
       <FavPicker visible={picker} items={all} onClose={() => setPicker(false)} />
-    </View>
+    </Pop>
   );
 }
 

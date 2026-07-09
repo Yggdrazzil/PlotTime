@@ -11,6 +11,7 @@ import { COLORS, SHADOW, FONTS } from '@/lib/theme';
 import { PillHeader, TopTabs, EmptyState, Loading, LoadError, ShowPill, Badge, CheckCircle } from '@/components/ui';
 import { EpisodeQueueCard } from '@/components/EpisodeQueueCard';
 import { useTabResetSeq } from '@/lib/tabReset';
+import { AppearItem } from '@/components/anim';
 
 export default function ShowsScreen() {
   const insets = useSafeAreaInsets();
@@ -124,18 +125,26 @@ function QueueView() {
           ))}
         </View>
       ) : null}
-      {[...groups.entries()].map(([group, items]) => (
-        <View key={group}>
-          <PillHeader label={queueGroupLabel(group)} />
-          {items.map((item) => (
-            <EpisodeQueueCard
-              key={item.media.id}
-              item={item}
-              onCheck={() => item.nextEpisode && mark.mutate(item.nextEpisode.id)}
-            />
-          ))}
-        </View>
-      ))}
+      {(() => {
+        // Index continu à travers les groupes pour une entrée en cascade.
+        let n = -1;
+        return [...groups.entries()].map(([group, items]) => (
+          <View key={group}>
+            <PillHeader label={queueGroupLabel(group)} />
+            {items.map((item) => {
+              n += 1;
+              return (
+                <AppearItem key={item.media.id} index={n}>
+                  <EpisodeQueueCard
+                    item={item}
+                    onCheck={() => item.nextEpisode && mark.mutate(item.nextEpisode.id)}
+                  />
+                </AppearItem>
+              );
+            })}
+          </View>
+        ));
+      })()}
     </ScrollView>
   );
 }

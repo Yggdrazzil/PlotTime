@@ -7,6 +7,7 @@ import { api, tmdbImage } from '@/lib/api';
 import { COLORS, FONTS } from '@/lib/theme';
 import { Loading, LoadError, EmptyState } from '@/components/ui';
 import { LibHeader, Grid, ShowCell, type LibraryShow } from '@/components/library';
+import { Pop } from '@/components/anim';
 
 export default function FavoriteShowsScreen() {
   const [picker, setPicker] = useState(false);
@@ -18,7 +19,7 @@ export default function FavoriteShowsScreen() {
   const favs = all.filter((s) => s.isFavorite);
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+    <Pop style={{ backgroundColor: COLORS.white }}>
       <LibHeader title="Séries préférées" />
       {isLoading ? (
         <Loading />
@@ -41,7 +42,7 @@ export default function FavoriteShowsScreen() {
         </ScrollView>
       )}
       <FavPicker visible={picker} items={all} onClose={() => setPicker(false)} />
-    </View>
+    </Pop>
   );
 }
 

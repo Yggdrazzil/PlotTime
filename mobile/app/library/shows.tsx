@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { COLORS, FONTS } from '@/lib/theme';
 import { Loading, LoadError, EmptyState } from '@/components/ui';
 import { LibHeader, SectionPill, Grid, ShowCell, type LibraryShow } from '@/components/library';
+import { Pop, AppearItem } from '@/components/anim';
 
 type Sort = 'default' | 'added' | 'alpha';
 type Progress = 'all' | 'watching' | 'not_started' | 'watchlist' | 'up_to_date' | 'completed' | 'abandoned';
@@ -74,7 +75,7 @@ export default function LibraryShowsScreen() {
   });
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+    <Pop style={{ backgroundColor: COLORS.white }}>
       <LibHeader
         title="Séries"
         right={
@@ -101,7 +102,7 @@ export default function LibraryShowsScreen() {
         onClose={() => setSheet(false)}
         onApply={(s, f) => { setSort(s); setFilter(f); setSheet(false); }}
       />
-    </View>
+    </Pop>
   );
 }
 
@@ -125,11 +126,11 @@ function Body({ items, sort, filter }: { items: LibraryShow[]; sort: Sort; filte
   });
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
-      {GROUP_ORDER.filter((g) => groups.has(g)).map((g) => (
-        <View key={g}>
+      {GROUP_ORDER.filter((g) => groups.has(g)).map((g, gi) => (
+        <AppearItem key={g} index={gi}>
           <SectionPill label={GROUP_LABEL[g]!} />
           <Grid>{sortItems(groups.get(g)!, sort).map((s) => <ShowCell key={s.id} show={s} />)}</Grid>
-        </View>
+        </AppearItem>
       ))}
     </ScrollView>
   );

@@ -9,6 +9,7 @@ import type { EpisodeDto, MediaDto } from '@/lib/types';
 import { episodeCode } from '@/lib/format';
 import { COLORS, RADIUS, SHADOW, FONTS } from '@/lib/theme';
 import { TopTabs, CheckCircle, Loading, LoadError, EmptyState } from '@/components/ui';
+import { AnimatedFill, Pop } from '@/components/anim';
 
 const INTEREST = ['LES ACTEURS', 'LA PRÉMISSE', 'LES CRÉATEURS', 'LA CHAÎNE/LA PLATEFORME', "LA FRANCHISE OU L'UNIVERS", 'AUTRE'];
 const STATUS_LABELS: Record<string, string> = {
@@ -126,7 +127,7 @@ export default function ShowDetail() {
   })();
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+    <Pop style={{ backgroundColor: COLORS.white }}>
       <View style={styles.hero}>
         {(() => {
           const heroUri = tmdbImage(media.backdropPath, 'w780') ?? tmdbImage(media.posterPath, 'w500');
@@ -159,11 +160,10 @@ export default function ShowDetail() {
         {/* Progression globale au bas de la bannière : jaune en cours, verte à jour. */}
         {heroProg ? (
           <View style={styles.heroProgressTrack}>
-            <View
-              style={[
-                styles.heroProgressFill,
-                { width: `${heroProg.pct}%`, backgroundColor: heroProg.complete ? COLORS.green : COLORS.yellow },
-              ]}
+            <AnimatedFill
+              pct={heroProg.pct}
+              color={heroProg.complete ? COLORS.green : COLORS.yellow}
+              style={styles.heroProgressFill}
             />
           </View>
         ) : null}
@@ -257,7 +257,7 @@ export default function ShowDetail() {
         onClose={() => setListsOpen(false)}
         onChanged={(added, title) => showToast(added ? `Ajouté à « ${title} »` : `Retiré de « ${title} »`)}
       />
-    </View>
+    </Pop>
   );
 }
 
@@ -797,12 +797,7 @@ function EpisodesTab({ showId, posterPath, onChange }: { showId: string; posterP
                   {/* Barre : piste jaune pâle toujours visible, remplissage jaune,
                       le tout vert quand tous les épisodes diffusés sont vus. */}
                   <View style={[styles.progressTrack, done && { backgroundColor: COLORS.green }]}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        { width: `${pct}%`, backgroundColor: done ? COLORS.green : COLORS.yellow },
-                      ]}
-                    />
+                    <AnimatedFill pct={pct} color={done ? COLORS.green : COLORS.yellow} style={styles.progressFill} />
                   </View>
                 </Pressable>
                 {isOpen

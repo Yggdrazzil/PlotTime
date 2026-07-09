@@ -1,11 +1,14 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Pressable, StyleSheet, Animated, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { COLORS, FONTS } from '@/lib/theme';
 import { useTabResetStore } from '@/lib/tabReset';
+import { useReduceMotion } from '@/lib/useReduceMotion';
+
+const NATIVE = Platform.OS !== 'web';
 
 const ICONS: Record<string, keyof typeof Feather.glyphMap> = {
   index: 'tv',
@@ -41,10 +44,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         };
         return (
           <Pressable key={route.key} style={styles.item} onPress={onPress}>
-            <View>
-              <Feather name={ICONS[route.name] ?? 'circle'} size={23} color={focused ? COLORS.black : COLORS.textMuted} />
-              {route.name === 'explore' && !focused ? <View style={styles.dot} /> : null}
-            </View>
+            <TabIcon name={ICONS[route.name] ?? 'circle'} focused={focused} showDot={route.name === 'explore' && !focused} />
             <Text style={[styles.label, { color: focused ? COLORS.black : COLORS.textMuted }]}>
               {LABELS[route.name] ?? route.name}
             </Text>
@@ -52,6 +52,22 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         );
       })}
     </View>
+  );
+}
+
+// Icône d'onglet : petit « pop » élastique quand l'onglet devient actif.
+function TabIcon({ name, focused, showDot }: { name: keyof typeof Feather.glyphMap; focused: boolean; showDot: boolean }) {
+  const reduce = useReduceMotion();
+  const scale = useRef(new Animated.Value(focused ? 1 : 0.92)).current;
+  useEffect(() => {
+    if (reduce) { scale.setValue(focused ? 1 : 0.92); return; }
+    Animated.spring(scale, { toValue: focused ? 1 : 0.92, useNativeDriver: NATIVE, friction: 5, tension: 200 }).start();
+  }, [focused, reduce, scale]);
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Feather name={name} size={23} color={focused ? COLORS.black : COLORS.textMuted} />
+      {showDot ? <View style={styles.dot} /> : null}
+    </Animated.View>
   );
 }
 

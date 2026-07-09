@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tmdbImage } from '@/lib/api';
 import type { MediaDto } from '@/lib/types';
 import { COLORS, FONTS } from '@/lib/theme';
+import { AnimatedFill } from '@/components/anim';
 
 // Progression d'une série basée sur les épisodes DIFFUSÉS (fournie par l'API).
 export type LibraryShow = MediaDto & {
@@ -75,7 +76,7 @@ export function ShowCell({ show, bar = true }: { show: LibraryShow; bar?: boolea
         )}
         {bar && started ? (
           <View style={styles.barTrack}>
-            <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: done ? COLORS.green : COLORS.yellow }]} />
+            <AnimatedFill pct={pct} color={done ? COLORS.green : COLORS.yellow} style={styles.barFill} />
           </View>
         ) : null}
       </View>
