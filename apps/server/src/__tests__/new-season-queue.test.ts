@@ -106,4 +106,59 @@ describe('File « À voir » — nouvelle saison d’une série terminée/à jou
     const st = await prisma.userMediaStatus.findFirst({ where: { mediaId } });
     expect(st?.status).toBe('watching'); // série continue non terminée
   });
+
+  it('saison fraîche + dernier visionnage ancien (>30 j) : reste dans « À voir », en tête de file', async () => {
+    const { prisma } = await import('../db/client.js');
+    const user = await prisma.user.findFirstOrThrow({ where: { email: 'queue@example.com' } });
+
+    // Série B — cas Clevatess réel : S1 vue il y a 90 jours, S2E1 diffusé hier.
+    // Avant le correctif, la règle des 30 jours l'envoyait dans « Pas regardé
+    // depuis un moment », noyée au milieu de la bibliothèque.
+    const b = await prisma.media.create({
+      data: { type: 'show', title: 'Saison fraîche', status: 'Continuing', show: { create: {} } },
+      include: { show: true },
+    });
+    const bS1 = await prisma.episode.create({
+      data: { showId: b.show!.id, seasonNumber: 1, episodeNumber: 1, title: 'S1E1', airDate: daysAgo(400) },
+    });
+    await prisma.episode.create({
+      data: { showId: b.show!.id, seasonNumber: 2, episodeNumber: 1, title: 'S2E1', airDate: daysAgo(1) },
+    });
+    await prisma.userMediaStatus.create({
+      data: { userId: user.id, mediaId: b.id, status: 'watching', lastWatchedAt: daysAgo(90) },
+    });
+    await prisma.userEpisodeStatus.create({
+      data: { userId: user.id, episodeId: bS1.id, status: 'watched', watchedAt: daysAgo(90) },
+    });
+
+    // Série C — témoin : rien de frais (dernier épisode diffusé il y a 200 j),
+    // dernier visionnage ancien → bien « Pas regardé depuis un moment ».
+    const c = await prisma.media.create({
+      data: { type: 'show', title: 'Enfouie', status: 'Continuing', show: { create: {} } },
+      include: { show: true },
+    });
+    const cS1 = await prisma.episode.create({
+      data: { showId: c.show!.id, seasonNumber: 1, episodeNumber: 1, title: 'S1E1', airDate: daysAgo(300) },
+    });
+    await prisma.episode.create({
+      data: { showId: c.show!.id, seasonNumber: 1, episodeNumber: 2, title: 'S1E2', airDate: daysAgo(200) },
+    });
+    await prisma.userMediaStatus.create({
+      data: { userId: user.id, mediaId: c.id, status: 'watching', lastWatchedAt: daysAgo(90) },
+    });
+    await prisma.userEpisodeStatus.create({
+      data: { userId: user.id, episodeId: cS1.id, status: 'watched', watchedAt: daysAgo(90) },
+    });
+
+    const q = await app.inject({ method: 'GET', url: '/api/shows/queue', headers: auth() });
+    expect(q.statusCode).toBe(200);
+    const items = q.json().items as { media: { id: string }; group: string; badges: string[] }[];
+    const fresh = items.find((i) => i.media.id === b.id)!;
+    const buried = items.find((i) => i.media.id === c.id)!;
+    expect(fresh.group).toBe('a_voir'); // malgré 90 j sans visionnage
+    expect(fresh.badges).toContain('NOUVEAU');
+    expect(buried.group).toBe('pas_regarde_depuis_un_moment');
+    // Tri : la nouveauté est en tête de la file.
+    expect(items[0]!.media.id).toBe(b.id);
+  });
 });

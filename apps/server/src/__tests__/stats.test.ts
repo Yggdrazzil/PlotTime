@@ -149,12 +149,12 @@ describe('stats détaillées', () => {
       id: string; earned: boolean; progress: { current: number; target: number };
     }[];
     const byId = Object.fromEntries(all.map((b) => [b.id, b]));
-    expect(byId['first-episode'].earned).toBe(true); // 3 épisodes vus
-    expect(byId['serial-100']).toMatchObject({ earned: false, progress: { current: 3, target: 100 } });
-    expect(byId['movie-1'].earned).toBe(true); // 1 film vu
-    expect(byId['marathon-10']).toMatchObject({ earned: false, progress: { current: 3, target: 10 } });
-    expect(byId['follow-1'].earned).toBe(true); // je suis « Ami »
-    expect(byId['comment-1'].earned).toBe(false);
+    expect(byId['first-episode']!.earned).toBe(true); // 3 épisodes vus
+    expect(byId['serial-100']!).toMatchObject({ earned: false, progress: { current: 3, target: 100 } });
+    expect(byId['movie-1']!.earned).toBe(true); // 1 film vu
+    expect(byId['marathon-10']!).toMatchObject({ earned: false, progress: { current: 3, target: 10 } });
+    expect(byId['follow-1']!.earned).toBe(true); // je suis « Ami »
+    expect(byId['comment-1']!.earned).toBe(false);
     // Le compteur global correspond au détail.
     expect(data.earned).toBe(all.filter((b) => b.earned).length);
   });

@@ -18,6 +18,9 @@ import {
 } from '../../services/tmdb/index.js';
 
 const NOT_WATCHED_FOR_A_WHILE_DAYS = 30;
+// Un prochain épisode diffusé il y a moins de N jours garde la série dans
+// « À voir » (nouvelle saison, nouvel épisode) malgré la règle des 30 jours.
+const FRESH_NEXT_DAYS = 7;
 
 async function getShowWithUserData(userId: string, showMediaId: string) {
   return prisma.media.findFirst({
@@ -91,9 +94,15 @@ export async function showRoutes(app: FastifyInstance): Promise<void> {
         // « À voir » avec son prochain épisode, comme TV Time (ex. Clevatess
         // S2 après une S1 terminée). À jour → pas dans la file.
         if (remaining === 0) continue;
+        // Prochain épisode fraîchement diffusé (< 7 j) : la série reste dans
+        // « À voir » même sans visionnage récent. Sinon une nouvelle saison
+        // (S1 finie il y a des mois) serait enfouie dans « Pas regardé depuis
+        // un moment » — invisible au milieu d'une grosse bibliothèque.
+        const nextAiredAgo = next?.airDate ? now.getTime() - new Date(next.airDate).getTime() : null;
+        const freshNext = nextAiredAgo !== null && nextAiredAgo >= 0 && nextAiredAgo < FRESH_NEXT_DAYS * 86_400_000;
         const last = status.lastWatchedAt;
         group =
-          last && now.getTime() - last.getTime() > NOT_WATCHED_FOR_A_WHILE_DAYS * 86_400_000
+          !freshNext && last && now.getTime() - last.getTime() > NOT_WATCHED_FOR_A_WHILE_DAYS * 86_400_000
             ? 'pas_regarde_depuis_un_moment'
             : 'a_voir';
       } else continue;
@@ -129,7 +138,20 @@ export async function showRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const order: QueueItemDto['group'][] = ['a_voir', 'pas_regarde_depuis_un_moment', 'pas_commence', 'abandonne'];
-    items.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
+    // Tri DANS chaque groupe : les nouveautés d'abord (NOUVEAU > PREMIERE >
+    // PLUS_RECENT), puis par date de diffusion du prochain épisode (le plus
+    // récent en premier). Sans ça, une nouvelle saison était noyée au milieu
+    // de centaines de séries dans un ordre arbitraire (cas post-import TV Time).
+    const badgeRank = (b: QueueItemDto['badges']) =>
+      b.includes('NOUVEAU') ? 0 : b.includes('PREMIERE') ? 1 : b.includes('PLUS_RECENT') ? 2 : 3;
+    const airTs = (i: QueueItemDto) => (i.nextEpisode?.airDate ? Date.parse(i.nextEpisode.airDate) : 0);
+    items.sort((a, b) => {
+      const g = order.indexOf(a.group) - order.indexOf(b.group);
+      if (g !== 0) return g;
+      const br = badgeRank(a.badges) - badgeRank(b.badges);
+      if (br !== 0) return br;
+      return airTs(b) - airTs(a);
+    });
     return { items };
   });
 
