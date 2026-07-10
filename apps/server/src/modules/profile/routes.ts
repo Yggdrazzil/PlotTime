@@ -94,6 +94,7 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
         birthYear: user.birthYear,
         gender: user.gender,
         countryCode: user.countryCode,
+        isPrivate: user.isPrivate,
       },
       stats,
       lists: lists.map((l) => ({
@@ -119,6 +120,8 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
         birthYear: z.number().int().min(1900).max(2100).nullable().optional(),
         gender: z.string().nullable().optional(),
         countryCode: z.string().length(2).optional(),
+        // Vie privée (Paramètres, façon TV Time) : profil visible des seuls abonnés.
+        isPrivate: z.boolean().optional(),
       })
       .parse(request.body);
     const user = await prisma.user.update({ where: { id: request.userId }, data: body });

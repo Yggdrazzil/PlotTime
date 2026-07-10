@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-10** (Claude) — « À voir » : les nouvelles saisons des séries terminées reviennent dans la file (badge PREMIERE, statut recalculé)
+Dernière mise à jour : **2026-07-10** (Claude) — Paramètres façon TV Time (Réseaux sociaux, Vie privée/profil privé, radios, boutons jaunes)
 
 ---
 
@@ -65,6 +65,24 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 ## Journal des modifications
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
+
+### 2026-07-10 — Claude (5)
+- **Paramètres : copie TV Time** (comparaison px des captures) :
+  - **COMPTE** : section **Réseaux sociaux** avec rangée « Modifier les comptes
+    liés › » vers la nouvelle sous-page `/linked-accounts` (boutons
+    Google/Discord/Facebook déplacés là) ; section **Vie privée** avec
+    « Définir le profil comme privé » + interrupteur (la confidentialité
+    existait côté serveur mais n'était pas exposée — `isPrivate` ajouté au
+    GET/POST `/api/profile`, bascule optimiste) ; **SE DÉCONNECTER** en bouton
+    jaune pleine largeur et **SUPPRIMER LE COMPTE** en bleu (comme TV Time).
+  - **Styles TV Time** : radios du thème en **anneau + point noir** (fin des
+    pastilles jaunes cochées), interrupteurs éteints à piste **noire** (bouton
+    blanc) / allumés jaunes (bouton noir), **VIDER LE CACHE** en jaune,
+    libellés de rangées 17 et sous-textes 14.
+  - Non repris (fonctionnalités TV Time absentes chez nous) : SAUVEGARDER
+    (édition inline), Services d'abonnement, politique de confidentialité,
+    sections Commentaires/Notifications/Recommandations/Flux de l'onglet
+    APPLICATION.
 
 ### 2026-07-10 — Claude (4)
 - **« À voir » ignorait les nouvelles saisons des séries terminées (suite

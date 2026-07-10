@@ -9,7 +9,6 @@ import { COLORS, FONTS } from '@/lib/theme';
 import { PageHeader } from '@/components/PageHeader';
 import { FadeSwitch, PopIn } from '@/components/anim';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { ssoWebAvailable, initGoogleButton, facebookLogin, discordLogin } from '@/lib/sso';
 
 const NATIVE = Platform.OS !== 'web';
 
@@ -72,18 +71,25 @@ function AccountTab() {
         <Field label="Identifiant utilisateur" value={user?.id ?? ''} />
       </View>
       <Row label="Modifier le mot de passe" onPress={() => setPwOpen(true)} />
-      <LinkedAccounts />
+      <Divider />
+      {/* Comme TV Time : la liaison des comptes vit derrière une rangée dédiée. */}
+      <SectionTitle>Réseaux sociaux</SectionTitle>
+      <Row label="Modifier les comptes liés" onPress={() => router.push('/linked-accounts')} />
       <Divider />
       <SectionTitle>Import & sauvegarde</SectionTitle>
       <Row label="Importer mes données TV Time" onPress={() => router.push('/import')} />
       <Row label="Exporter mes données SerieTime" onPress={exportData} />
       <Divider />
-      <View style={{ alignItems: 'center', gap: 24, paddingVertical: 32 }}>
-        <Pressable onPress={logout}>
-          <Text style={styles.logout}>SE DÉCONNECTER</Text>
+      <SectionTitle>Vie privée</SectionTitle>
+      <PrivateProfileToggle />
+      <Divider />
+      {/* Boutons TV Time : SE DÉCONNECTER en jaune pleine largeur, SUPPRIMER en bleu. */}
+      <View style={{ gap: 22, paddingVertical: 20 }}>
+        <Pressable style={styles.logoutBtn} onPress={logout}>
+          <Text style={styles.logoutText}>SE DÉCONNECTER</Text>
         </Pressable>
         <Pressable onPress={() => setDelOpen(true)}>
-          <Text style={[styles.logout, { color: COLORS.red }]}>SUPPRIMER LE COMPTE</Text>
+          <Text style={styles.deleteText}>SUPPRIMER LE COMPTE</Text>
         </Pressable>
       </View>
 
@@ -93,127 +99,33 @@ function AccountTab() {
   );
 }
 
-type Providers = {
-  google: boolean; googleClientId: string;
-  facebook: boolean; facebookAppId: string;
-  discord: boolean; discordClientId: string;
-};
-
-// Section « Comptes liés » : lier/délier Google et Facebook au compte courant
-// (web app). Masquée si aucun fournisseur n'est configuré côté serveur.
-function LinkedAccounts() {
-  const { token, user, setAuth } = useAppStore();
-  const [cfg, setCfg] = useState<Providers | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const gRef = useRef<View>(null);
-  const linked = ((user as { linkedProviders?: Record<string, boolean> } | null)?.linkedProviders) ?? {};
-
-  useEffect(() => {
-    let cancelled = false;
-    api.get<Providers>('/api/auth/providers').then((p) => !cancelled && setCfg(p)).catch(() => undefined);
-    return () => { cancelled = true; };
-  }, []);
-
-  const link = async (provider: 'google' | 'facebook' | 'discord', tok: string) => {
-    if (!token) return;
-    setBusy(provider);
-    setErr(null);
-    try {
-      const res = await api.post<{ user: unknown }>('/api/auth/link', { provider, token: tok });
-      setAuth(token, res.user as never);
-    } catch (e) {
-      setErr(e instanceof ApiError && e.code === 'already_linked_other_account'
-        ? 'Ce compte est déjà lié à un autre utilisateur.'
-        : 'Liaison impossible.');
-    } finally {
-      setBusy(null);
-    }
-  };
-  const unlink = async (provider: 'google' | 'facebook' | 'discord') => {
-    if (!token) return;
-    setBusy(provider);
-    setErr(null);
-    try {
-      const res = await api.post<{ user: unknown }>('/api/auth/unlink', { provider });
-      setAuth(token, res.user as never);
-    } catch (e) {
-      setErr(e instanceof ApiError && e.code === 'last_login_method'
-        ? 'Impossible : c’est ta seule méthode de connexion.'
-        : 'Impossible de délier.');
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  // Bouton officiel Google, rendu seulement s'il est configuré et pas déjà lié.
-  useEffect(() => {
-    if (!cfg?.google || linked.google || !ssoWebAvailable() || !gRef.current) return;
-    initGoogleButton(cfg.googleClientId, gRef.current as unknown as HTMLElement, (t) => link('google', t)).catch(
-      () => undefined,
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg, linked.google]);
-
-  if (!ssoWebAvailable() || !cfg || (!cfg.google && !cfg.facebook && !cfg.discord)) return null;
-
+// « Définir le profil comme privé » (TV Time) : seuls les abonnés voient
+// l'activité. Bascule optimiste sur /api/profile.
+function PrivateProfileToggle() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ['profile'],
+    queryFn: () => api.get<{ user: { isPrivate?: boolean } }>('/api/profile'),
+  });
+  const isPrivate = data?.user?.isPrivate ?? false;
+  const mut = useMutation({
+    mutationFn: (v: boolean) => api.post('/api/profile', { isPrivate: v }),
+    onMutate: async (v: boolean) => {
+      await qc.cancelQueries({ queryKey: ['profile'] });
+      const prev = qc.getQueryData<{ user: { isPrivate?: boolean } }>(['profile']);
+      if (prev?.user) qc.setQueryData(['profile'], { ...prev, user: { ...prev.user, isPrivate: v } });
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(['profile'], ctx.prev); },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['profile'] }),
+  });
   return (
-    <>
-      <Divider />
-      <SectionTitle>Comptes liés</SectionTitle>
-      <View style={{ paddingHorizontal: 24, gap: 12, paddingBottom: 8 }}>
-        {cfg.google ? (
-          linked.google ? (
-            <LinkedRow label="Google" busy={busy === 'google'} onUnlink={() => unlink('google')} />
-          ) : (
-            <View ref={gRef} style={{ alignItems: 'flex-start', paddingVertical: 4 }} />
-          )
-        ) : null}
-        {cfg.discord ? (
-          linked.discord ? (
-            <LinkedRow label="Discord" busy={busy === 'discord'} onUnlink={() => unlink('discord')} />
-          ) : (
-            <Pressable
-              style={[styles.fbLink, { backgroundColor: '#5865F2' }]}
-              disabled={busy === 'discord'}
-              onPress={() => discordLogin(cfg.discordClientId).then((t) => link('discord', t)).catch(() => undefined)}
-            >
-              <Feather name="message-circle" size={16} color="#fff" />
-              <Text style={styles.fbLinkText}>Lier Discord</Text>
-            </Pressable>
-          )
-        ) : null}
-        {cfg.facebook ? (
-          linked.facebook ? (
-            <LinkedRow label="Facebook" busy={busy === 'facebook'} onUnlink={() => unlink('facebook')} />
-          ) : (
-            <Pressable
-              style={styles.fbLink}
-              disabled={busy === 'facebook'}
-              onPress={() => facebookLogin(cfg.facebookAppId).then((t) => link('facebook', t)).catch(() => undefined)}
-            >
-              <Feather name="facebook" size={16} color="#fff" />
-              <Text style={styles.fbLinkText}>Lier Facebook</Text>
-            </Pressable>
-          )
-        ) : null}
-        {err ? <Text style={{ color: COLORS.red, fontFamily: FONTS.regular, fontSize: 14 }}>{err}</Text> : null}
-      </View>
-    </>
-  );
-}
-
-function LinkedRow({ label, busy, onUnlink }: { label: string; busy: boolean; onUnlink: () => void }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Feather name="check-circle" size={18} color={COLORS.green} />
-        <Text style={{ fontFamily: FONTS.bold, fontSize: 16 }}>{label} lié</Text>
-      </View>
-      <Pressable onPress={onUnlink} disabled={busy}>
-        {busy ? <ActivityIndicator size="small" color={COLORS.textMuted} /> : <Text style={{ color: COLORS.red, fontFamily: FONTS.bold, fontSize: 14 }}>Délier</Text>}
-      </Pressable>
-    </View>
+    <ToggleRow
+      label="Définir le profil comme privé"
+      sub={"Lorsque votre profil est privé, vous devez approuver vos demandes d'abonnements. Seuls vos abonnés peuvent voir votre activité."}
+      on={isPrivate}
+      onToggle={(v) => mut.mutate(v)}
+    />
   );
 }
 
@@ -362,15 +274,15 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function Field({ label, value, blue }: { label: string; value: string; blue?: boolean }) {
   return (
     <View style={{ paddingVertical: 12 }}>
-      <Text style={{ fontFamily: FONTS.regular, fontSize: 16 }}>{label}</Text>
-      <Text style={{ fontFamily: FONTS.regular, fontSize: 16, color: blue ? COLORS.blue : COLORS.textMuted }}>{value}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 17, color: blue ? COLORS.blue : COLORS.textMuted }}>{value}</Text>
     </View>
   );
 }
 function Row({ label, onPress }: { label: string; onPress?: () => void }) {
   return (
     <Pressable style={styles.row} onPress={onPress}>
-      <Text style={{ fontFamily: FONTS.regular, fontSize: 16 }}>{label}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
       <Feather name="chevron-right" size={20} color={COLORS.black} />
     </Pressable>
   );
@@ -386,8 +298,8 @@ function ToggleRow({ label, sub, on, onToggle }: { label: string; sub?: string; 
   return (
     <View style={styles.toggleRow}>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: FONTS.regular, fontSize: 16 }}>{label}</Text>
-        {sub ? <Text style={{ fontFamily: FONTS.regular, fontSize: 13, color: COLORS.textMuted }}>{sub}</Text> : null}
+        <Text style={{ fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
+        {sub ? <Text style={{ fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textMuted, lineHeight: 19, marginTop: 2 }}>{sub}</Text> : null}
       </View>
       <Pressable onPress={() => onToggle(!on)} hitSlop={8}>
         <Animated.View style={[styles.toggle, { backgroundColor: v.interpolate({ inputRange: [0, 1], outputRange: ['#dddddd', COLORS.yellow] }) }]}>
@@ -406,16 +318,17 @@ function ToggleRow({ label, sub, on, onToggle }: { label: string; sub?: string; 
   );
 }
 function RadioRow({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  // Radio TV Time : anneau fin, point noir quand sélectionné.
   return (
-    <Pressable style={[styles.row, { justifyContent: 'flex-start', gap: 16 }]} onPress={onPress}>
-      <View style={[styles.radio, on && styles.radioOn]}>
+    <Pressable style={[styles.row, { justifyContent: 'flex-start', gap: 18 }]} onPress={onPress}>
+      <View style={[styles.radio, on && styles.radioSel]}>
         {on ? (
           <PopIn>
-            <Feather name="check" size={14} color={COLORS.black} />
+            <View style={styles.radioDot} />
           </PopIn>
         ) : null}
       </View>
-      <Text style={{ fontFamily: FONTS.regular, fontSize: 16 }}>{label}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -435,14 +348,15 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 13, gap: 16 },
   toggle: { width: 52, height: 30, borderRadius: 15, padding: 3 },
   knob: { width: 24, height: 24, borderRadius: 12 },
-  radio: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  radioOn: { backgroundColor: COLORS.yellow, borderColor: COLORS.yellow },
+  radio: { width: 26, height: 26, borderRadius: 13, borderWidth: 2.5, borderColor: '#4a4a52', alignItems: 'center', justifyContent: 'center' },
+  radioSel: { borderColor: COLORS.black },
+  radioDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: COLORS.black },
   divider: { height: 1, backgroundColor: COLORS.borderLight, marginVertical: 12 },
-  logout: { fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
-  fbLink: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#1877F2', borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18, alignSelf: 'flex-start' },
-  fbLinkText: { color: '#fff', fontFamily: FONTS.bold, fontSize: 13 },
-  cacheBtn: { borderWidth: 2, borderColor: COLORS.black, borderRadius: 999, paddingVertical: 11, alignItems: 'center' },
-  cacheText: { fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
+  logoutBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, marginHorizontal: 16, paddingVertical: 14, alignItems: 'center' },
+  logoutText: { fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
+  deleteText: { fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.6, color: COLORS.blue, textAlign: 'center' },
+  cacheBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingVertical: 13, alignItems: 'center' },
+  cacheText: { fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', paddingHorizontal: 24 },
   sheet: { backgroundColor: COLORS.white, borderRadius: 16, padding: 20 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
