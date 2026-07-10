@@ -5,6 +5,10 @@ import { recalculateShowStatus } from '../media/actions.js';
 
 // Fenêtre de fraîcheur du balayage d'arrière-plan et anti-rafale process-local.
 const STALE_MS = 12 * 3_600_000; // resynchroniser une série en cours après 12 h
+// Séries « Terminée » : resynchronisées aussi, mais bien moins souvent — un
+// renouvellement (fréquent pour l'anime, marqué « Ended » entre deux saisons)
+// est détecté sous une semaine au lieu de jamais.
+const ENDED_STALE_MS = 7 * 24 * 3_600_000;
 const SWEEP_COOLDOWN_MS = 2 * 60_000; // au plus un balayage toutes les 2 min
 const MAX_PER_SWEEP = 4; // limite d'appels TVDB/TMDb par balayage
 
@@ -24,11 +28,16 @@ export async function refreshStaleContinuingShows(userId: string): Promise<void>
     where: { userId, isHidden: false, status: { not: 'abandoned' }, media: { type: 'show' } },
     include: { media: { include: { show: { select: { id: true } } } } },
   });
+  const isEnded = (m: { status: string | null }) => Boolean(m.status && /ended|canceled|cancelled/i.test(m.status));
   const candidates = statuses
     .map((s) => s.media)
-    .filter((m) => !(m.status && /ended|canceled|cancelled/i.test(m.status)))
-    .filter((m) => !m.lastSyncedAt || now - m.lastSyncedAt.getTime() > STALE_MS)
-    .sort((a, b) => (a.lastSyncedAt?.getTime() ?? 0) - (b.lastSyncedAt?.getTime() ?? 0))
+    .filter((m) => !m.lastSyncedAt || now - m.lastSyncedAt.getTime() > (isEnded(m) ? ENDED_STALE_MS : STALE_MS))
+    // Les séries en cours passent d'abord ; à statut égal, la plus périmée.
+    .sort((a, b) => {
+      const e = Number(isEnded(a)) - Number(isEnded(b));
+      if (e !== 0) return e;
+      return (a.lastSyncedAt?.getTime() ?? 0) - (b.lastSyncedAt?.getTime() ?? 0);
+    })
     .slice(0, MAX_PER_SWEEP);
 
   for (const m of candidates) {
