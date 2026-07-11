@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-11** (Claude) — Pop-up « Cocher aussi les épisodes précédents ? » (fiche + fenêtre épisode) ; rappel de la règle : jamais de coche sans action de l'utilisateur
+Dernière mise à jour : **2026-07-11** (Claude) — Explorer : barre de recherche compacte (réf. TV Time), bouton actualiser supprimé, tirer-pour-actualiser ressort façon Instagram (compatible web)
 
 ---
 
@@ -65,6 +65,23 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 ## Journal des modifications
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
+
+### 2026-07-11 — Claude (4)
+- **Explorer : barre de recherche recalée sur TV Time** (comparaison px des
+  captures) : rangée 44dp, icône 20, texte 15,5 — nettement plus compacte.
+- **Bouton « actualiser » supprimé** (liste ET pioche Découvrir). Le flux se
+  rafraîchit désormais : (1) en **arrivant sur l'onglet Explorer** depuis un
+  autre onglet, (2) en **re-cliquant sur Explorer** déjà actif, (3) en
+  **tirant la page vers le bas** — nouveau composant `PullToRefresh` maison
+  façon Instagram : résistance élastique, pastille qui tourne avec la
+  traction puis en continu pendant le rechargement, retour en ressort.
+  Compatible web ET natif (le RefreshControl RN ne fonctionne pas sur la web
+  app) ; `overscroll-behavior: contain` pour neutraliser le recharger-page du
+  navigateur. Revenir d'une fiche ne re-mélange PAS le flux (le refresh se
+  fait au changement d'onglet, pas au focus).
+- Vérifié au navigateur (7/7) : cotes de la barre, absence du bouton, tirage
+  tactile → nouvel appel `/api/explore/feed` + retour en place, refresh à
+  l'arrivée sur l'onglet et au re-clic.
 
 ### 2026-07-11 — Claude (3)
 - **Pop-up « Cocher aussi les épisodes précédents ? »** (règle produit,

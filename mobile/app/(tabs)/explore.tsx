@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { View, Text, TextInput, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator, Keyboard, RefreshControl, Animated, PanResponder, Dimensions, Platform } from 'react-native';
+import { View, Text, TextInput, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator, Keyboard, Animated, PanResponder, Dimensions, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { useDebounced } from '@/lib/useDebounced';
 import { COLORS, FONTS } from '@/lib/theme';
 import { EmptyState, Loading } from '@/components/ui';
 import { AppearItem, FadeSwitch, PopIn, PressableScale, SlideUpBar } from '@/components/anim';
+import { PullToRefresh } from '@/components/PullToRefresh';
 import { useTabResetSeq } from '@/lib/tabReset';
 
 type FeedItem = {
@@ -69,7 +70,7 @@ function ExploreScreenInner() {
           rangée (pas d'encadré — on neutralise aussi le focus-ring du navigateur
           sur la web app). Placeholder court au repos, complet une fois le champ actif. */}
       <View style={styles.searchbar}>
-        <Feather name="search" size={22} color={searching ? COLORS.black : COLORS.textMuted} />
+        <Feather name="search" size={20} color={searching ? COLORS.black : COLORS.textMuted} />
         <TextInput
           style={[styles.input, Platform.OS === 'web' && ({ outlineStyle: 'none' } as never)]}
           placeholder={focused || query ? 'Rechercher des séries et films' : 'Rechercher'}
@@ -530,22 +531,25 @@ function Feed({
   if (loading) return <Loading />;
   if (!items || items.length === 0)
     return (
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+      <PullToRefresh refreshing={refreshing} onRefresh={onRefresh} contentContainerStyle={{ flexGrow: 1 }}>
         <EmptyState
           title="Pas encore de recommandations"
           message="Configurez une clé TMDb sur le serveur et suivez des séries pour alimenter votre flux."
         />
-      </ScrollView>
+      </PullToRefresh>
     );
 
   // ===== Mode PARCOURIR : liste classique =====
+  // Plus de bouton « actualiser » : on tire la page vers le bas (ressort) ou
+  // on (re)clique sur l'onglet Explorer.
   if (mode === 'browse') {
     const filtered = cat === 'tout' ? items : items.filter((f) => catOf(f) === cat);
     return (
-      <ScrollView
+      <PullToRefresh
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         style={{ backgroundColor: COLORS.white }}
         contentContainerStyle={{ paddingBottom: 24 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         stickyHeaderIndices={[0]}
       >
         <View style={{ backgroundColor: COLORS.white }}>
@@ -558,9 +562,6 @@ function Feed({
                 </Pressable>
               ))}
             </ScrollView>
-            <Pressable style={styles.refreshBtn} onPress={onRefresh} disabled={refreshing} hitSlop={6}>
-              {refreshing ? <ActivityIndicator size="small" color={COLORS.black} /> : <Feather name="refresh-cw" size={17} color={COLORS.black} />}
-            </Pressable>
           </View>
         </View>
         {filtered.length === 0 ? <EmptyState title="Rien dans cette catégorie" message="Actualise pour un nouveau tirage." /> : null}
@@ -596,7 +597,7 @@ function Feed({
             </AppearItem>
           );
         })}
-      </ScrollView>
+      </PullToRefresh>
     );
   }
 
@@ -621,9 +622,6 @@ function Feed({
               </Pressable>
             ))}
           </ScrollView>
-          <Pressable style={styles.refreshBtn} onPress={() => { setIdx(0); onRefresh(); }} disabled={refreshing} hitSlop={6}>
-            {refreshing ? <ActivityIndicator size="small" color={COLORS.black} /> : <Feather name="refresh-cw" size={17} color={COLORS.black} />}
-          </Pressable>
         </View>
       </View>
 
@@ -755,11 +753,12 @@ const styles = StyleSheet.create({
   catChipSel: { backgroundColor: COLORS.yellow },
   catChipText: { fontSize: 14, fontFamily: FONTS.extraBold, color: COLORS.textMuted, letterSpacing: 0.4 },
   catChipTextSel: { color: COLORS.black },
-  refreshBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: COLORS.black, alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' },
   // Cotes TV Time (comparaison px sur captures, même téléphone) : rangée ~56dp,
   // saisie 17, soulignement sous icône + champ (pas d'encadré).
-  searchbar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, height: 56, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  input: { flex: 1, fontFamily: FONTS.regular, fontSize: 17, borderWidth: 0, paddingVertical: 8 },
+  // Barre de recherche recalée sur TV Time (comparaison px) : rangée 44dp,
+  // icône 20, texte 15.5 — nettement plus compacte qu'avant.
+  searchbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 18, height: 44, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  input: { flex: 1, fontFamily: FONTS.regular, fontSize: 15.5, borderWidth: 0, paddingVertical: 6 },
   cancel: { color: COLORS.blue, fontFamily: FONTS.regular, fontSize: 16 },
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   // Onglets répartis sur toute la largeur, comme TV Time.

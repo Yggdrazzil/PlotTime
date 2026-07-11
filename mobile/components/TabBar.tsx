@@ -33,7 +33,13 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         const focused = state.index === i;
         const onPress = () => {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+          if (!focused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+            // Arriver sur Explorer = nouveau tirage du flux (règle produit).
+            // Fait ici (changement d'onglet) et non au focus : revenir d'une
+            // fiche ne doit pas re-mélanger le flux en pleine navigation.
+            if (route.name === 'explore') qc.invalidateQueries({ queryKey: ['explore', 'feed'] });
+          }
           // Re-clic sur l'onglet déjà actif (façon TV Time) : actualiser les
           // données ET remonter l'écran à son état par défaut (via `bump` +
           // `key` dans chaque écran d'onglet).
