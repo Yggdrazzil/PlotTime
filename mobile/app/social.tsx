@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, ScrollView, StyleSheet, Pressable, Image } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -138,14 +138,19 @@ function FriendsTab() {
     placeholderData: keepPreviousData,
   });
 
+  // Bascule OPTIMISTE : le bouton change au doigt, retour arrière si échec.
   const toggle = async (u: PublicUser) => {
+    if (busyId) return;
     const currently = overrides[u.id] ?? u.isFollowing ?? false;
     setBusyId(u.id);
+    setOverrides((o) => ({ ...o, [u.id]: !currently }));
     try {
       if (currently) await api.del(`/api/social/follow/${u.id}`);
       else await api.post(`/api/social/follow/${u.id}`);
-      setOverrides((o) => ({ ...o, [u.id]: !currently }));
-      queryClient.invalidateQueries({ queryKey: ['social', 'feed'] });
+      queryClient.invalidateQueries({ queryKey: ['social'] });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+    } catch {
+      setOverrides((o) => ({ ...o, [u.id]: currently }));
     } finally {
       setBusyId(null);
     }
@@ -198,13 +203,9 @@ function FriendsTab() {
                   onPress={() => toggle(u)}
                   disabled={busyId === u.id}
                 >
-                  {busyId === u.id ? (
-                    <ActivityIndicator color={following ? COLORS.black : '#fff'} />
-                  ) : (
-                    <Text style={[styles.followText, following && styles.followingText]}>
-                      {following ? 'ABONNÉ' : 'SUIVRE'}
-                    </Text>
-                  )}
+                  <Text style={[styles.followText, following && styles.followingText]}>
+                    {following ? 'ABONNÉ' : 'SUIVRE'}
+                  </Text>
                 </Pressable>
               </AppearItem>
             );

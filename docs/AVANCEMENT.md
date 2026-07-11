@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-10** (Claude) — Fiche série/film complète façon TV Time (distribution + fiches acteurs, « également regardé », similaire à, notes de la communauté, page Commentaires, bannière repliable)
+Dernière mise à jour : **2026-07-11** (Claude) — Audit réactivité : mises à jour optimistes partout (favoris, réorganisation, cœurs commentaires, suivre), fin des appuis multiples et des listes en retard
 
 ---
 
@@ -65,6 +65,33 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 ## Journal des modifications
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
+
+### 2026-07-11 — Claude
+- **Audit complet de réactivité** (bugs « je dois appuyer 4 fois » / « mes
+  changements semblent perdus ») — tout bascule désormais au doigt, le serveur
+  confirme en arrière-plan (rollback si échec) :
+  - **Ajouter/Supprimer des favoris** : le cœur rouge et la grille des pages
+    « préférés » réagissent immédiatement (écriture optimiste dans le cache de
+    la bibliothèque). Cause racine du « 4 appuis » : l'UI attendait le refetch
+    complet de la bibliothèque et chaque appui re-basculait le favori serveur.
+  - **Réorganisation (drag & drop)** : l'ordre est écrit tout de suite dans le
+    cache et l'invalidation n'a lieu qu'à la **dernière** sauvegarde en vol —
+    avant, le refetch d'un dépôt précédent réécrivait l'ancien ordre
+    (« changements perdus » au retour sur la page).
+  - **Bug d'invalidation corrigé** : la clé `['movies','library','all']` ne
+    matchait pas le cache de la page Films (`['movies','library',tri,filtre]`)
+    → invalidations élargies aux préfixes `['movies']` / `['shows']`.
+  - **Cœur + suppression de commentaire** (page Commentaires) : optimistes.
+  - **SUIVRE/ABONNÉ** (profil public avec compteur d'abonnés, abonnés/abonnements,
+    recherche d'amis, résultats utilisateurs d'Explorer) : bascule instantanée,
+    plus de spinner qui masque l'état.
+  - **Décocher depuis l'historique** (onglet Séries) : la rangée disparaît
+    immédiatement.
+  - **DragGrid (web)** : `userSelect: none` — le glisser surlignait le texte des
+    cellules (sélection navigateur) au lieu de déplacer l'affiche sur ordinateur.
+- **Vérifié en conditions réelles** (serveur + app web pilotée par navigateur) :
+  cœur rempli/vidé en ~300 ms après UN clic, 3 favoris ajoutés visibles dans la
+  grille au retour, drag & drop persistant (ordre serveur ET affichage alignés).
 
 ### 2026-07-10 — Claude (6)
 - **Fiche série/film reconstruite façon TV Time** (comparaison px des captures Naruto) :

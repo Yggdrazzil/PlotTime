@@ -139,7 +139,9 @@ export function DragGrid<T>({
   const height = rows * (cellHeight + GRID_GAP);
 
   return (
-    <View ref={containerRef} style={{ height }} {...pan.panHandlers}>
+    // `userSelect: none` (web) : sans lui, le glisser surligne le texte des
+    // cellules (sélection navigateur) au lieu de déplacer l'affiche.
+    <View ref={containerRef} style={{ height, userSelect: 'none' } as object} {...pan.panHandlers}>
       {order.map((k) => {
         const item = byKey.get(k);
         if (!item) return null;

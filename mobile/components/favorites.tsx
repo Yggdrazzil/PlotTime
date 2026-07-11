@@ -311,11 +311,45 @@ function FavPicker({
   const [q, setQ] = useState('');
   useEffect(() => { if (visible) setQ(''); }, [visible]);
 
+  // Bascule OPTIMISTE : le cœur et la grille réagissent au doigt (un appui = un
+  // favori), le serveur confirme derrière. Sans cela, l'UI attendait le refetch
+  // complet de la bibliothèque (plusieurs secondes) et on tapait 4 fois.
+  const libKey = kind === 'movie' ? ['movies', 'library', 'all'] : ['shows', 'library'];
   const toggle = useMutation({
+    mutationKey: ['fav-toggle', kind],
     mutationFn: (id: string) => api.post(kind === 'movie' ? `/api/movies/${id}/favorite` : `/api/shows/${id}/favorite`),
+    onMutate: async (id: string) => {
+      await qc.cancelQueries({ queryKey: libKey });
+      const prev = qc.getQueryData(libKey);
+      const flip = <T extends MediaDto>(m: T): T =>
+        m.id === id
+          ? {
+              ...m,
+              isFavorite: !m.isFavorite,
+              // Nouveau favori : va en fin d'ordre utilisateur (comme le serveur).
+              favoriteOrder: null,
+              favoritedAt: m.isFavorite ? null : new Date().toISOString(),
+            }
+          : m;
+      if (kind === 'movie') {
+        qc.setQueryData<{ seen: MediaDto[]; unseen: MediaDto[] }>(libKey, (d) =>
+          d ? { seen: d.seen.map(flip), unseen: d.unseen.map(flip) } : d,
+        );
+      } else {
+        qc.setQueryData<{ items: LibraryShow[] }>(libKey, (d) => (d ? { items: d.items.map(flip) } : d));
+      }
+      return { prev };
+    },
+    onError: (_e: unknown, _id: string, ctx?: { prev?: unknown }) => {
+      if (ctx?.prev) qc.setQueryData(libKey, ctx.prev);
+    },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: kind === 'movie' ? ['movies', 'library', 'all'] : ['shows', 'library'] });
-      qc.invalidateQueries({ queryKey: ['profile'] });
+      // N'invalide qu'à la DERNIÈRE mutation en vol : sinon le refetch d'un
+      // appui précédent (parti avant le POST suivant) réécrit un état périmé.
+      if (qc.isMutating({ mutationKey: ['fav-toggle', kind] }) === 1) {
+        qc.invalidateQueries({ queryKey: [kind === 'movie' ? 'movies' : 'shows'] });
+        qc.invalidateQueries({ queryKey: ['profile'] });
+      }
     },
   });
 

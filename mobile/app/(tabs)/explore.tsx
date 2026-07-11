@@ -259,14 +259,19 @@ function UserResults({ query }: { query: string }) {
     placeholderData: keepPreviousData,
   });
 
+  // Bascule OPTIMISTE : le bouton change au doigt, retour arrière si échec.
   const toggle = async (u: PublicUser) => {
+    if (busyId) return;
     const currently = overrides[u.id] ?? u.isFollowing ?? false;
     setBusyId(u.id);
+    setOverrides((o) => ({ ...o, [u.id]: !currently }));
     try {
       if (currently) await api.del(`/api/social/follow/${u.id}`);
       else await api.post(`/api/social/follow/${u.id}`);
-      setOverrides((o) => ({ ...o, [u.id]: !currently }));
-      queryClient.invalidateQueries({ queryKey: ['social', 'feed'] });
+      queryClient.invalidateQueries({ queryKey: ['social'] });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+    } catch {
+      setOverrides((o) => ({ ...o, [u.id]: currently }));
     } finally {
       setBusyId(null);
     }
@@ -292,11 +297,7 @@ function UserResults({ query }: { query: string }) {
               </Text>
             </Pressable>
             <Pressable style={[styles.followBtn, following && styles.followingBtn]} onPress={() => toggle(u)} disabled={busyId === u.id}>
-              {busyId === u.id ? (
-                <ActivityIndicator color={following ? COLORS.black : '#fff'} size="small" />
-              ) : (
-                <Text style={[styles.followText, following && styles.followingText]}>{following ? 'ABONNÉ' : 'SUIVRE'}</Text>
-              )}
+              <Text style={[styles.followText, following && styles.followingText]}>{following ? 'ABONNÉ' : 'SUIVRE'}</Text>
             </Pressable>
           </AppearItem>
         );

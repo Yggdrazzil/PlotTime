@@ -49,14 +49,31 @@ export default function UserProfileScreen() {
     queryFn: () => api.get<UserProfile>(`/api/users/${id}`),
   });
 
+  // Bascule OPTIMISTE : le bouton et le compteur d'abonnés changent au doigt,
+  // le serveur confirme derrière (rollback si échec).
   const toggleFollow = async () => {
-    if (!data) return;
+    if (!data || busy) return;
     setBusy(true);
+    const wasFollowing = data.isFollowing;
+    await qc.cancelQueries({ queryKey: ['user', id] });
+    const prev = qc.getQueryData<UserProfile>(['user', id]);
+    qc.setQueryData<UserProfile>(['user', id], (d) =>
+      d
+        ? {
+            ...d,
+            isFollowing: !wasFollowing,
+            followersCount: Math.max(0, d.followersCount + (wasFollowing ? -1 : 1)),
+          }
+        : d,
+    );
     try {
-      if (data.isFollowing) await api.del(`/api/social/follow/${data.id}`);
+      if (wasFollowing) await api.del(`/api/social/follow/${data.id}`);
       else await api.post(`/api/social/follow/${data.id}`);
       qc.invalidateQueries({ queryKey: ['user', id] });
-      qc.invalidateQueries({ queryKey: ['social', 'feed'] });
+      qc.invalidateQueries({ queryKey: ['social'] });
+      qc.invalidateQueries({ queryKey: ['profile'] });
+    } catch {
+      if (prev) qc.setQueryData(['user', id], prev);
     } finally {
       setBusy(false);
     }

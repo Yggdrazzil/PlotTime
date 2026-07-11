@@ -77,14 +77,51 @@ export default function CommentsScreen() {
     setOpenReplies((o) => ({ ...o, [parentId]: true }));
     invalidate();
   };
-  // Cœur TV Time : bascule la réaction ❤️ (le total agrège toutes les réactions).
+  // Cœur TV Time : bascule OPTIMISTE de la réaction ❤️ — le cœur se remplit au
+  // doigt, le serveur confirme derrière (rollback si échec).
   const heart = async (c: CommentDto) => {
-    await api.post(`/api/comments/${c.id}/react`, { emoji: '❤️' });
-    invalidate();
+    const mine = c.reactions.mine.includes('❤️');
+    await qc.cancelQueries({ queryKey: ['comments', id] });
+    const prev = qc.getQueryData<{ comments: CommentDto[] }>(['comments', id]);
+    const patch = (x: CommentDto): CommentDto =>
+      x.id === c.id
+        ? {
+            ...x,
+            reactions: {
+              ...x.reactions,
+              total: Math.max(0, x.reactions.total + (mine ? -1 : 1)),
+              mine: mine ? x.reactions.mine.filter((e) => e !== '❤️') : [...x.reactions.mine, '❤️'],
+              byEmoji: { ...x.reactions.byEmoji, '❤️': Math.max(0, (x.reactions.byEmoji['❤️'] ?? 0) + (mine ? -1 : 1)) },
+            },
+          }
+        : { ...x, replies: x.replies?.map(patch) };
+    qc.setQueryData<{ comments: CommentDto[] }>(['comments', id], (d) => (d ? { comments: d.comments.map(patch) } : d));
+    try {
+      await api.post(`/api/comments/${c.id}/react`, { emoji: '❤️' });
+      invalidate();
+    } catch {
+      if (prev) qc.setQueryData(['comments', id], prev);
+    }
   };
+  // Suppression OPTIMISTE : la carte disparaît immédiatement.
   const remove = async (c: CommentDto) => {
-    await api.del(`/api/comments/${c.id}`);
-    invalidate();
+    await qc.cancelQueries({ queryKey: ['comments', id] });
+    const prev = qc.getQueryData<{ comments: CommentDto[] }>(['comments', id]);
+    qc.setQueryData<{ comments: CommentDto[] }>(['comments', id], (d) =>
+      d
+        ? {
+            comments: d.comments
+              .filter((x) => x.id !== c.id)
+              .map((x) => ({ ...x, replies: x.replies?.filter((r) => r.id !== c.id) })),
+          }
+        : d,
+    );
+    try {
+      await api.del(`/api/comments/${c.id}`);
+      invalidate();
+    } catch {
+      if (prev) qc.setQueryData(['comments', id], prev);
+    }
   };
   const shareComment = (c: CommentDto) => {
     const message = `« ${c.body} » — ${c.user.displayName} à propos de ${title ?? 'cette série'} (SerieTime)`;

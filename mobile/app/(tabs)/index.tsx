@@ -77,9 +77,23 @@ function QueueView() {
       qc.invalidateQueries({ queryKey: ['profile'] });
     },
   });
-  // Décocher depuis l'historique : l'épisode redevient « à voir ».
+  // Décocher depuis l'historique : l'épisode redevient « à voir ». Mise à jour
+  // OPTIMISTE : la rangée disparaît de l'historique immédiatement.
   const unmark = useMutation({
     mutationFn: (episodeId: string) => api.post(`/api/episodes/${episodeId}/unwatched`),
+    onMutate: async (episodeId: string) => {
+      await qc.cancelQueries({ queryKey: ['shows', 'history'] });
+      const prev = qc.getQueryData<{ items: HistoryItem[] }>(['shows', 'history']);
+      if (prev) {
+        qc.setQueryData<{ items: HistoryItem[] }>(['shows', 'history'], {
+          items: prev.items.filter((it) => it.episode.id !== episodeId),
+        });
+      }
+      return { prev };
+    },
+    onError: (_e: unknown, _id: string, ctx?: { prev?: { items: HistoryItem[] } }) => {
+      if (ctx?.prev) qc.setQueryData(['shows', 'history'], ctx.prev);
+    },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['shows'] });
       qc.invalidateQueries({ queryKey: ['profile'] });

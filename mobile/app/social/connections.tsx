@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
@@ -25,15 +25,19 @@ export default function ConnectionsScreen() {
     queryFn: () => api.get<{ users: PublicUser[] }>(path),
   });
 
+  // Bascule OPTIMISTE : le bouton change au doigt, retour arrière si le serveur refuse.
   const toggle = async (u: PublicUser) => {
+    if (busyId) return;
     const currently = overrides[u.id] ?? u.isFollowing ?? false;
     setBusyId(u.id);
+    setOverrides((o) => ({ ...o, [u.id]: !currently }));
     try {
       if (currently) await api.del(`/api/social/follow/${u.id}`);
       else await api.post(`/api/social/follow/${u.id}`);
-      setOverrides((o) => ({ ...o, [u.id]: !currently }));
       qc.invalidateQueries({ queryKey: ['social'] });
       qc.invalidateQueries({ queryKey: ['profile'] });
+    } catch {
+      setOverrides((o) => ({ ...o, [u.id]: currently }));
     } finally {
       setBusyId(null);
     }
@@ -68,11 +72,7 @@ export default function ConnectionsScreen() {
                   <Text style={styles.name} numberOfLines={1}>{u.displayName}</Text>
                 </Pressable>
                 <Pressable style={[styles.btn, following && styles.btnOn]} onPress={() => toggle(u)} disabled={busyId === u.id}>
-                  {busyId === u.id ? (
-                    <ActivityIndicator color={following ? COLORS.black : '#fff'} size="small" />
-                  ) : (
-                    <Text style={[styles.btnText, following && styles.btnTextOn]}>{following ? 'ABONNÉ' : 'SUIVRE'}</Text>
-                  )}
+                  <Text style={[styles.btnText, following && styles.btnTextOn]}>{following ? 'ABONNÉ' : 'SUIVRE'}</Text>
                 </Pressable>
               </View>
             );

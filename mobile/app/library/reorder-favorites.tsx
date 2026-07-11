@@ -33,11 +33,32 @@ export default function ReorderFavoritesScreen() {
   // devient ensuite la source de vérité locale (pas re-trié à chaque refetch).
   const initial = useMemo(() => sortFavorites(favs, 'user'), [favs]);
 
+  // Sauvegarde OPTIMISTE : le nouvel ordre est écrit tout de suite dans le cache
+  // (la page « préférés » l'affiche dès le retour), et on n'invalide qu'à la
+  // DERNIÈRE sauvegarde en vol — sinon le refetch d'un dépôt précédent, parti
+  // avant le POST suivant, réécrivait l'ancien ordre (« changements perdus »).
+  const libKey = kind === 'movie' ? ['movies', 'library', 'all'] : ['shows', 'library'];
   const save = useMutation({
+    mutationKey: ['fav-reorder', kind],
     mutationFn: (ids: string[]) => api.post('/api/profile/favorites/reorder', { type: kind, ids }),
+    onMutate: async (ids: string[]) => {
+      await qc.cancelQueries({ queryKey: libKey });
+      const pos = new Map(ids.map((id, i) => [id, i]));
+      const patch = <T extends MediaDto>(m: T): T =>
+        pos.has(m.id) ? { ...m, favoriteOrder: pos.get(m.id)! } : m;
+      if (kind === 'movie') {
+        qc.setQueryData<{ seen: MediaDto[]; unseen: MediaDto[] }>(libKey, (d) =>
+          d ? { seen: d.seen.map(patch), unseen: d.unseen.map(patch) } : d,
+        );
+      } else {
+        qc.setQueryData<{ items: LibraryShow[] }>(libKey, (d) => (d ? { items: d.items.map(patch) } : d));
+      }
+    },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: kind === 'movie' ? ['movies', 'library', 'all'] : ['shows', 'library'] });
-      qc.invalidateQueries({ queryKey: ['profile'] });
+      if (qc.isMutating({ mutationKey: ['fav-reorder', kind] }) === 1) {
+        qc.invalidateQueries({ queryKey: [kind === 'movie' ? 'movies' : 'shows'] });
+        qc.invalidateQueries({ queryKey: ['profile'] });
+      }
     },
   });
 
