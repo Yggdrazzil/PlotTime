@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-11** (Claude) — Audit réactivité : mises à jour optimistes partout (favoris, réorganisation, cœurs commentaires, suivre), fin des appuis multiples et des listes en retard
+Dernière mise à jour : **2026-07-11** (Claude) — Onglet Séries : pastilles de section flottantes + fenêtre épisode façon TV Time (swipe latéral entre épisodes)
 
 ---
 
@@ -65,6 +65,28 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 ## Journal des modifications
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
+
+### 2026-07-11 — Claude (2)
+- **Onglet Séries : pastilles de section FLOTTANTES** (copie TV Time) : la
+  pastille grise de la section courante (« À VOIR », « PAS REGARDÉ DEPUIS UN
+  MOMENT », « HISTORIQUE DE VISIONNAGE »…) suit le défilement en haut de
+  l'écran et change de libellé au passage d'une section (rebond à l'apparition,
+  masquée quand l'entête en dur est elle-même visible pour éviter le doublon).
+- **Fenêtre « fiche épisode » façon TV Time** (`components/EpisodeSheet.tsx`) :
+  sur les cartes de l'onglet Séries (file ET historique), la **pastille du
+  titre ouvre la fiche de la série** et un appui **ailleurs sur la carte ouvre
+  la fenêtre de l'épisode** — panneau plein écran qui remonte en ressort
+  (fond assombri), chevron ↓, **points de pagination** (fenêtre de 5, point
+  actif jaune), image de l'épisode avec pastille série (→ fiche) et partage,
+  code S/E + titre, **date + Vu/Pas vu + coche** (bascule optimiste, la file
+  derrière se met à jour), **Où regarder**, **Informations sur l'épisode**
+  (note de la communauté en étoiles + synopsis), rangée **Commentaires →**
+  page dédiée. **Swipe latéral** pour passer d'un épisode diffusé au suivant.
+- CheckCircle : rôle/label d'accessibilité (« Marquer comme vu / non vu »).
+- **Vérifié bout en bout au navigateur (12/12)** : titre → fiche, carte →
+  fenêtre (192 ms), swipe aller/retour, coche « Vu » optimiste (171 ms) +
+  confirmée serveur, navigation commentaires/fiche, pastilles flottantes à la
+  descente et dans l'historique.
 
 ### 2026-07-11 — Claude
 - **Audit complet de réactivité** (bugs « je dois appuyer 4 fois » / « mes

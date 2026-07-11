@@ -16,14 +16,18 @@ const BADGE_MAP: Record<string, { label: string; variant: 'black' | 'yellow' }> 
 
 // `watched` : variante « Historique de visionnage » (façon TV Time) — carte
 // fondue (opacité réduite) avec coche verte ; le clic sur la coche décoche.
+// Navigation TV Time : la pastille du titre ouvre la FICHE de la série ; un
+// appui ailleurs sur la carte ouvre la FENÊTRE de l'épisode (`onOpenEpisode`).
 export function EpisodeQueueCard({
   item,
   onCheck,
   watched,
+  onOpenEpisode,
 }: {
   item: QueueItemDto;
   onCheck: () => void;
   watched?: boolean;
+  onOpenEpisode?: () => void;
 }) {
   const router = useRouter();
   const ep = item.nextEpisode;
@@ -32,7 +36,7 @@ export function EpisodeQueueCard({
   const thumbUri = tmdbImage(ep?.stillPath, 'w300') ?? tmdbImage(item.media.posterPath, 'w342');
 
   return (
-    <Pressable style={[styles.card, watched && styles.cardWatched]} onPress={openShow}>
+    <Pressable style={[styles.card, watched && styles.cardWatched]} onPress={ep && onOpenEpisode ? onOpenEpisode : openShow}>
       {thumbUri ? (
         <Image source={{ uri: thumbUri }} style={styles.thumb} resizeMode="cover" />
       ) : (

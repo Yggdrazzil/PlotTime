@@ -66,6 +66,8 @@ export function CheckCircle({
     <Pressable
       onPress={onPress}
       hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={checked ? 'Marquer comme non vu' : 'Marquer comme vu'}
       // Léger enfoncement pendant l'appui, en plus du pop au changement d'état.
       onPressIn={() => !reduce && Animated.spring(scale, { toValue: 0.9, useNativeDriver: ANIM_NATIVE, friction: 6, tension: 200 }).start()}
       onPressOut={() => !reduce && Animated.spring(scale, { toValue: 1, useNativeDriver: ANIM_NATIVE, friction: 5, tension: 160 }).start()}
