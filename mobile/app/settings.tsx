@@ -80,6 +80,9 @@ function AccountTab() {
       <Row label="Importer mes données TV Time" onPress={() => router.push('/import')} />
       <Row label="Exporter mes données SerieTime" onPress={exportData} />
       <Divider />
+      <SectionTitle>Jeux — Steam</SectionTitle>
+      <SteamImportBlock />
+      <Divider />
       <SectionTitle>Vie privée</SectionTitle>
       <PrivateProfileToggle />
       <Divider />
@@ -126,6 +129,61 @@ function PrivateProfileToggle() {
       on={isPrivate}
       onToggle={(v) => mut.mutate(v)}
     />
+  );
+}
+
+// « Connecter Steam » : SteamID (ou URL de profil, résolu côté serveur) +
+// import de la bibliothèque possédée. Le profil Steam doit être public.
+function SteamImportBlock() {
+  const qc = useQueryClient();
+  const [steamId, setSteamId] = useState('');
+  const mut = useMutation({
+    mutationFn: (id: string) => api.post<{ imported: number; error?: string }>('/api/games/steam/import', { steamId: id }),
+    onSuccess: (res) => {
+      // Succès de l'appel = profil résolu, jeux importés (ou 0 jeu) : on
+      // invalide la bibliothèque. Si `error` est présent (SteamID invalide),
+      // rien n'a été importé, mais l'invalidation reste sans effet notable.
+      if (!res.error) qc.invalidateQueries({ queryKey: ['games', 'library'] });
+    },
+  });
+  const canSubmit = steamId.trim().length >= 2 && !mut.isPending;
+  const result = mut.data;
+  return (
+    <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
+      <Text style={styles.steamHint}>
+        Connectez votre compte Steam (profil public requis) pour importer votre bibliothèque de jeux possédés.
+      </Text>
+      <TextInput
+        style={styles.mInput}
+        placeholder="SteamID ou URL de profil"
+        placeholderTextColor={COLORS.textSoft}
+        value={steamId}
+        onChangeText={(v) => {
+          setSteamId(v);
+          mut.reset();
+        }}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      <Pressable
+        style={[styles.mBtn, !canSubmit && { opacity: 0.4 }]}
+        disabled={!canSubmit}
+        onPress={() => mut.mutate(steamId.trim())}
+      >
+        {mut.isPending ? <ActivityIndicator color={COLORS.black} /> : <Text style={styles.mBtnText}>IMPORTER MA BIBLIOTHÈQUE</Text>}
+      </Pressable>
+      {result?.error ? (
+        <Text style={styles.errMsg}>
+          {result.error === 'steam_id_invalide' ? 'SteamID ou URL de profil invalide (le profil doit être public).' : result.error}
+        </Text>
+      ) : result ? (
+        <Text style={styles.okMsg}>
+          {result.imported} jeu{result.imported > 1 ? 'x' : ''} importé{result.imported > 1 ? 's' : ''}
+        </Text>
+      ) : mut.isError ? (
+        <Text style={styles.errMsg}>Impossible de contacter le serveur.</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -361,6 +419,7 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: COLORS.white, borderRadius: 16, padding: 20 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sheetTitle: { fontSize: 18, fontFamily: FONTS.extraBold },
+  steamHint: { fontSize: 14, fontFamily: FONTS.regular, color: COLORS.textMuted, lineHeight: 19, marginBottom: 10 },
   mLabel: { fontSize: 14, fontFamily: FONTS.bold, marginTop: 14 },
   mInput: { borderBottomWidth: 1, borderBottomColor: COLORS.border, fontSize: 17, fontFamily: FONTS.regular, paddingVertical: 10, marginTop: 6 },
   mBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingVertical: 12, alignItems: 'center', marginTop: 22 },

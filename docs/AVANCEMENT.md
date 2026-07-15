@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-15** (Claude) — Jeux vidéo : module API `/api/games` (recherche IGDB, ajout, bibliothèque par statut, détail)
+Dernière mise à jour : **2026-07-15** (Claude) — Jeux vidéo : onglet Jeux — découverte + à venir + connexion Steam (Task 9)
 
 ---
 
@@ -47,7 +47,9 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Distribution native (APK / stores) | ⏳ Optionnel | EAS Build documenté dans le README ; la web app couvre déjà l'usage quotidien |
 | Jeux vidéo — modèle de données | ✅ Fait | Table `Game` (plateformes, développeur, éditeur, modes, Steam App ID, DLC) + `Media.igdbId` + `UserMediaStatus.playtimeMinutes` (migration `add_games`) |
 | Jeux vidéo — provider IGDB | ✅ Fait | `apps/server/src/services/igdb/` : auth Twitch (client credentials, cache mémoire), requêtes Apicalypse avec cache `ApiCache`, mapper `igdbToMedia` |
-| Jeux vidéo — module API | ✅ Fait | `apps/server/src/modules/games/routes.ts` : `GET /api/games/search`, `POST /api/games/add-from-igdb`, `GET /api/games` (bibliothèque groupée par statut wishlist/playing/completed/abandoned), `POST /api/games/:id/status`, `GET /api/games/:id` (enrichissement paresseux), `DELETE /api/games/:id/tracking` ; reste à faire : UI mobile |
+| Jeux vidéo — module API | ✅ Fait | `apps/server/src/modules/games/routes.ts` : `GET /api/games/search`, `POST /api/games/add-from-igdb`, `GET /api/games` (bibliothèque groupée par statut wishlist/playing/completed/abandoned), `POST /api/games/:id/status`, `GET /api/games/:id` (enrichissement paresseux), `GET /api/games/discover`, `GET /api/games/upcoming`, `POST /api/games/steam/import`, `DELETE /api/games/:id/tracking` |
+| Jeux vidéo — onglet Jeux (mobile) | ✅ Fait | `mobile/app/(tabs)/games.tsx` : bibliothèque par statut, recherche IGDB, carrousels « Populaires »/« À venir » (découverte, tap = ajoute + ouvre la fiche), « Sorties à venir » (jeux suivis, groupés par mois) |
+| Jeux vidéo — connexion Steam (mobile) | ✅ Fait | Bloc « Jeux — Steam » dans `mobile/app/settings.tsx` (onglet Compte) : SteamID/URL de profil → import bibliothèque possédée |
 
 ## Prochaines étapes (par priorité)
 
@@ -68,6 +70,22 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 ## Journal des modifications
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
+
+### 2026-07-15 — Jeux vidéo : découverte + à venir + connexion Steam (Task 9)
+- `mobile/app/(tabs)/games.tsx` : sous la bibliothèque, sections **« Sorties à
+  venir »** (jeux suivis dont la sortie n'est pas passée, `GET
+  /api/games/upcoming`, groupés par mois, carrousel horizontal, tap → fiche)
+  et **« Populaires » / « À venir »** (découverte IGDB, `GET
+  /api/games/discover`, carrousel horizontal, tap = ajoute en « Voulus » via
+  `POST /api/games/add-from-igdb` puis ouvre la fiche, overlay de chargement
+  sur la jaquette). La découverte est désormais toujours visible (avant :
+  seulement en repli bibliothèque vide) — un seul rendu, jamais dupliqué.
+- `mobile/app/settings.tsx` (onglet Compte, section « Jeux — Steam ») :
+  `TextInput` SteamID/URL de profil + bouton « Importer ma bibliothèque » →
+  `POST /api/games/steam/import`, affiche « N jeux importés » ou l'erreur
+  (`steam_id_invalide` → message profil public requis) ; invalide
+  `['games','library']` au succès.
+- Typecheck mobile : 0 erreur.
 
 ### 2026-07-15 — Jeux vidéo : module API games (Task 4)
 - `apps/server/src/modules/games/routes.ts` : routes `GET /api/games/search`
