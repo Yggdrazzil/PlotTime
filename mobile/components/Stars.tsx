@@ -31,5 +31,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 10 },
   badge: { borderRadius: 5, backgroundColor: '#26262c', alignItems: 'center', justifyContent: 'center', marginRight: 6 },
   badgeText: { color: COLORS.yellow, fontFamily: FONTS.extraBold },
-  value: { fontSize: 14, fontFamily: FONTS.bold, marginLeft: 6 },
+  value: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.bold, marginLeft: 6 },
 });

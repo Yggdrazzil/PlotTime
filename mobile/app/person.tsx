@@ -143,7 +143,7 @@ export default function PersonScreen() {
                   onPress={() => setFilter(filter === 'all' ? 'show' : filter === 'show' ? 'movie' : 'all')}
                 >
                   <Text style={styles.filterText}>{FILTER_LABEL[filter]}</Text>
-                  <Feather name="chevron-down" size={18} color={COLORS.black} />
+                  <Feather name="chevron-down" size={18} color={COLORS.text} />
                 </Pressable>
                 {filmo.map((f) => (
                   <Pressable key={`${f.mediaType}-${f.tmdbId}`} style={styles.filmoRow} onPress={() => openFilmo(f)}>
@@ -171,7 +171,7 @@ export default function PersonScreen() {
                         <Text style={styles.filmoGenres}>{f.genres.join(', ').toUpperCase()}</Text>
                       ) : null}
                     </View>
-                    {openingId === f.tmdbId ? <ActivityIndicator color={COLORS.black} size="small" /> : null}
+                    {openingId === f.tmdbId ? <ActivityIndicator color={COLORS.text} size="small" /> : null}
                   </Pressable>
                 ))}
               </View>
@@ -187,7 +187,7 @@ export default function PersonScreen() {
 // ~72 % de large, nom 26, naissance 16 gras, bio 16/24, X jaune 44, titre
 // Filmographie 24, affiches 64x96, rangées 17/14.
 const styles = StyleSheet.create({
-  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingBottom: 6, backgroundColor: '#f7f7f7' },
+  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingBottom: 6, backgroundColor: COLORS.checkBg },
   arrow: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center' },
   photoCard: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#2a2a32' },
   photoEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -195,14 +195,14 @@ const styles = StyleSheet.create({
   birth: { color: '#fff', fontSize: 16, fontFamily: FONTS.bold, lineHeight: 23, paddingHorizontal: 24, marginTop: 10 },
   bio: { color: 'rgba(255,255,255,0.92)', fontSize: 16, fontFamily: FONTS.regular, lineHeight: 24, paddingHorizontal: 24, marginTop: 18 },
   xBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.yellow, alignItems: 'center', justifyContent: 'center', marginLeft: 24, marginTop: 22 },
-  xGlyph: { fontSize: 20, color: COLORS.black, fontFamily: FONTS.extraBold },
+  xGlyph: { fontSize: 20, color: COLORS.onAccent, fontFamily: FONTS.extraBold },
   filmoWrap: { backgroundColor: COLORS.white, marginTop: 30, paddingTop: 22, paddingBottom: 10 },
-  filmoTitle: { fontSize: 24, fontFamily: FONTS.extraBold, paddingHorizontal: 20, marginBottom: 14 },
-  filterChip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f4f4f4', borderRadius: 10, marginHorizontal: 20, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 6 },
-  filterText: { fontSize: 16, fontFamily: FONTS.semiBold },
+  filmoTitle: { color: COLORS.text, fontSize: 24, fontFamily: FONTS.extraBold, paddingHorizontal: 20, marginBottom: 14 },
+  filterChip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.chipGrey, borderRadius: 10, marginHorizontal: 20, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 6 },
+  filterText: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.semiBold },
   filmoRow: { flexDirection: 'row', gap: 14, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.borderLight, alignItems: 'flex-start' },
-  filmoPoster: { width: 64, height: 96, borderRadius: 8, backgroundColor: '#e5e5e5' },
-  filmoName: { fontSize: 17, fontFamily: FONTS.bold, lineHeight: 23 },
+  filmoPoster: { width: 64, height: 96, borderRadius: 8, backgroundColor: COLORS.imagePlaceholder },
+  filmoName: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.bold, lineHeight: 23 },
   filmoRole: { fontFamily: FONTS.regular, color: COLORS.text },
   filmoRoleName: { fontFamily: FONTS.bold },
   filmoMeta: { fontSize: 14, fontFamily: FONTS.regular, color: COLORS.textMuted, marginTop: 3 },

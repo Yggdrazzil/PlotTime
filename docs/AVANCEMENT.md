@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-11** (Claude) — Explorer : barre de recherche compacte (réf. TV Time), bouton actualiser supprimé, tirer-pour-actualiser ressort façon Instagram (compatible web)
+Dernière mise à jour : **2026-07-15** (Claude) — Thèmes Sombre + Sunset fonctionnels sur toute l'app (Paramètres > Application) ; « Nom d'utilisateur » = nom d'affichage courant
 
 ---
 
@@ -65,6 +65,36 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 ## Journal des modifications
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
+
+### 2026-07-15 — Claude
+- **Thèmes : Sombre + Sunset réellement fonctionnels** (Paramètres >
+  Application > Thème : Système / Clair / Sombre / **Sunset**) :
+  - `lib/theme.ts` : trois palettes complètes ; les clés COLORS deviennent des
+    RÔLES (`white` = surface, `black` = texte fort, `pageMuted`, `onAccent` =
+    texte sur l'accent, `imagePlaceholder`…), donc tous les styles existants
+    sont thémables sans réécriture. **Sunset** : palette chaude inspirée de la
+    charte Claude.ai (fonds crème #FAF5EE, texte brun #40332A, accent
+    terracotta #E2854F, liens cuivrés) — pas un copier-coller.
+  - Application : préférence en localStorage lue au chargement (avant les
+    StyleSheet) ; changer de thème sauvegarde côté serveur PUIS recharge la
+    web app (comme X/Twitter). `system` suit prefers-color-scheme. Sur l'app
+    native, le thème suit l'appareil (note affichée dans les réglages).
+  - **Balayage complet** : `color: COLORS.text` ajouté à tous les styles de
+    texte sans couleur (31 fichiers) ; surfaces en dur (#fff, #f2f2f2,
+    #e5e5e5…) remplacées par les rôles ; textes/icônes posés sur l'accent
+    passés à `onAccent` (boutons jaunes, FAB, chips actives, badge NOUVEAU…) ;
+    badge noir PREMIERE fixe dans tous les thèmes ; gris en dur illisibles en
+    sombre corrigés ; barre d'état + fond du document + meta theme-color web
+    suivent le thème ; en-têtes sombres by design (profil public, page acteur)
+    conservés.
+- **« Nom d'utilisateur » = nom d'affichage** : les Paramètres lisaient le
+  store local figé à la connexion (« Etienne P. » malgré le profil renommé
+  « Yggdrasil ») → la valeur vient désormais du profil serveur, et « Modifier
+  le profil » met aussi à jour le store immédiatement.
+- Vérifié au navigateur (8/8) : bascule Sombre → fonds/textes sombres corrects
+  + préférence persistée localement ET côté serveur, Sunset → crème/terracotta,
+  retour Clair, et nom d'utilisateur = displayName serveur. Captures des
+  onglets Séries/Paramètres/fiche dans les trois thèmes.
 
 ### 2026-07-11 — Claude (4)
 - **Explorer : barre de recherche recalée sur TV Time** (comparaison px des

@@ -26,10 +26,12 @@ export function ShowPill({ label, onPress }: { label: string; onPress?: () => vo
   );
 }
 
+// Badge noir : noir FIXE quel que soit le thème (PREMIERE façon TV Time) ;
+// badge jaune : accent du thème + texte onAccent.
 export function Badge({ label, variant }: { label: string; variant: 'black' | 'yellow' }) {
   return (
-    <View style={[styles.badge, { backgroundColor: variant === 'yellow' ? COLORS.yellow : COLORS.black }]}>
-      <Text style={[styles.badgeText, { color: variant === 'yellow' ? COLORS.black : COLORS.white }]}>{label}</Text>
+    <View style={[styles.badge, { backgroundColor: variant === 'yellow' ? COLORS.yellow : '#101014' }]}>
+      <Text style={[styles.badgeText, { color: variant === 'yellow' ? COLORS.onAccent : '#FFFFFF' }]}>{label}</Text>
     </View>
   );
 }
@@ -177,20 +179,20 @@ export const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: COLORS.black, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 2,
     backgroundColor: COLORS.white, maxWidth: '100%',
   },
-  showPillText: { fontSize: 10.5, fontFamily: FONTS.bold, letterSpacing: 0.6, flexShrink: 1 },
+  showPillText: { color: COLORS.text, fontSize: 10.5, fontFamily: FONTS.bold, letterSpacing: 0.6, flexShrink: 1 },
   badge: { borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2 },
-  badgeText: { fontSize: 10, fontFamily: FONTS.bold, letterSpacing: 0.5 },
+  badgeText: { color: COLORS.text, fontSize: 10, fontFamily: FONTS.bold, letterSpacing: 0.5 },
   check: { alignItems: 'center', justifyContent: 'center' },
   poster: {
-    aspectRatio: 2 / 3, backgroundColor: '#e5e5e5', borderRadius: RADIUS.poster, overflow: 'hidden',
+    aspectRatio: 2 / 3, backgroundColor: COLORS.imagePlaceholder, borderRadius: RADIUS.poster, overflow: 'hidden',
   },
   posterEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, gap: 6 },
   posterTitle: { fontSize: 12, fontFamily: FONTS.bold, color: '#777', textAlign: 'center' },
   empty: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 30 },
-  emptyTitle: { fontSize: 18, fontFamily: FONTS.extraBold, textAlign: 'center' },
+  emptyTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold, textAlign: 'center' },
   emptyMsg: { fontFamily: FONTS.regular, fontSize: 15, color: COLORS.textMuted, marginTop: 8, textAlign: 'center' },
   retryBtn: { borderWidth: 2, borderColor: COLORS.black, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 28, marginTop: 16 },
-  retryText: { fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.5 },
+  retryText: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.5 },
   loading: { paddingVertical: 60, alignItems: 'center' },
   topTabs: { flexDirection: 'row', height: 42, backgroundColor: COLORS.white },
   topTab: { flex: 1, alignItems: 'center', justifyContent: 'center' },

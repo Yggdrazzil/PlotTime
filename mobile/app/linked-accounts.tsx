@@ -133,7 +133,7 @@ function LinkedRow({ label, busy, onUnlink }: { label: string; busy: boolean; on
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Feather name="check-circle" size={18} color={COLORS.green} />
-        <Text style={{ fontFamily: FONTS.bold, fontSize: 16 }}>{label} lié</Text>
+        <Text style={{ color: COLORS.text, fontFamily: FONTS.bold, fontSize: 16 }}>{label} lié</Text>
       </View>
       <Pressable onPress={onUnlink} disabled={busy}>
         {busy ? <ActivityIndicator size="small" color={COLORS.textMuted} /> : <Text style={{ color: COLORS.red, fontFamily: FONTS.bold, fontSize: 14 }}>Délier</Text>}

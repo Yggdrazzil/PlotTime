@@ -105,6 +105,12 @@ export default function EditProfile() {
         countryCode: (country || 'FR').slice(0, 2).toUpperCase(),
       });
       await qc.invalidateQueries({ queryKey: ['profile'] });
+      // Le store local (Paramètres « Nom d'utilisateur », entêtes…) suit le
+      // nouveau nom d'affichage immédiatement.
+      const newName = displayName.trim();
+      if (newName) {
+        useAppStore.setState((st) => ({ user: st.user ? { ...st.user, displayName: newName } : st.user }));
+      }
       router.back();
     } catch (e) {
       // Jamais d'échec silencieux : l'utilisateur doit savoir que rien n'est enregistré.
@@ -254,24 +260,24 @@ export default function EditProfile() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 54, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  title: { fontSize: 18, fontFamily: FONTS.extraBold },
+  title: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold },
   save: { color: COLORS.black, fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#e5e5e5' },
+  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.imagePlaceholder },
   avatarEmpty: { alignItems: 'center', justifyContent: 'center' },
-  cover: { width: 96, height: 64, borderRadius: 6, backgroundColor: '#e5e5e5' },
+  cover: { width: 96, height: 64, borderRadius: 6, backgroundColor: COLORS.imagePlaceholder },
   link: { color: COLORS.blue, fontFamily: FONTS.regular, fontSize: 16 },
   field: { paddingHorizontal: 20, paddingTop: 18 },
   label: { fontFamily: FONTS.regular, fontSize: 15, color: COLORS.textMuted },
   input: { fontFamily: FONTS.regular, fontSize: 17, color: COLORS.blue, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8, marginTop: 4 },
-  section: { fontSize: 19, fontFamily: FONTS.extraBold, paddingHorizontal: 20, paddingTop: 22 },
+  section: { color: COLORS.text, fontSize: 19, fontFamily: FONTS.extraBold, paddingHorizontal: 20, paddingTop: 22 },
   value: { fontFamily: FONTS.regular, fontSize: 17, color: COLORS.blue, paddingVertical: 8, marginTop: 4, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   valueEmpty: { color: COLORS.textSoft },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
   sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: COLORS.white, borderTopLeftRadius: 8, borderTopRightRadius: 8, paddingBottom: 24 },
   sheetItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 60, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  sheetLabel: { fontFamily: FONTS.regular, fontSize: 16 },
+  sheetLabel: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 16 },
   countryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  countryName: { fontFamily: FONTS.regular, fontSize: 16 },
-  countrySelected: { fontFamily: FONTS.bold },
+  countryName: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 16 },
+  countrySelected: { color: COLORS.text, fontFamily: FONTS.bold },
 });

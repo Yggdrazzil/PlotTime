@@ -96,7 +96,7 @@ function ProfileScreenInner() {
           </>
         ) : null}
         <Pressable style={[styles.bell, { top: insets.top + 8 }]} onPress={() => router.push('/notifications')}>
-          <Feather name="bell" size={20} color={COLORS.black} />
+          <Feather name="bell" size={20} color={COLORS.onAccent} />
           {unread > 0 ? (
             // La pastille de non-lus arrive avec un petit rebond.
             <PopIn style={styles.badge}>
@@ -323,16 +323,16 @@ const styles = StyleSheet.create({
   counters: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   counter: { flex: 1, alignItems: 'center', paddingVertical: 14 },
   counterBorder: { borderLeftWidth: 1, borderLeftColor: COLORS.borderLight },
-  counterN: { fontSize: 21, fontFamily: FONTS.extraBold },
-  counterL: { fontFamily: FONTS.regular, fontSize: 14 },
+  counterN: { color: COLORS.text, fontSize: 21, fontFamily: FONTS.extraBold },
+  counterL: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14 },
   sectHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
-  sectTitle: { fontSize: 21, fontFamily: FONTS.extraBold },
+  sectTitle: { color: COLORS.text, fontSize: 21, fontFamily: FONTS.extraBold },
   statcard: { width: 290, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10 },
   statTop: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  statTitle: { fontSize: 15, fontFamily: FONTS.semiBold },
+  statTitle: { color: COLORS.text, fontSize: 15, fontFamily: FONTS.semiBold },
   statVals: { flexDirection: 'row', justifyContent: 'space-around', padding: 12 },
-  statV: { fontSize: 23, fontFamily: FONTS.extraBold },
-  statL: { fontSize: 11, fontFamily: FONTS.bold, letterSpacing: 0.4 },
+  statV: { color: COLORS.text, fontSize: 23, fontFamily: FONTS.extraBold },
+  statL: { color: COLORS.text, fontSize: 11, fontFamily: FONTS.bold, letterSpacing: 0.4 },
   listcard: { height: 145, borderRadius: 8, backgroundColor: '#2e2e38', justifyContent: 'flex-end', padding: 14, overflow: 'hidden' },
   listShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)' },
   listTitle: { color: '#fff', fontSize: 20, fontFamily: FONTS.extraBold },

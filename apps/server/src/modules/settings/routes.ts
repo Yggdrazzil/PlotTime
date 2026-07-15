@@ -8,7 +8,7 @@ const DEFAULT_SETTINGS = {
   titlesInUserLanguage: true,
   commentLanguages: ['fr', 'en'],
   notifications: { newEpisode: true, newMovie: true, importDone: true },
-  theme: 'light' as 'system' | 'light' | 'dark',
+  theme: 'light' as 'system' | 'light' | 'dark' | 'sunset',
   autoplayTrailers: false,
   upcoming: { hideWatched: false, channels: [] as string[] },
   subscriptions: [] as string[],

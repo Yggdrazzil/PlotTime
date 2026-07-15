@@ -13,7 +13,15 @@ import {
   Mulish_700Bold,
   Mulish_800ExtraBold,
 } from '@expo-google-fonts/mulish';
-import { COLORS } from '@/lib/theme';
+import { COLORS, IS_DARK } from '@/lib/theme';
+
+// Web : le fond du document et la couleur de la barre du navigateur suivent le
+// thème (sinon bandes blanches autour de l'app en sombre/Sunset).
+if (typeof document !== 'undefined') {
+  document.body.style.backgroundColor = COLORS.bg;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', COLORS.bg);
+}
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, retry: 1 } },
@@ -46,7 +54,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <StatusBar style="dark" />
+          <StatusBar style={IS_DARK ? 'light' : 'dark'} />
           {/* Transitions natives (iOS/Android) : glissement fluide entre écrans.
               Sur le web, ces options sont ignorées → l'animation « Pop » au montage
               de chaque page prend le relais. */}

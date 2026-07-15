@@ -70,10 +70,10 @@ export function MarkPreviousPopup({
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
   card: { backgroundColor: COLORS.white, borderRadius: 14, padding: 20, width: '100%', maxWidth: 380 },
-  message: { fontSize: 16, fontFamily: FONTS.semiBold, lineHeight: 23, textAlign: 'center' },
+  message: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.semiBold, lineHeight: 23, textAlign: 'center' },
   buttons: { flexDirection: 'row', gap: 12, marginTop: 18 },
   noBtn: { flex: 1, borderWidth: 1.5, borderColor: COLORS.black, borderRadius: 999, paddingVertical: 11, alignItems: 'center' },
-  noText: { fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.5 },
+  noText: { color: COLORS.text, fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.5 },
   yesBtn: { flex: 1, backgroundColor: COLORS.yellow, borderRadius: 999, paddingVertical: 11, alignItems: 'center' },
-  yesText: { fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.5 },
+  yesText: { color: COLORS.onAccent, fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.5 },
 });

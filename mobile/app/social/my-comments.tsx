@@ -61,8 +61,8 @@ export default function MyCommentsScreen() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 14, paddingHorizontal: 20, paddingVertical: 12, alignItems: 'flex-start' },
-  poster: { width: 54, aspectRatio: 2 / 3, borderRadius: 6, backgroundColor: '#e5e5e5' },
+  poster: { width: 54, aspectRatio: 2 / 3, borderRadius: 6, backgroundColor: COLORS.imagePlaceholder },
   posterEmpty: { alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 16, fontFamily: FONTS.bold, marginBottom: 4 },
+  title: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.bold, marginBottom: 4 },
   body: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textMuted, lineHeight: 20 },
 });

@@ -89,9 +89,9 @@ const styles = StyleSheet.create({
   avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#20202a' },
   avatarEmpty: { alignItems: 'center', justifyContent: 'center' },
   avatarInit: { color: '#fff', fontSize: 18, fontFamily: FONTS.extraBold },
-  name: { flex: 1, fontSize: 16, fontFamily: FONTS.bold },
+  name: { color: COLORS.text, flex: 1, fontSize: 16, fontFamily: FONTS.bold },
   btn: { minWidth: 96, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: COLORS.black, alignItems: 'center' },
   btnOn: { backgroundColor: COLORS.chipGrey },
-  btnText: { color: '#fff', fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
+  btnText: { color: COLORS.white, fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
   btnTextOn: { color: COLORS.black },
 });

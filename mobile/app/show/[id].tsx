@@ -262,10 +262,10 @@ export default function ShowDetail() {
           disabled={follow.isPending}
         >
           {follow.isPending ? (
-            <ActivityIndicator color={COLORS.black} />
+            <ActivityIndicator color={COLORS.onAccent} />
           ) : (
             <View style={styles.addBarRow}>
-              <Feather name="plus" size={24} color={COLORS.black} />
+              <Feather name="plus" size={24} color={COLORS.onAccent} />
               <Text style={styles.addBarText}>{isMovie ? 'AJOUTER LE FILM' : 'AJOUTER LA SÉRIE'}</Text>
             </View>
           )}
@@ -273,7 +273,7 @@ export default function ShowDetail() {
       ) : null}
       <SlideUpBar visible={!!(justAdded || toast)} style={[styles.addBar, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.addBarRow}>
-          <Feather name="check" size={24} color={COLORS.black} />
+          <Feather name="check" size={24} color={COLORS.onAccent} />
           <Text style={styles.addBarText}>{toast ?? (isMovie ? 'AJOUTÉ !' : 'AJOUTÉE !')}</Text>
         </View>
       </SlideUpBar>
@@ -594,18 +594,18 @@ function ListsSheet({
 const pstyles = StyleSheet.create({
   // Mesures TV Time (réf. 38-40) : entête « Personnaliser » 15 regular,
   // options 17 semiBold, grille d'affiches 2 colonnes, sélection assombrie.
-  menuHeader: { fontSize: 15, fontFamily: FONTS.regular, color: '#555', paddingHorizontal: 22, paddingTop: 20, paddingBottom: 8 },
+  menuHeader: { fontSize: 15, fontFamily: FONTS.regular, color: COLORS.textMuted, paddingHorizontal: 22, paddingTop: 20, paddingBottom: 8 },
   menuItem: { paddingHorizontal: 22, paddingVertical: 13 },
-  menuItemText: { fontSize: 16, fontFamily: FONTS.regular },
+  menuItemText: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.regular },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16,
     paddingTop: 54, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border,
   },
-  title: { fontSize: 18, fontFamily: FONTS.bold },
+  title: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.bold },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  posterWrap: { width: '48.3%', aspectRatio: 2 / 3, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e5e5e5' },
+  posterWrap: { width: '48.3%', aspectRatio: 2 / 3, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder },
   bannerList: { gap: 12 },
-  bannerWrap: { width: '100%', aspectRatio: 16 / 9, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e5e5e5' },
+  bannerWrap: { width: '100%', aspectRatio: 16 / 9, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder },
   selectedShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   selectedRow: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 14 },
   selectedStar: { color: COLORS.yellow, fontSize: 19, lineHeight: 22 },
@@ -614,9 +614,9 @@ const pstyles = StyleSheet.create({
   emptyNote: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15, padding: 20 },
   listCount: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15 },
   newListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 24, paddingVertical: 16 },
-  newListInput: { flex: 1, borderBottomWidth: 1, borderBottomColor: COLORS.border, fontFamily: FONTS.regular, fontSize: 16, paddingVertical: 8 },
+  newListInput: { color: COLORS.text, flex: 1, borderBottomWidth: 1, borderBottomColor: COLORS.border, fontFamily: FONTS.regular, fontSize: 16, paddingVertical: 8 },
   newListBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
-  newListBtnText: { fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
+  newListBtnText: { color: COLORS.onAccent, fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
 });
 
 // Ouvre une recommandation TMDb : fiche locale si la série/le film est déjà
@@ -774,7 +774,7 @@ function AlsoWatched({ items, type }: { items: any[]; type: 'show' | 'movie' }) 
             )}
             {r.inLibrary ? (
               <View style={styles.recoBadge}>
-                <Feather name="check" size={18} color={COLORS.black} />
+                <Feather name="check" size={18} color={COLORS.onAccent} />
               </View>
             ) : null}
             {rec.busyId === r.tmdbId ? (
@@ -898,7 +898,7 @@ function AboutTab({ media, detail, mediaId, interest, setInterest, onScroll }: a
               setInterest((sel: string[]) => (sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]))
             }
           >
-            <Text style={styles.qbtnText}>{o}</Text>
+            <Text style={[styles.qbtnText, interest.includes(o) && { color: COLORS.onAccent }]}>{o}</Text>
           </Pressable>
         ))}
       </View>
@@ -930,7 +930,7 @@ function MovieBody({ media, detail, mediaId, onToggle, onScroll }: any) {
       <View style={[styles.section, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Feather name="eye" size={22} color={COLORS.black} />
-          <Text style={{ fontFamily: FONTS.regular, fontSize: 16 }}>{seen ? 'Vu' : 'Pas vu'}</Text>
+          <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 16 }}>{seen ? 'Vu' : 'Pas vu'}</Text>
         </View>
         <CheckCircle checked={seen} onPress={onToggle} />
       </View>
@@ -1257,7 +1257,7 @@ const styles = StyleSheet.create({
   heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
   addBar: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: COLORS.yellow, paddingTop: 18, alignItems: 'center' },
   addBarRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  addBarText: { fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
+  addBarText: { color: COLORS.onAccent, fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
   heroBtns: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14 },
   heroTitleWrap: { padding: 20 },
   heroTitle: { color: '#fff', fontSize: 25, fontFamily: FONTS.extraBold },
@@ -1268,55 +1268,55 @@ const styles = StyleSheet.create({
   sectionHeadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, marginBottom: 14 },
   // Variante sans marges pour les entêtes DANS une section (Où regarder + rouage).
   sectionHeadRowTight: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { fontSize: 20, fontFamily: FONTS.extraBold },
+  sectionTitle: { color: COLORS.text, fontSize: 20, fontFamily: FONTS.extraBold },
   muted: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 16, marginTop: 8 },
-  overview: { fontFamily: FONTS.regular, fontSize: 16, lineHeight: 23, marginTop: 14 },
+  overview: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 16, lineHeight: 23, marginTop: 14 },
   infoMeta: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15, marginTop: 6 },
   // Pastilles noires « Où regarder » (TV Time affiche toutes les plateformes).
   provBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#101014', borderRadius: 999, paddingHorizontal: 22, paddingVertical: 12 },
   provText: { color: '#fff', fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.3 },
-  question: { textAlign: 'center', fontSize: 13, fontFamily: FONTS.extraBold, marginBottom: 14, letterSpacing: 0.2 },
+  question: { color: COLORS.text, textAlign: 'center', fontSize: 13, fontFamily: FONTS.extraBold, marginBottom: 14, letterSpacing: 0.2 },
   qbtn: { backgroundColor: COLORS.chipGrey, borderRadius: 8, paddingVertical: 12, marginBottom: 10, alignItems: 'center' },
   qbtnSel: { backgroundColor: COLORS.yellow },
-  qbtnText: { fontSize: 13.5, fontFamily: FONTS.bold },
+  qbtnText: { color: COLORS.text, fontSize: 13.5, fontFamily: FONTS.bold },
   // « Similaire à » : vignette ronde 56 + titre 20 / nom 16 (réf. TV Time).
   similarRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  similarThumb: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#e5e5e5' },
-  similarTitle: { fontSize: 20, fontFamily: FONTS.extraBold },
+  similarThumb: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.imagePlaceholder },
+  similarTitle: { color: COLORS.text, fontSize: 20, fontFamily: FONTS.extraBold },
   similarName: { fontSize: 16, fontFamily: FONTS.regular, color: COLORS.textMuted, marginTop: 2 },
   // Rangées méta (horloge / chrono / personnes) sous le synopsis.
   metaRows: { marginTop: 18, gap: 14 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  metaText: { fontSize: 17, fontFamily: FONTS.regular },
+  metaText: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.regular },
   // Distribution : cartes 108x148, bandeau sombre nom/rôle en bas.
-  castCard: { width: 108, height: 148, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e5e5e5', justifyContent: 'flex-end' },
+  castCard: { width: 108, height: 148, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder, justifyContent: 'flex-end' },
   castCap: { backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 7, paddingVertical: 6 },
   castName: { color: '#fff', fontSize: 13, fontFamily: FONTS.bold },
   castRole: { color: 'rgba(255,255,255,0.85)', fontSize: 10.5, fontFamily: FONTS.bold, letterSpacing: 0.3, marginTop: 1 },
   // « Également regardé » : affiches 132 (2/3), badge coche jaune en haut à droite.
-  recoCard: { width: 132, aspectRatio: 2 / 3, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e5e5e5' },
+  recoCard: { width: 132, aspectRatio: 2 / 3, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder },
   recoBadge: { position: 'absolute', top: 0, right: 10, width: 34, height: 30, backgroundColor: COLORS.yellow, borderBottomLeftRadius: 6, borderBottomRightRadius: 6, alignItems: 'center', justifyContent: 'center' },
   // Notes de la communauté : sélecteur de saison + points de pagination.
   seasonPickRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, marginBottom: 12, alignSelf: 'flex-start' },
-  seasonPick: { fontSize: 16, fontFamily: FONTS.bold },
+  seasonPick: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.bold },
   dotsRow: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: 10 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#d9d9d9' },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.chipSelected },
   dotOn: { backgroundColor: COLORS.black },
   // Rangée « Commentaires » (compteur + chevron) vers la page dédiée.
   commentsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   commentsCount: { fontSize: 17, fontFamily: FONTS.regular, color: COLORS.textMuted },
   eprow: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 5, minHeight: 92, overflow: 'hidden', marginBottom: 8, ...SHADOW.card },
-  epThumb: { width: 90, backgroundColor: '#e5e5e5' },
-  epCode: { fontSize: 19, fontFamily: FONTS.extraBold },
+  epThumb: { width: 90, backgroundColor: COLORS.imagePlaceholder },
+  epCode: { color: COLORS.text, fontSize: 19, fontFamily: FONTS.extraBold },
   markAllBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: COLORS.black, alignItems: 'center', justifyContent: 'center' },
   season: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 76, paddingHorizontal: 20, backgroundColor: COLORS.white, borderRadius: 5, ...SHADOW.season },
-  epRowTitle: { fontFamily: FONTS.regular, fontSize: 13, marginTop: 2 },
+  epRowTitle: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 13, marginTop: 2 },
   // Compte à rebours des épisodes non diffusés (cf. TV Time : « 4 / JOURS »).
   daysWrap: { alignItems: 'center', minWidth: 44 },
-  daysNum: { fontSize: 22, fontFamily: FONTS.extraBold, lineHeight: 25 },
-  daysLabel: { fontSize: 10, fontFamily: FONTS.bold, letterSpacing: 0.8 },
-  seasonTitle: { fontSize: 20, fontFamily: FONTS.extraBold },
-  seasonProg: { fontFamily: FONTS.regular, fontSize: 15, marginRight: 14 },
+  daysNum: { color: COLORS.text, fontSize: 22, fontFamily: FONTS.extraBold, lineHeight: 25 },
+  daysLabel: { color: COLORS.text, fontSize: 10, fontFamily: FONTS.bold, letterSpacing: 0.8 },
+  seasonTitle: { color: COLORS.text, fontSize: 20, fontFamily: FONTS.extraBold },
+  seasonProg: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 15, marginRight: 14 },
   progressTrack: {
     position: 'absolute', left: 0, right: 0, bottom: 0, height: 5,
     borderBottomLeftRadius: 5, borderBottomRightRadius: 5, overflow: 'hidden',
@@ -1333,8 +1333,8 @@ const styles = StyleSheet.create({
   // captures) : marges 8, coins 14, rangées 48dp, police 17 fine, icônes 20.
   sheet: { position: 'absolute', left: 8, right: 8, bottom: 8, backgroundColor: COLORS.white, borderRadius: 14, overflow: 'hidden' },
   statusRow: { backgroundColor: COLORS.chipGrey, borderBottomWidth: 3, borderBottomColor: COLORS.yellow, height: 48, justifyContent: 'center', paddingHorizontal: 20 },
-  statusText: { fontFamily: FONTS.regular, fontSize: 16, color: '#444' },
+  statusText: { fontFamily: FONTS.regular, fontSize: 16, color: COLORS.textMuted },
   sheetItem: { flexDirection: 'row', alignItems: 'center', gap: 14, height: 48, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.borderLight },
-  sheetLabel: { fontSize: 17, fontFamily: FONTS.regular },
+  sheetLabel: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.regular },
 });
 

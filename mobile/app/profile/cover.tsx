@@ -150,13 +150,13 @@ export default function CoverPicker() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 52 },
-  title: { fontSize: 18, fontFamily: FONTS.extraBold, flex: 1, textAlign: 'center' },
+  title: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold, flex: 1, textAlign: 'center' },
   searchbar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, height: 60 },
-  input: { flex: 1, fontFamily: FONTS.regular, fontSize: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
+  input: { color: COLORS.text, flex: 1, fontFamily: FONTS.regular, fontSize: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingVertical: 8 },
-  poster: { width: 52, aspectRatio: 2 / 3, borderRadius: 4, backgroundColor: '#e5e5e5' },
+  poster: { width: 52, aspectRatio: 2 / 3, borderRadius: 4, backgroundColor: COLORS.imagePlaceholder },
   posterEmpty: { alignItems: 'center', justifyContent: 'center' },
-  rowTitle: { flex: 1, fontSize: 16, fontFamily: FONTS.bold },
-  bannerWrap: { width: '100%', aspectRatio: 16 / 9, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e5e5e5' },
+  rowTitle: { color: COLORS.text, flex: 1, fontSize: 16, fontFamily: FONTS.bold },
+  bannerWrap: { width: '100%', aspectRatio: 16 / 9, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder },
   banner: { width: '100%', height: '100%' },
 });

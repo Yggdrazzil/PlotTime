@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: SIDE, gap: GAP },
   cell: { width: CELL_W },
-  posterBox: { width: '100%', aspectRatio: 2 / 3, borderRadius: 6, overflow: 'hidden', backgroundColor: '#e5e5e5' },
+  posterBox: { width: '100%', aspectRatio: 2 / 3, borderRadius: 6, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder },
   posterEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, gap: 6 },
   posterTitle: { fontSize: 11, fontFamily: FONTS.bold, color: '#777', textAlign: 'center' },
   barTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: 'rgba(255,212,0,0.30)' },

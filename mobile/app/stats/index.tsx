@@ -210,9 +210,9 @@ function RankCard({ title, col, rows }: { title: string; col: string; rows: [str
 const styles = StyleSheet.create({
   list: { padding: 12, gap: 12, paddingBottom: 32 },
   card: { backgroundColor: COLORS.white, borderRadius: 12, padding: 18, borderWidth: 1, borderColor: COLORS.borderLight },
-  cardTitle: { fontSize: 19, fontFamily: FONTS.extraBold, marginBottom: 6 },
-  huge: { fontSize: 40, fontFamily: FONTS.extraBold, marginTop: 4 },
-  big: { fontSize: 34, fontFamily: FONTS.extraBold },
+  cardTitle: { color: COLORS.text, fontSize: 19, fontFamily: FONTS.extraBold, marginBottom: 6 },
+  huge: { color: COLORS.text, fontSize: 40, fontFamily: FONTS.extraBold, marginTop: 4 },
+  big: { color: COLORS.text, fontSize: 34, fontFamily: FONTS.extraBold },
   bigUnit: { fontSize: 15, fontFamily: FONTS.regular, color: COLORS.textMuted, marginBottom: 4 },
   sub: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textMuted, textTransform: 'uppercase', marginTop: 2 },
   compare: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.borderLight },
@@ -226,6 +226,6 @@ const styles = StyleSheet.create({
   rankHead: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, marginBottom: 4 },
   rankHeadText: { fontSize: 11, fontFamily: FONTS.bold, color: COLORS.textMuted, letterSpacing: 0.5 },
   rankRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, borderTopWidth: 1, borderTopColor: COLORS.borderLight, gap: 12 },
-  rankName: { flex: 1, fontSize: 16, fontFamily: FONTS.regular },
-  rankVal: { fontSize: 16, fontFamily: FONTS.bold },
+  rankName: { color: COLORS.text, flex: 1, fontSize: 16, fontFamily: FONTS.regular },
+  rankVal: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.bold },
 });

@@ -330,8 +330,8 @@ function ModeBar({ mode, setMode, dark }: { mode: FeedMode; setMode: (m: FeedMod
         const on = mode === m;
         return (
           <Pressable key={m} style={[styles.modeChip, on && styles.modeChipOn, dark && !on && styles.modeChipDark]} onPress={() => setMode(m)}>
-            <Feather name={icon} size={14} color={on ? COLORS.black : dark ? '#fff' : COLORS.textMuted} />
-            <Text style={[styles.modeChipText, { color: on ? COLORS.black : dark ? '#fff' : COLORS.textMuted }]}>{label}</Text>
+            <Feather name={icon} size={14} color={on ? COLORS.onAccent : dark ? '#fff' : COLORS.textMuted} />
+            <Text style={[styles.modeChipText, { color: on ? COLORS.onAccent : dark ? '#fff' : COLORS.textMuted }]}>{label}</Text>
           </Pressable>
         );
       })}
@@ -681,7 +681,7 @@ function Feed({
             <Text style={styles.deckEndTitle}>Fin des suggestions</Text>
             <Text style={styles.deckEndMsg}>Actualise pour un nouveau tirage.</Text>
             <Pressable style={styles.deckEndBtn} onPress={() => { setIdx(0); onRefresh(); }}>
-              <Feather name="refresh-cw" size={16} color={COLORS.black} />
+              <Feather name="refresh-cw" size={16} color={COLORS.onAccent} />
               <Text style={styles.deckEndBtnText}>NOUVELLES SUGGESTIONS</Text>
             </Pressable>
           </View>
@@ -752,13 +752,13 @@ const styles = StyleSheet.create({
   catChip: { backgroundColor: COLORS.chipGrey, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
   catChipSel: { backgroundColor: COLORS.yellow },
   catChipText: { fontSize: 14, fontFamily: FONTS.extraBold, color: COLORS.textMuted, letterSpacing: 0.4 },
-  catChipTextSel: { color: COLORS.black },
+  catChipTextSel: { color: COLORS.onAccent },
   // Cotes TV Time (comparaison px sur captures, même téléphone) : rangée ~56dp,
   // saisie 17, soulignement sous icône + champ (pas d'encadré).
   // Barre de recherche recalée sur TV Time (comparaison px) : rangée 44dp,
   // icône 20, texte 15.5 — nettement plus compacte qu'avant.
   searchbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 18, height: 44, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  input: { flex: 1, fontFamily: FONTS.regular, fontSize: 15.5, borderWidth: 0, paddingVertical: 6 },
+  input: { color: COLORS.text, flex: 1, fontFamily: FONTS.regular, fontSize: 15.5, borderWidth: 0, paddingVertical: 6 },
   cancel: { color: COLORS.blue, fontFamily: FONTS.regular, fontSize: 16 },
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   // Onglets répartis sur toute la largeur, comme TV Time.
@@ -767,9 +767,9 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.4, color: COLORS.textSoft },
   tabTextActive: { color: COLORS.black },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.borderLight },
-  resultPoster: { width: 56, aspectRatio: 2 / 3, borderRadius: 4, backgroundColor: '#e5e5e5' },
+  resultPoster: { width: 56, aspectRatio: 2 / 3, borderRadius: 4, backgroundColor: COLORS.imagePlaceholder },
   posterEmpty: { alignItems: 'center', justifyContent: 'center' },
-  resultTitle: { fontSize: 17, fontFamily: FONTS.bold },
+  resultTitle: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.bold },
   resultMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
   resultMeta: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textMuted },
   addSquare: { width: 40, height: 40, borderRadius: 10, borderWidth: 2.5, borderColor: COLORS.yellow, alignItems: 'center', justifyContent: 'center' },
@@ -779,10 +779,10 @@ const styles = StyleSheet.create({
   userTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#20202a', alignItems: 'center', justifyContent: 'center' },
   avatarInit: { color: '#fff', fontSize: 17, fontFamily: FONTS.extraBold },
-  userName: { flex: 1, fontSize: 16, fontFamily: FONTS.bold },
+  userName: { color: COLORS.text, flex: 1, fontSize: 16, fontFamily: FONTS.bold },
   followBtn: { minWidth: 96, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: COLORS.black, alignItems: 'center' },
   followingBtn: { backgroundColor: COLORS.chipGrey },
-  followText: { color: '#fff', fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
+  followText: { color: COLORS.white, fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
   followingText: { color: COLORS.black },
   // Cartes hero façon TV Time : image 16/9, coins bien arrondis, + de 40dp.
   hero: { marginHorizontal: 20, marginBottom: 24, borderRadius: 12, overflow: 'hidden', ...{ elevation: 3 } },
@@ -792,13 +792,13 @@ const styles = StyleSheet.create({
   heroCap: { padding: 14 },
   heroTitle: { color: '#fff', fontSize: 20, fontFamily: FONTS.extraBold, flexShrink: 1 },
   heroMeta: { color: 'rgba(255,255,255,0.9)', fontFamily: FONTS.regular, fontSize: 14, marginTop: 2 },
-  heroDesc: { padding: 14, fontFamily: FONTS.regular, fontSize: 15, lineHeight: 21 },
+  heroDesc: { color: '#26221E', padding: 14, fontFamily: FONTS.regular, fontSize: 15, lineHeight: 21 },
   // --- Bascule de mode Parcourir / Découvrir ---
   modeBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4 },
   modeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: COLORS.chipGrey },
   modeChipOn: { backgroundColor: COLORS.yellow },
   modeChipDark: { backgroundColor: 'rgba(255,255,255,0.14)' },
-  modeChipText: { fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.4 },
+  modeChipText: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.4 },
   // --- Explorer façon TikTok/Tinder ---
   deckTop: { backgroundColor: COLORS.pageMuted, zIndex: 10 },
   catChipDark: { backgroundColor: 'rgba(255,255,255,0.14)' },
@@ -822,7 +822,7 @@ const styles = StyleSheet.create({
   deckEndTitle: { color: COLORS.black, fontSize: 22, fontFamily: FONTS.extraBold },
   deckEndMsg: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15, textAlign: 'center' },
   deckEndBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 13, marginTop: 8 },
-  deckEndBtnText: { fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.5 },
+  deckEndBtnText: { color: COLORS.onAccent, fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.5 },
   // --- Panneau détails (tap) : posé sur l'image, façon TikTok ---
   detailSheet: { position: 'absolute', left: 0, right: 0, top: '30%', bottom: 0, backgroundColor: 'rgba(8,8,12,0.94)', borderTopLeftRadius: 22, borderTopRightRadius: 22, zIndex: 20 },
   detailGrip: { alignSelf: 'center', paddingTop: 8, paddingBottom: 6 },

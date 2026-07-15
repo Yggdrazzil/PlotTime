@@ -233,7 +233,7 @@ export default function CommentsScreen() {
       ) : comments.length === 0 ? (
         <EmptyState title="Aucun commentaire" message="Soyez le premier à réagir avec le crayon jaune." />
       ) : (
-        <ScrollView style={{ backgroundColor: '#f2f2f2' }} contentContainerStyle={{ paddingVertical: 10, paddingBottom: insets.bottom + 110 }}>
+        <ScrollView style={{ backgroundColor: COLORS.pageMuted }} contentContainerStyle={{ paddingVertical: 10, paddingBottom: insets.bottom + 110 }}>
           {comments.map((c, i) => (
             <AppearItem key={c.id} index={i}>{card(c)}</AppearItem>
           ))}
@@ -242,7 +242,7 @@ export default function CommentsScreen() {
 
       {/* FAB crayon jaune (TV Time) : écrire un commentaire. */}
       <Pressable style={[styles.fab, { bottom: insets.bottom + 22 }]} onPress={() => setComposer(true)}>
-        <Feather name="edit-2" size={24} color={COLORS.black} />
+        <Feather name="edit-2" size={24} color={COLORS.onAccent} />
       </Pressable>
 
       <Modal visible={composer} transparent animationType="fade" onRequestClose={() => setComposer(false)}>
@@ -259,7 +259,7 @@ export default function CommentsScreen() {
             autoFocus
           />
           <Pressable style={[styles.send, (!text.trim() || busy) && { opacity: 0.4 }]} onPress={post} disabled={!text.trim() || busy}>
-            {busy ? <ActivityIndicator color="#000" /> : <Text style={styles.sendText}>PUBLIER</Text>}
+            {busy ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.sendText}>PUBLIER</Text>}
           </Pressable>
         </View>
       </Modal>
@@ -272,7 +272,7 @@ export default function CommentsScreen() {
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, backgroundColor: COLORS.white },
   headSide: { width: 44 },
-  headTitle: { fontSize: 18, fontFamily: FONTS.bold },
+  headTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.bold },
   headCount: { fontSize: 13, fontFamily: FONTS.regular, color: COLORS.textMuted, marginTop: 1 },
   sortRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.white, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border },
   sortLabel: { fontSize: 11, fontFamily: FONTS.extraBold, color: COLORS.textMuted, letterSpacing: 0.5 },
@@ -281,24 +281,24 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#20202a', alignItems: 'center', justifyContent: 'center' },
   avatarInit: { color: '#fff', fontSize: 17, fontFamily: FONTS.extraBold },
-  name: { fontSize: 16, fontFamily: FONTS.bold },
+  name: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.bold },
   date: { fontSize: 13, fontFamily: FONTS.regular, color: COLORS.textMuted, marginTop: 1 },
-  body: { fontFamily: FONTS.regular, fontSize: 16, lineHeight: 22, marginTop: 12 },
+  body: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 16, lineHeight: 22, marginTop: 12 },
   footer: { flexDirection: 'row', alignItems: 'center', gap: 26, marginTop: 14 },
   footBtn: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  footCount: { fontSize: 14, fontFamily: FONTS.semiBold },
+  footCount: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.semiBold },
   replies: { marginTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.borderLight, paddingTop: 10, gap: 10 },
   replyRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  replyName: { fontSize: 14, fontFamily: FONTS.bold },
-  replyBody: { fontFamily: FONTS.regular, fontSize: 15, lineHeight: 20, marginTop: 2 },
+  replyName: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.bold },
+  replyBody: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 15, lineHeight: 20, marginTop: 2 },
   replyComposer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  replyInput: { flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: FONTS.regular, fontSize: 15 },
+  replyInput: { color: COLORS.text, flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: FONTS.regular, fontSize: 15 },
   replySend: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
   fab: { position: 'absolute', right: 20, width: 62, height: 62, borderRadius: 31, backgroundColor: COLORS.yellow, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8 },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
   sheet: { position: 'absolute', left: 8, right: 8, bottom: 8, backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
-  sheetTitle: { fontSize: 18, fontFamily: FONTS.extraBold, marginBottom: 10 },
-  input: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, minHeight: 80, padding: 12, fontFamily: FONTS.regular, fontSize: 16, textAlignVertical: 'top' },
+  sheetTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold, marginBottom: 10 },
+  input: { color: COLORS.text, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, minHeight: 80, padding: 12, fontFamily: FONTS.regular, fontSize: 16, textAlignVertical: 'top' },
   send: { alignSelf: 'flex-end', marginTop: 12, backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 10 },
-  sendText: { fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
+  sendText: { color: COLORS.onAccent, fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
 });
