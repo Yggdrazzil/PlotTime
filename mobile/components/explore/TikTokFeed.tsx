@@ -35,6 +35,7 @@ export function TikTokFeed() {
   const [commentsFor, setCommentsFor] = useState<FeedItem | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0); // carte actuellement à l'écran
+  const [commentBumps, setCommentBumps] = useState<Record<string, number>>({}); // +commentaires publiés par carte
   const dryRef = useRef(0); // nombre de fetchs consécutifs sans nouveauté
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
@@ -138,6 +139,7 @@ export function TikTokFeed() {
               onOpenComments={setCommentsFor}
               onDisliked={() => advance(index)}
               onInvalidateLibrary={invalidateLibrary}
+              commentBump={commentBumps[keyOf(item)] ?? 0}
             />
           )}
           ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: 20 }} color="#fff" /> : null}
@@ -162,6 +164,7 @@ export function TikTokFeed() {
               style={[styles.chip, cat === c.key && styles.chipOn]}
               onPress={() => {
                 setCat(c.key);
+                setActiveIndex(0);
                 listRef.current?.scrollToOffset({ offset: 0, animated: false });
               }}
             >
@@ -185,7 +188,16 @@ export function TikTokFeed() {
         </Pressable>
       ) : null}
 
-      <CommentsSheet item={commentsFor} onClose={() => setCommentsFor(null)} resolveMedia={resolveMedia} />
+      <CommentsSheet
+        item={commentsFor}
+        onClose={() => setCommentsFor(null)}
+        resolveMedia={resolveMedia}
+        onCommentPosted={() => {
+          if (!commentsFor) return;
+          const k = keyOf(commentsFor);
+          setCommentBumps((b) => ({ ...b, [k]: (b[k] ?? 0) + 1 }));
+        }}
+      />
     </View>
   );
 }

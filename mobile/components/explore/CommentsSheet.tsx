@@ -13,10 +13,13 @@ export function CommentsSheet({
   item,
   onClose,
   resolveMedia,
+  onCommentPosted,
 }: {
   item: FeedItem | null;
   onClose: () => void;
   resolveMedia: (item: FeedItem) => Promise<string>;
+  // Appelé après publication réussie d'un commentaire (fait +1 le compteur du rail).
+  onCommentPosted?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [mediaId, setMediaId] = useState<string | null>(null);
@@ -52,7 +55,7 @@ export function CommentsSheet({
             <Text style={styles.err}>Impossible de charger les commentaires.</Text>
           </View>
         ) : mediaId ? (
-          <CommentsPanel mediaId={mediaId} title={item?.title} onClose={onClose} />
+          <CommentsPanel mediaId={mediaId} title={item?.title} onClose={onClose} onCommentPosted={onCommentPosted} />
         ) : (
           <View style={styles.center}>
             <ActivityIndicator color={COLORS.black} />
@@ -65,7 +68,17 @@ export function CommentsSheet({
 
 // Panneau interne : monté uniquement une fois le mediaId connu, pour que
 // useComments (React Query) soit toujours appelé avec un id réel.
-function CommentsPanel({ mediaId, title, onClose }: { mediaId: string; title?: string; onClose: () => void }) {
+function CommentsPanel({
+  mediaId,
+  title,
+  onClose,
+  onCommentPosted,
+}: {
+  mediaId: string;
+  title?: string;
+  onClose: () => void;
+  onCommentPosted?: () => void;
+}) {
   const router = useRouter();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -91,6 +104,7 @@ function CommentsPanel({ mediaId, title, onClose }: { mediaId: string; title?: s
     try {
       await post(text);
       setText('');
+      onCommentPosted?.();
     } finally {
       setBusy(false);
     }

@@ -16,6 +16,7 @@ export function TikTokCard({
   onOpenComments,
   onDisliked,
   onInvalidateLibrary,
+  commentBump = 0,
 }: {
   item: FeedItem;
   height: number;
@@ -23,6 +24,9 @@ export function TikTokCard({
   onOpenComments: (item: FeedItem) => void;
   onDisliked: () => void;
   onInvalidateLibrary: () => void;
+  // Incrément du compteur de commentaires (commentaires publiés depuis la sheet
+  // pour cette carte) — le flux le fait remonter, la carte l'ajoute au total serveur.
+  commentBump?: number;
 }) {
   const router = useRouter();
   const [detail, setDetail] = useState(false);
@@ -52,22 +56,27 @@ export function TikTokCard({
     }
   };
 
-  // Like = ajoute à « À voir » (watchlist). Optimiste avec rollback.
+  // Like = ajoute à « À voir » (watchlist). Action à SENS UNIQUE : une fois dans
+  // ta watchlist, un nouveau tap ne fait rien (le retrait se gère dans la
+  // bibliothèque). Les endpoints n'ont pas de retrait, et re-poster spammerait
+  // le fil d'activité — d'où le garde-fou. Optimiste avec rollback si échec.
   const onLike = async () => {
-    const next = !state.liked;
-    setState((s) => ({ ...s, liked: next, likes: s.likes + (next ? 1 : -1) }));
+    if (state.liked) return;
+    setState((s) => ({ ...s, liked: true, likes: s.likes + 1 }));
     try {
       const id = await resolveMedia(item);
       await api.post(item.type === 'movie' ? `/api/movies/${id}/watchlist` : `/api/shows/${id}/watchlater`);
       onInvalidateLibrary();
     } catch {
-      setState((s) => ({ ...s, liked: !next, likes: s.likes + (next ? -1 : 1) }));
+      setState((s) => ({ ...s, liked: false, likes: s.likes - 1 }));
     }
   };
 
+  // Déjà vu = marque comme vu (sens unique, comme le like : mark-all-watched
+  // n'est pas réversible proprement ici).
   const onWatched = async () => {
-    const next = !state.watched;
-    setState((s) => ({ ...s, watched: next, watchedCount: s.watchedCount + (next ? 1 : -1) }));
+    if (state.watched) return;
+    setState((s) => ({ ...s, watched: true, watchedCount: s.watchedCount + 1 }));
     try {
       const id = await resolveMedia(item);
       if (item.type === 'movie') {
@@ -78,7 +87,7 @@ export function TikTokCard({
       }
       onInvalidateLibrary();
     } catch {
-      setState((s) => ({ ...s, watched: !next, watchedCount: s.watchedCount + (next ? -1 : 1) }));
+      setState((s) => ({ ...s, watched: false, watchedCount: s.watchedCount - 1 }));
     }
   };
 
@@ -133,7 +142,7 @@ export function TikTokCard({
 
       <ActionRail
         item={item}
-        state={state}
+        state={{ ...state, comments: (item.stats?.comments ?? 0) + commentBump }}
         onLike={onLike}
         onDislike={onDislike}
         onWatched={onWatched}
