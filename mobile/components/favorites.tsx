@@ -210,7 +210,7 @@ export function FavoritesPage({ kind }: { kind: FavKind }) {
 // Feuille « Trier par » : 5 options, pastille jaune cochée, ANNULER/APPLIQUER
 // (APPLIQUER grisé tant que rien ne change) — copie TV Time.
 // ============================================================================
-function SortSheet({
+export function SortSheet({
   visible, current, onClose, onApply,
 }: {
   visible: boolean;

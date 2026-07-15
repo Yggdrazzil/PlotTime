@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-15** (Claude) — Thèmes Sombre + Sunset fonctionnels sur toute l'app + « Nom d'utilisateur » = nom d'affichage ; (Benjamin) recherche jeux dans l'Explorer, accessibilité, squelettes de fiches
+Dernière mise à jour : **2026-07-16** (Claude) — QA complet + correctifs : tri des préférés répercuté sur le profil (séries/films/jeux), pull-to-refresh du Profil, Paramètres allégés
 
 ---
 
@@ -70,6 +70,26 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-16 — Claude
+- **Paramètres** : onglet « À VENIR » supprimé (placeholder jamais développé) ;
+  respiration ajoutée entre « RESYNCHRONISER MA BIBLIOTHÈQUE » et son texte
+  d'aide (12 px).
+- **Profil : tirer-pour-actualiser** façon Instagram (composant `PullToRefresh`
+  maison, ressort + pastille, compatible web) — vérifié : le tirage relance
+  bien `/api/profile`.
+- **Tri des préférés respecté PARTOUT** : les sections « Séries/Films/Jeux
+  préférés » du profil appliquent désormais le tri choisi sur leurs pages
+  (avant : toujours l'ordre utilisateur). La page « Jeux préférés » reçoit sa
+  rangée TRIER PAR + feuille de tri (comme séries/films), tri persisté.
+- **Session QA complète au navigateur** (32 écrans parcourus comme un
+  utilisateur : onglets, sous-onglets, fiches série/jeu, menus, favoris,
+  bibliothèques, social, stats, badges, classement, notifications, profils
+  publics, paramètres, import, comptes liés, édition de profil) : aucune
+  erreur JS, aucune page vide, aucun bouton mort détecté. Les alertes du
+  robot (« DÉCOUVRIR » manquant, page Bob vide) étaient de faux positifs —
+  l'Explorer fusionné de Benjamin embarque déjà le tirer-pour-actualiser via
+  sa variante `PullToRefreshView`.
 
 ### 2026-07-16 — Circuit « Arrêté » vérifié + finitions
 - Audit du circuit « Arrêter de regarder » : fiche → statut `abandoned`,

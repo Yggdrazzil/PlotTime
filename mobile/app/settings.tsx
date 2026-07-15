@@ -12,7 +12,7 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 
 const NATIVE = Platform.OS !== 'web';
 
-const TABS = ['COMPTE', 'APPLICATION', 'À VENIR'];
+const TABS = ['COMPTE', 'APPLICATION'];
 
 export default function Settings() {
   const [tab, setTab] = useState('COMPTE');
@@ -30,7 +30,7 @@ export default function Settings() {
       {/* Bascule d'onglet en fondu, comme les onglets hauts des autres écrans. */}
       <FadeSwitch trigger={tab}>
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-          {tab === 'COMPTE' ? <AccountTab /> : tab === 'APPLICATION' ? <AppTab /> : <UpcomingTab />}
+          {tab === 'COMPTE' ? <AccountTab /> : <AppTab />}
         </ScrollView>
       </FadeSwitch>
     </View>
@@ -228,7 +228,7 @@ function ResyncLibraryRow() {
       ) : mut.isError ? (
         <Text style={styles.errMsg}>Impossible de contacter le serveur.</Text>
       ) : (
-        <Text style={styles.steamHint}>
+        <Text style={[styles.steamHint, { marginTop: 12 }]}>
           Rattrape les dates de diffusion manquantes après un import (séries qui n'apparaissent pas dans « À voir »).
         </Text>
       )}
@@ -386,16 +386,6 @@ function AppTab() {
         </Pressable>
       </View>
       <Text style={styles.version}>VERSION 1.0.0</Text>
-    </View>
-  );
-}
-
-function UpcomingTab() {
-  return (
-    <View>
-      <SectionTitle>Épisodes à afficher</SectionTitle>
-      <Row label="Choix des chaînes" />
-      <ToggleRow label="Masquer les épisodes vus" on={false} onToggle={() => {}} />
     </View>
   );
 }

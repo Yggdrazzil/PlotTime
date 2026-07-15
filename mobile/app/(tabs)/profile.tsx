@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Image, Dimensions, RefreshControl, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Image, Dimensions, Platform } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -14,6 +14,9 @@ import { Loading, LoadError, Poster } from '@/components/ui';
 import { AppearItem, PopIn } from '@/components/anim';
 import { useTabResetSeq } from '@/lib/tabReset';
 import { usePullRefresh } from '@/lib/usePullRefresh';
+import { PullToRefresh } from '@/components/PullToRefresh';
+import { sortFavorites } from '@/components/favorites';
+import { useAppStore } from '@/lib/store';
 
 export type ProfileUser = {
   displayName: string;
@@ -73,6 +76,8 @@ function ProfileScreenInner() {
   const unread = unreadData?.unreadCount ?? 0;
 
   const { refreshing, onRefresh } = usePullRefresh([refetch]);
+  // Tri choisi sur les pages « préférés » (persisté) : appliqué aussi ici.
+  const favSort = useAppStore((s) => s.favSort);
 
   if (isLoading) return <Loading />;
   if (!data) return <LoadError onRetry={refetch} busy={isRefetching} />;
@@ -81,10 +86,13 @@ function ProfileScreenInner() {
   const mt = watchTime(stats.movieMinutes);
 
   return (
-    <ScrollView
+    // Tirer-pour-actualiser façon Instagram (ressort) — le RefreshControl RN
+    // ne fonctionne pas sur la web app, notre PullToRefresh oui (web + natif).
+    <PullToRefresh
+      refreshing={refreshing}
+      onRefresh={onRefresh}
       style={{ flex: 1, backgroundColor: COLORS.white }}
       contentContainerStyle={{ paddingBottom: 24 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.yellow} colors={[COLORS.yellow]} />}
     >
       {/* Icônes de la barre de statut en clair sur la couverture sombre (natif). */}
       {focused ? <StatusBar style="light" /> : null}
@@ -185,12 +193,15 @@ function ProfileScreenInner() {
       ) : null}
 
       <PosterRow title="Séries" items={data.shows} emptyLabel="Aucune série suivie" href="/library/shows" />
-      <PosterRow title="Séries préférées" items={data.favoriteShows} heart emptyLabel="Aucune série en favori" href="/library/favorite-shows" />
+      {/* Les sections « préférés » respectent le TRI choisi sur leurs pages
+          (Trier par : ordre utilisateur, derniers ajouts, A-Z…) — avant, le
+          profil restait figé sur l'ordre utilisateur. */}
+      <PosterRow title="Séries préférées" items={sortFavorites(data.favoriteShows, favSort.show)} heart emptyLabel="Aucune série en favori" href="/library/favorite-shows" />
       <PosterRow title="Films" items={data.movies} isMovie emptyLabel="Aucun film ajouté" href="/library/movies" />
-      <PosterRow title="Films préférés" items={data.favoriteMovies} isMovie heart emptyLabel="Aucun film en favori" href="/library/favorite-movies" />
+      <PosterRow title="Films préférés" items={sortFavorites(data.favoriteMovies, favSort.movie)} isMovie heart emptyLabel="Aucun film en favori" href="/library/favorite-movies" />
       <PosterRow title="Jeux" items={data.games ?? []} isGame emptyLabel="Aucun jeu joué" href="/games" />
-      <PosterRow title="Jeux préférés" items={data.favoriteGames ?? []} isGame heart emptyLabel="Aucun jeu en favori" href="/library/favorite-games" />
-    </ScrollView>
+      <PosterRow title="Jeux préférés" items={sortFavorites(data.favoriteGames ?? [], favSort.game)} isGame heart emptyLabel="Aucun jeu en favori" href="/library/favorite-games" />
+    </PullToRefresh>
   );
 }
 
