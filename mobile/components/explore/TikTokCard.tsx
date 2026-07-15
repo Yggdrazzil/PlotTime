@@ -1,0 +1,198 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { api, tmdbImage } from '@/lib/api';
+import { COLORS, FONTS } from '@/lib/theme';
+import { shareMedia } from '@/lib/share';
+import { ActionRail, type RailState } from './ActionRail';
+import { DescriptionOverlay } from './DescriptionOverlay';
+import type { FeedItem } from './types';
+
+export function TikTokCard({
+  item,
+  height,
+  resolveMedia,
+  onOpenComments,
+  onDisliked,
+  onInvalidateLibrary,
+  commentBump = 0,
+}: {
+  item: FeedItem;
+  height: number;
+  resolveMedia: (item: FeedItem) => Promise<string>;
+  onOpenComments: (item: FeedItem) => void;
+  onDisliked: () => void;
+  onInvalidateLibrary: () => void;
+  // Incrément du compteur de commentaires (commentaires publiés depuis la sheet
+  // pour cette carte) — le flux le fait remonter, la carte l'ajoute au total serveur.
+  commentBump?: number;
+}) {
+  const router = useRouter();
+  const [detail, setDetail] = useState(false);
+  // État optimiste local, initialisé depuis les stats serveur.
+  const [state, setState] = useState<RailState>({
+    liked: item.me?.liked ?? false,
+    watched: item.me?.watched ?? false,
+    likes: item.stats?.likes ?? 0,
+    watchedCount: item.stats?.watched ?? 0,
+    comments: item.stats?.comments ?? 0,
+  });
+
+  const image = tmdbImage(item.backdropPath, 'w780') ?? tmdbImage(item.posterPath, 'w500');
+  const meta = [
+    item.year,
+    item.category === 'anime' ? 'Animé' : item.type === 'show' ? 'Série' : 'Film',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const openFiche = async (f: FeedItem) => {
+    try {
+      const id = await resolveMedia(f);
+      router.push(`/show/${id}${f.type === 'movie' ? '?type=movie' : ''}`);
+    } catch {
+      /* best-effort */
+    }
+  };
+
+  // Like = « À voir » (watchlist), vrai TOGGLE réversible. Le retrait « untrack »
+  // est sûr ici : le flux exclut déjà les œuvres en bibliothèque, donc l'item ne
+  // porte que l'état posé dans cette session. Statut unique côté serveur : passer
+  // en « à voir » annule un éventuel « déjà vu ». Optimiste avec rollback.
+  const onLike = async () => {
+    const prev = state;
+    const wasLiked = prev.liked;
+    setState({
+      ...prev,
+      liked: !wasLiked,
+      likes: prev.likes + (wasLiked ? -1 : 1),
+      watched: wasLiked ? prev.watched : false,
+      watchedCount: prev.watchedCount - (!wasLiked && prev.watched ? 1 : 0),
+    });
+    try {
+      const id = await resolveMedia(item);
+      if (wasLiked) {
+        await api.del(item.type === 'movie' ? `/api/movies/${id}/tracking` : `/api/shows/${id}/tracking`);
+      } else {
+        await api.post(item.type === 'movie' ? `/api/movies/${id}/watchlist` : `/api/shows/${id}/watchlater`);
+      }
+      onInvalidateLibrary();
+    } catch {
+      setState(prev);
+    }
+  };
+
+  // Déjà vu = « vu » (completed), vrai TOGGLE réversible. Passer en « déjà vu »
+  // annule un éventuel « à voir » ; untrack pour dé-marquer.
+  const onWatched = async () => {
+    const prev = state;
+    const wasWatched = prev.watched;
+    setState({
+      ...prev,
+      watched: !wasWatched,
+      watchedCount: prev.watchedCount + (wasWatched ? -1 : 1),
+      liked: wasWatched ? prev.liked : false,
+      likes: prev.likes - (!wasWatched && prev.liked ? 1 : 0),
+    });
+    try {
+      const id = await resolveMedia(item);
+      if (wasWatched) {
+        await api.del(item.type === 'movie' ? `/api/movies/${id}/tracking` : `/api/shows/${id}/tracking`);
+      } else if (item.type === 'movie') {
+        await api.post(`/api/movies/${id}/watched`, {});
+      } else {
+        await api.post(`/api/shows/${id}/mark-all-watched`, {});
+        await api.post(`/api/shows/${id}/status`, { status: 'completed' });
+      }
+      onInvalidateLibrary();
+    } catch {
+      setState(prev);
+    }
+  };
+
+  const onDislike = async () => {
+    try {
+      const id = await resolveMedia(item);
+      await api.post(`/api/disliked/${id}`, { hidden: true });
+    } catch {
+      /* best-effort */
+    }
+    onDisliked(); // avance à la carte suivante (comportement « pas intéressé » TikTok)
+  };
+
+  return (
+    <View style={[styles.card, { height }]}>
+      {image ? (
+        <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.noImg]}>
+          <Feather name="image" size={48} color="#555" />
+        </View>
+      )}
+      <View style={styles.scrimTop} pointerEvents="none" />
+      <View style={styles.scrimBottom} pointerEvents="none" />
+
+      {/* Zone tap = ouvre/ferme l'overlay de description. */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={() => setDetail((d) => !d)} />
+
+      <View style={styles.caption} pointerEvents="box-none">
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Feather name={item.type === 'show' ? 'tv' : 'film'} size={20} color="#fff" />
+          <Text style={styles.title} numberOfLines={2}>
+            {item.title}
+          </Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={styles.meta}>{meta}</Text>
+          {typeof item.voteAverage === 'number' && item.voteAverage > 0 ? (
+            <View style={styles.ratingPill}>
+              <Feather name="star" size={12} color={COLORS.yellow} />
+              <Text style={styles.ratingText}>{item.voteAverage.toFixed(1).replace('.', ',')}</Text>
+            </View>
+          ) : null}
+        </View>
+        {item.overview ? (
+          <Text style={styles.overview} numberOfLines={2}>
+            {item.overview}
+          </Text>
+        ) : null}
+        <Text style={styles.hint}>Touche pour les détails</Text>
+      </View>
+
+      <ActionRail
+        item={item}
+        state={{ ...state, comments: (item.stats?.comments ?? 0) + commentBump }}
+        onLike={onLike}
+        onDislike={onDislike}
+        onWatched={onWatched}
+        onComment={() => onOpenComments(item)}
+        onShare={() => shareMedia(item.title)}
+        onFiche={() => openFiche(item)}
+      />
+
+      <DescriptionOverlay
+        item={item}
+        visible={detail}
+        onClose={() => setDetail(false)}
+        onOpenFiche={openFiche}
+        resolveMedia={resolveMedia}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: { width: '100%', backgroundColor: '#0d0d12', justifyContent: 'flex-end', overflow: 'hidden' },
+  noImg: { alignItems: 'center', justifyContent: 'center' },
+  scrimTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 140, backgroundColor: 'rgba(0,0,0,0.35)' },
+  scrimBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 260, backgroundColor: 'rgba(0,0,0,0.45)' },
+  caption: { position: 'absolute', left: 18, right: 84, bottom: 96 },
+  title: { color: '#fff', fontSize: 24, fontFamily: FONTS.extraBold, flexShrink: 1 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  meta: { color: 'rgba(255,255,255,0.85)', fontFamily: FONTS.bold, fontSize: 14 },
+  ratingPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  ratingText: { color: '#fff', fontFamily: FONTS.extraBold, fontSize: 12.5 },
+  overview: { color: 'rgba(255,255,255,0.92)', fontFamily: FONTS.regular, fontSize: 15, lineHeight: 20, marginTop: 10 },
+  hint: { color: 'rgba(255,255,255,0.55)', fontFamily: FONTS.regular, fontSize: 12, marginTop: 10 },
+});
