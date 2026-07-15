@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-15** (Claude) — Jeux vidéo : parité fiche (menu ⋯, bande-annonce)
+Dernière mise à jour : **2026-07-15** (Claude) — Recherche jeux déplacée dans l'Explorer (onglet JEUX)
 
 ---
 
@@ -34,7 +34,7 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Fiche série/film façon TV Time | ✅ Fait | Bannière repliable, onglets À PROPOS / ÉPISODES, distribution (fiches acteurs), « également regardé », similaire à, notes de la communauté, page Commentaires dédiée |
 | Menu « … » de la fiche | ✅ Fait | Personnaliser (affiche + bannière, séries **et** films), Favoris, Ajouter à une liste, Regarder plus tard, Supprimer, Partager |
 | Consultation ≠ suivi | ✅ Fait | Taper un résultat ouvre la fiche sans l'ajouter ; seul le `+` suit (statut « Pas commencée » ; « En cours » au 1er épisode vu) |
-| Recherche (design TV Time) | ✅ Fait | Onglets SÉRIES ET FILMS / UTILISATEURS, « Annuler », `+` jaunes, debounce |
+| Recherche (design TV Time) | ✅ Fait | Onglets SÉRIES ET FILMS / JEUX / UTILISATEURS, « Annuler », `+` jaunes, debounce |
 | Social : abonnements, fil d'activité | ✅ Fait | Follow/unfollow, fil des visionnages/commentaires des personnes suivies |
 | Social : commentaires, réponses, réactions | ✅ Fait | Fils de discussion, réactions multi-emoji (❤️👍😂😮😢) |
 | Profil public + confidentialité | ✅ Fait | Écran `/user/[id]`, profils privés masqués aux non-abonnés |
@@ -48,7 +48,7 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Jeux vidéo — modèle de données | ✅ Fait | Table `Game` (plateformes, développeur, éditeur, modes, Steam App ID, DLC) + `Media.igdbId` + `UserMediaStatus.playtimeMinutes` (migration `add_games`) |
 | Jeux vidéo — provider IGDB | ✅ Fait | `apps/server/src/services/igdb/` : auth Twitch (client credentials, cache mémoire), requêtes Apicalypse avec cache `ApiCache`, mapper `igdbToMedia` |
 | Jeux vidéo — module API | ✅ Fait | `apps/server/src/modules/games/routes.ts` : `GET /api/games/search`, `POST /api/games/add-from-igdb`, `GET /api/games` (bibliothèque groupée par statut wishlist/playing/completed/abandoned), `POST /api/games/:id/status`, `GET /api/games/:id` (enrichissement paresseux), `GET /api/games/discover`, `GET /api/games/upcoming`, `POST /api/games/steam/import`, `DELETE /api/games/:id/tracking` |
-| Jeux vidéo — onglet Jeux (mobile) | ✅ Fait | `mobile/app/(tabs)/games.tsx` : bibliothèque par statut, recherche IGDB, carrousels « Populaires »/« À venir » (découverte, tap = ajoute + ouvre la fiche), « Sorties à venir » (jeux suivis, groupés par mois) |
+| Jeux vidéo — onglet Jeux (mobile) | ✅ Fait | `mobile/app/(tabs)/games.tsx` : bibliothèque par statut, carrousels « Populaires »/« À venir » (découverte, tap = ajoute + ouvre la fiche), « Sorties à venir » (jeux suivis, groupés par mois) ; recherche déplacée dans l'onglet Explorer |
 | Jeux vidéo — connexion Steam (mobile) | ✅ Fait | Bloc « Jeux — Steam » dans `mobile/app/settings.tsx` (onglet Compte) : SteamID/URL de profil → import bibliothèque possédée |
 | Jeux vidéo — fiche jeu (mobile) | ✅ Fait | `mobile/app/game/[id].tsx` : parité avec la fiche série/film — menu « … » (Personnaliser affiche/bannière via `GET/POST /api/games/:id/images|poster|banner`, Favoris `POST /api/games/:id/favorite`, Ajouter à une liste, Partager, Retirer), aperçu bande-annonce 16:9 (miniature YouTube + iframe autoplay sur web / ouverture YouTube sur natif, `videoId` IGDB), sélecteur de statut, temps de jeu, commentaires ; suivi optimiste avec rollback |
 | Jeux vidéo — notifications de sortie | ✅ Fait | Passe du worker de fond (`apps/server/src/services/sync-worker.ts`) : `Notification` de type `game_release` quand `Media.releaseDate` d'un jeu suivi (non masqué) tombe aujourd'hui, dédupliquée par `(userId, mediaId, type)` |
@@ -70,6 +70,15 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-15 — Recherche jeux déplacée dans l'Explorer (onglet JEUX)
+- `mobile/app/(tabs)/games.tsx` : retrait de la barre de recherche IGDB
+  (redondante) et du composant `GameSearchResults` ; l'onglet Jeux ouvre
+  directement sur la bibliothèque/découverte, pleine hauteur.
+- `mobile/app/(tabs)/explore.tsx` : nouvel onglet de recherche « JEUX »
+  (entre SÉRIES ET FILMS et UTILISATEURS) via `GameResults`, sur le modèle de
+  `MediaResults` — tap = consultation seule (`POST /api/games/add-from-igdb`
+  sans statut, ouvre la fiche), `+` = suivi (statut « Voulus »).
 
 ### 2026-07-15 — Profil : sections Jeux + Jeux préférés + stat « Jeux joués »
 - `/api/profile` renvoie `games`/`favoriteGames` (mêmes règles que séries/films :

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator, Keyboard, Platform } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import type { Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
@@ -28,6 +29,9 @@ type FeedItem = {
 
 type PublicUser = { id: string; displayName: string; avatarUrl: string | null; isFollowing?: boolean };
 
+// Miroir de DiscoverGameDto (games.tsx) : posterPath est une URL IGDB absolue.
+type GameSearchResultDto = { igdbId: string; title: string; year: number | null; posterPath: string | null };
+
 export default function ExploreScreen() {
   // Re-clic sur l'onglet « Explorer » : remontage complet (recherche + flux réinitialisés).
   const resetSeq = useTabResetSeq('explore');
@@ -38,7 +42,7 @@ function ExploreScreenInner() {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
-  const [tab, setTab] = useState<'media' | 'users'>('media');
+  const [tab, setTab] = useState<'media' | 'users' | 'games'>('media');
   // Debounce : une requête quand l'utilisateur marque une pause, pas à chaque frappe.
   const debouncedQuery = useDebounced(query.trim(), 300);
 
@@ -79,10 +83,17 @@ function ExploreScreenInner() {
           <>
             <View style={styles.tabs}>
               <SearchTab label="SÉRIES ET FILMS" active={tab === 'media'} onPress={() => setTab('media')} />
+              <SearchTab label="JEUX" active={tab === 'games'} onPress={() => setTab('games')} />
               <SearchTab label="UTILISATEURS" active={tab === 'users'} onPress={() => setTab('users')} />
             </View>
             <FadeSwitch trigger={tab}>
-              {tab === 'media' ? <MediaResults query={debouncedQuery} rawQuery={query} /> : <UserResults query={debouncedQuery} />}
+              {tab === 'media' ? (
+                <MediaResults query={debouncedQuery} rawQuery={query} />
+              ) : tab === 'games' ? (
+                <GameResults query={debouncedQuery} rawQuery={query} />
+              ) : (
+                <UserResults query={debouncedQuery} />
+              )}
             </FadeSwitch>
           </>
         ) : (
@@ -224,6 +235,100 @@ function MediaResults({ query, rawQuery }: { query: string; rawQuery: string }) 
               </Pressable>
             )}
           </Pressable>
+          </AppearItem>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+// --- Résultats jeux (onglet JEUX, façon TV Time) -----------------------------
+// Taper une ligne OUVRE la fiche (« consultation ≠ suivi ») ; le bouton +
+// suit le jeu (statut « Voulus »), comme MediaResults pour séries/films.
+function GameResults({ query, rawQuery }: { query: string; rawQuery: string }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [openingKey, setOpeningKey] = useState<string | null>(null);
+  const [addingKey, setAddingKey] = useState<string | null>(null);
+  const [followed, setFollowed] = useState<Record<string, boolean>>({});
+
+  const search = useQuery({
+    queryKey: ['games', 'search', query],
+    queryFn: () => api.get<{ results: GameSearchResultDto[] }>(`/api/games/search?q=${encodeURIComponent(query)}`),
+    enabled: query.length > 1,
+    placeholderData: keepPreviousData,
+  });
+
+  // Consultation seule : ajoute (sans suivre) puis ouvre la fiche.
+  const open = async (r: GameSearchResultDto) => {
+    if (openingKey || addingKey) return;
+    setOpeningKey(r.igdbId);
+    try {
+      const res = await api.post<{ mediaId: string | null }>('/api/games/add-from-igdb', { igdbId: r.igdbId });
+      if (res.mediaId) router.push(('/game/' + res.mediaId) as Href);
+    } finally {
+      setOpeningKey(null);
+    }
+  };
+
+  // Le + : suit le jeu (statut « Voulus »), sans quitter la liste.
+  const add = async (r: GameSearchResultDto) => {
+    if (addingKey) return;
+    setAddingKey(r.igdbId);
+    try {
+      await api.post('/api/games/add-from-igdb', { igdbId: r.igdbId, status: 'wishlist' });
+      setFollowed((f) => ({ ...f, [r.igdbId]: true }));
+      queryClient.invalidateQueries({ queryKey: ['games', 'library'] });
+    } finally {
+      setAddingKey(null);
+    }
+  };
+
+  if (search.isLoading) return <Loading />;
+  const results = search.data?.results ?? [];
+  if (results.length === 0) {
+    return <EmptyState title="Toutes nos excuses" message={`Nous n'avons trouvé aucun résultat pour « ${rawQuery.trim()} »`} />;
+  }
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingBottom: 24, paddingTop: 6 }} keyboardShouldPersistTaps="handled">
+      {results.map((r, i) => {
+        const poster = tmdbImage(r.posterPath, 'w185');
+        const isFollowed = followed[r.igdbId];
+        return (
+          <AppearItem key={r.igdbId} index={i}>
+            <Pressable style={styles.resultRow} onPress={() => open(r)}>
+              {poster ? (
+                <Image source={{ uri: poster }} style={styles.resultPoster} resizeMode="cover" />
+              ) : (
+                <View style={[styles.resultPoster, styles.posterEmpty]}>
+                  <Feather name="image" size={18} color="#b4b4b4" />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.resultTitle} numberOfLines={1}>
+                  {r.title}
+                </Text>
+                <View style={styles.resultMetaRow}>
+                  <Ionicons name="game-controller" size={14} color={COLORS.textMuted} />
+                  <Text style={styles.resultMeta}>{['Jeu', r.year].filter(Boolean).join(' · ')}</Text>
+                </View>
+              </View>
+              {openingKey === r.igdbId || addingKey === r.igdbId ? (
+                <View style={styles.addSquareGhost}>
+                  <ActivityIndicator color={COLORS.black} size="small" />
+                </View>
+              ) : isFollowed ? (
+                // La coche « ajouté » arrive avec un petit rebond (feedback du +).
+                <PopIn style={styles.addedSquare}>
+                  <Feather name="check" size={20} color={COLORS.textMuted} />
+                </PopIn>
+              ) : (
+                <Pressable style={styles.addSquare} onPress={() => add(r)} hitSlop={6}>
+                  <Feather name="plus" size={22} color="#E6B800" />
+                </Pressable>
+              )}
+            </Pressable>
           </AppearItem>
         );
       })}
