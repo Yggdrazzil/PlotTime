@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-15** (Claude) — Thèmes Sombre + Sunset fonctionnels sur toute l'app (Paramètres > Application) ; « Nom d'utilisateur » = nom d'affichage courant
+Dernière mise à jour : **2026-07-15** (Claude) — Thèmes Sombre + Sunset fonctionnels sur toute l'app + « Nom d'utilisateur » = nom d'affichage ; (Benjamin) recherche jeux dans l'Explorer, accessibilité, squelettes de fiches
 
 ---
 
@@ -34,7 +34,7 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Fiche série/film façon TV Time | ✅ Fait | Bannière repliable, onglets À PROPOS / ÉPISODES, distribution (fiches acteurs), « également regardé », similaire à, notes de la communauté, page Commentaires dédiée |
 | Menu « … » de la fiche | ✅ Fait | Personnaliser (affiche + bannière, séries **et** films), Favoris, Ajouter à une liste, Regarder plus tard, Supprimer, Partager |
 | Consultation ≠ suivi | ✅ Fait | Taper un résultat ouvre la fiche sans l'ajouter ; seul le `+` suit (statut « Pas commencée » ; « En cours » au 1er épisode vu) |
-| Recherche (design TV Time) | ✅ Fait | Onglets SÉRIES ET FILMS / UTILISATEURS, « Annuler », `+` jaunes, debounce |
+| Recherche (design TV Time) | ✅ Fait | Onglets SÉRIES ET FILMS / JEUX / UTILISATEURS, « Annuler », `+` jaunes, debounce |
 | Social : abonnements, fil d'activité | ✅ Fait | Follow/unfollow, fil des visionnages/commentaires des personnes suivies |
 | Social : commentaires, réponses, réactions | ✅ Fait | Fils de discussion, réactions multi-emoji (❤️👍😂😮😢) |
 | Profil public + confidentialité | ✅ Fait | Écran `/user/[id]`, profils privés masqués aux non-abonnés |
@@ -45,6 +45,13 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Hébergement VPS | ✅ Fait | Prod sur le VPS Hostinger de Benjamin : `https://serietime.studio-vives.fr` (Docker isolé, HTTPS Let's Encrypt, backup DB nocturne) |
 | Web app (navigateur / écran d'accueil) | ✅ Fait | Export Expo web servi par Nginx à la racine du domaine (`/api` proxifié) ; utilisable iPhone + Android sans store |
 | Distribution native (APK / stores) | ⏳ Optionnel | EAS Build documenté dans le README ; la web app couvre déjà l'usage quotidien |
+| Jeux vidéo — modèle de données | ✅ Fait | Table `Game` (plateformes, développeur, éditeur, modes, Steam App ID, DLC) + `Media.igdbId` + `UserMediaStatus.playtimeMinutes` (migration `add_games`) |
+| Jeux vidéo — provider IGDB | ✅ Fait | `apps/server/src/services/igdb/` : auth Twitch (client credentials, cache mémoire), requêtes Apicalypse avec cache `ApiCache`, mapper `igdbToMedia` |
+| Jeux vidéo — module API | ✅ Fait | `apps/server/src/modules/games/routes.ts` : `GET /api/games/search`, `POST /api/games/add-from-igdb`, `GET /api/games` (bibliothèque groupée par statut wishlist/playing/completed/abandoned), `POST /api/games/:id/status`, `GET /api/games/:id` (enrichissement paresseux), `GET /api/games/discover`, `GET /api/games/upcoming`, `POST /api/games/steam/import`, `DELETE /api/games/:id/tracking` |
+| Jeux vidéo — onglet Jeux (mobile) | ✅ Fait | `mobile/app/(tabs)/games.tsx` : bibliothèque par statut, carrousels « Populaires »/« À venir » (découverte, tap = ajoute + ouvre la fiche), « Sorties à venir » (jeux suivis, groupés par mois) ; recherche déplacée dans l'onglet Explorer |
+| Jeux vidéo — connexion Steam (mobile) | ✅ Fait | Bloc « Jeux — Steam » dans `mobile/app/settings.tsx` (onglet Compte) : SteamID/URL de profil → import bibliothèque possédée |
+| Jeux vidéo — fiche jeu (mobile) | ✅ Fait | `mobile/app/game/[id].tsx` : parité avec la fiche série/film — menu « … » (Personnaliser affiche/bannière via `GET/POST /api/games/:id/images|poster|banner`, Favoris `POST /api/games/:id/favorite`, Ajouter à une liste, Partager, Retirer), aperçu bande-annonce 16:9 (miniature YouTube + iframe autoplay sur web / ouverture YouTube sur natif, `videoId` IGDB), sélecteur de statut, temps de jeu, commentaires ; suivi optimiste avec rollback |
+| Jeux vidéo — notifications de sortie | ✅ Fait | Passe du worker de fond (`apps/server/src/services/sync-worker.ts`) : `Notification` de type `game_release` quand `Media.releaseDate` d'un jeu suivi (non masqué) tombe aujourd'hui, dédupliquée par `(userId, mediaId, type)` |
 
 ## Prochaines étapes (par priorité)
 
@@ -63,6 +70,63 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-16 — Circuit « Arrêté » vérifié + finitions
+- Audit du circuit « Arrêter de regarder » : fiche → statut `abandoned`,
+  barre rouge + section Arrêté dans la bibliothèque, exclusion de « À venir »,
+  groupe séparé en bas de « À voir » (parité TV Time), import TV Time
+  `active=0`, statut collant au recalcul. Films : « Supprimer le film »
+  (pas de statut arrêté, parité TV Time).
+- Correctifs : « Arrêter de regarder » disponible aussi pour une série
+  « Terminée » qui revient dans « À voir » avec une nouvelle saison (avant :
+  seule option = supprimer la série et perdre l'historique) ; libellé du
+  groupe de la file harmonisé « ABANDONNÉ » → « ARRÊTÉ ».
+
+### 2026-07-16 — Finitions UX : accessibilité, squelettes de fiches, scrims dégradés
+- **Accessibilité** : ~49 boutons icône-seule (rail Explorer, chevrons retour,
+  ⋯, cœur, coches, X de modals, onglets…) reçoivent `accessibilityLabel`
+  français + `accessibilityRole` (24 fichiers, labels dynamiques sur les
+  toggles favori/vu/like). Zéro changement visuel.
+- **Fiches série/jeu** : le flash blanc + spinner au chargement est remplacé
+  par un écran squelette (`mobile/components/FicheSkeleton.tsx`, silhouette
+  bannière + jaquette + lignes de texte, basé sur `Skeleton` d'anim.tsx).
+- **Explorer** : les scrims haut/bas des cartes plein écran passent de blocs
+  `rgba` unis (bande grise à bord net sur fonds clairs) à des dégradés
+  `expo-linear-gradient` (~15.0.8, nouvelle dépendance mobile).
+
+### 2026-07-15 — Recherche jeux déplacée dans l'Explorer (onglet JEUX)
+- `mobile/app/(tabs)/games.tsx` : retrait de la barre de recherche IGDB
+  (redondante) et du composant `GameSearchResults` ; l'onglet Jeux ouvre
+  directement sur la bibliothèque/découverte, pleine hauteur.
+- `mobile/app/(tabs)/explore.tsx` : nouvel onglet de recherche « JEUX »
+  (entre SÉRIES ET FILMS et UTILISATEURS) via `GameResults`, sur le modèle de
+  `MediaResults` — tap = consultation seule (`POST /api/games/add-from-igdb`
+  sans statut, ouvre la fiche), `+` = suivi (statut « Voulus »).
+
+### 2026-07-15 — Profil : sections Jeux + Jeux préférés + stat « Jeux joués »
+- `/api/profile` renvoie `games`/`favoriteGames` (mêmes règles que séries/films :
+  les « Voulus » restent dans l'onglet Jeux) et les stats gagnent `gamesCount`/
+  `gamesPlayed` (en cours + terminés).
+- Profil mobile : carte stat « Jeux joués » (icône manette), rangées « Jeux »
+  (→ onglet Jeux) et « Jeux préférés » (→ nouvelle page `/library/favorite-games`,
+  grille simple, tap = fiche jeu). `/api/profile/favorites` accepte `type=game`.
+
+### 2026-07-15 — Import robuste (reprise + dates de diffusion) & densité UI
+- **Import TV Time — étape 3/3 rétablie** : après statuts/affiches, le job de fond
+  synchronise désormais les **listes d'épisodes + dates de diffusion** des séries
+  importées (throttlé, statut recalculé par série). C'était l'étape supprimée qui
+  vidait « À voir » (la file filtre sur `airDate <= maintenant`).
+- **Reprise automatique** : un import resté « importing » sans job vivant (crash /
+  redémarrage serveur) est relancé là où sa progression s'était arrêtée, dès que
+  l'app re-consulte le statut (`resumeStalledImport`, upserts idempotents).
+- L'écran d'import affiche la phase 3 et rappelle qu'on peut fermer la page
+  (tout tourne côté serveur, progression en temps réel au retour).
+- **Bouton « Resynchroniser ma bibliothèque »** (réglages) + `POST /api/shows/resync-all`
+  pour rattraper les comptes déjà importés (utilisé pour réparer le compte pilote :
+  339+ séries revenues dans « À voir »).
+- **Densité recalée sur TV Time** (comparaison px des captures) : cartes « À voir » /
+  « À venir » (code 20→17, cartes 104→96dp) et Profil (nom 24→20, sections 21→18,
+  stats 23→19) — plus d'infos visibles par écran.
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
 
@@ -95,6 +159,126 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
   + préférence persistée localement ET côté serveur, Sunset → crème/terracotta,
   retour Clair, et nom d'utilisateur = displayName serveur. Captures des
   onglets Séries/Paramètres/fiche dans les trois thèmes.
+### 2026-07-15 — Jeux vidéo : parité fiche avec séries/films (Claude)
+- Objectif : la fiche jeu offre la même expérience que la fiche série/film — menu
+  « … », personnalisation jaquette/bannière, favoris, listes, partage, aperçu
+  bande-annonce.
+- **Serveur** :
+  - `apps/server/src/modules/media/favorites.ts` : `nextFavoriteOrder` accepte
+    désormais `'show' | 'movie' | 'game'`.
+  - `apps/server/src/modules/games/routes.ts` : `POST /api/games/:id/favorite`
+    (miroir séries/films — bascule `isFavorite`/`favoritedAt`/`favoriteOrder`,
+    notifie les abonnés ; **pas** de `createWatchEvent`, les jeux ne génèrent
+    aucun événement de visionnage — isolation cross-domaine avec le fil
+    `/api/social/feed`, qui lit `WatchEvent`), `GET /api/games/:id/images`
+    (posters = cover IGDB, backdrops = artworks + screenshots IGDB, appel
+    « live » mis en cache par `ApiCache`), `POST /api/games/:id/poster` et
+    `POST /api/games/:id/banner`. `GET /api/games/:id` renvoie maintenant
+    `isFavorite` et `videoId` (premier id vidéo YouTube IGDB).
+  - `apps/server/src/services/igdb/index.ts` : champs IGDB étendus
+    (`videos.video_id,videos.name,screenshots.image_id`), type `IgdbGame`
+    complété — pas de nouvelle colonne DB, tout est récupéré à la volée et mis
+    en cache par `igdbQuery`/`ApiCache`.
+  - Tests ajoutés dans `apps/server/src/__tests__/games.test.ts` (aller-retour
+    favori sur la fiche détail, mise à jour affiche/bannière).
+- **Mobile** : `mobile/app/game/[id].tsx` réécrit sur le modèle de
+  `mobile/app/show/[id].tsx` — bouton « … » dans le bandeau (même
+  placement/style), menu Personnaliser/Favoris/Ajouter à une liste/Retirer/Partager
+  (composants `PersonalizeMenu`/`ArtworkPicker`/`ListsSheet`/`SheetItem`
+  dupliqués en version légère, comme demandé plutôt qu'une extraction risquée),
+  bannière = `backdropPath` avec jaquette en surimpression, bloc « Bande-annonce »
+  16:9 sous l'en-tête (miniature YouTube + bouton lecture ; tap = iframe
+  autoplay intégré sur web, ouverture de l'URL YouTube via `Linking` sur natif —
+  aucune nouvelle dépendance native). Le bouton « Retirer » (suivi) est
+  maintenant dans le menu « … » au lieu d'être affiché en permanence dans la
+  section Suivi, pour rester cohérent avec la fiche série/film.
+- Gates : `cd apps/server && corepack pnpm exec tsc --noEmit` → 0 erreur ;
+  `corepack pnpm test` → 82/82 (14 fichiers) ; `cd mobile && npm run typecheck`
+  → 0 erreur.
+
+### 2026-07-15 — Onglet Jeux vidéo (V1)
+- Domaine jeux calqué sur séries : Media.type=game + sous-table Game + provider IGDB + module games + UserMediaStatus (Voulus/En cours/Terminés/Abandonnés, temps de jeu).
+- Fiche jeu, recherche/ajout IGDB, découverte (populaires/à venir), sorties & DLC à venir, import bibliothèque Steam, notifications de sortie.
+- Config : TWITCH_CLIENT_ID/SECRET (IGDB), STEAM_API_KEY. HowLongToBeat & PlayStation = V2.
+- Notifications de sortie (Task 10) : passe ajoutée au worker de fond
+  (`apps/server/src/services/sync-worker.ts`, fonction
+  `notifyGameReleasesToday`, appelée à chaque `tick()`) — pour chaque
+  `UserMediaStatus` d'un jeu suivi (non masqué) dont `Media.releaseDate`
+  tombe aujourd'hui (bornes `setHours(0,0,0,0)` → +24h), crée une
+  `Notification` (`type: 'game_release'`, titre « <titre> sort aujourd'hui »),
+  même schéma que les notifications sociales (`modules/social/notify.ts` :
+  `userId`/`type`/`title`/`date`/`metadataJson`). Dédup `(userId, mediaId,
+  type)` via une recherche `contains` sur `metadataJson` (pas de colonne
+  `mediaId` dédiée sur `Notification`). Passe légère, hors chemin critique des
+  requêtes utilisateur.
+- Typecheck serveur : 0 erreur. Suite complète : 80/80 sans régression.
+
+### 2026-07-15 — Jeux vidéo : découverte + à venir + connexion Steam (Task 9)
+- `mobile/app/(tabs)/games.tsx` : sous la bibliothèque, sections **« Sorties à
+  venir »** (jeux suivis dont la sortie n'est pas passée, `GET
+  /api/games/upcoming`, groupés par mois, carrousel horizontal, tap → fiche)
+  et **« Populaires » / « À venir »** (découverte IGDB, `GET
+  /api/games/discover`, carrousel horizontal, tap = ajoute en « Voulus » via
+  `POST /api/games/add-from-igdb` puis ouvre la fiche, overlay de chargement
+  sur la jaquette). La découverte est désormais toujours visible (avant :
+  seulement en repli bibliothèque vide) — un seul rendu, jamais dupliqué.
+- `mobile/app/settings.tsx` (onglet Compte, section « Jeux — Steam ») :
+  `TextInput` SteamID/URL de profil + bouton « Importer ma bibliothèque » →
+  `POST /api/games/steam/import`, affiche « N jeux importés » ou l'erreur
+  (`steam_id_invalide` → message profil public requis) ; invalide
+  `['games','library']` au succès.
+- Typecheck mobile : 0 erreur.
+
+### 2026-07-15 — Jeux vidéo : module API games (Task 4)
+- `apps/server/src/modules/games/routes.ts` : routes `GET /api/games/search`
+  (recherche IGDB), `POST /api/games/add-from-igdb` (ajout par id IGDB, statut
+  optionnel), `GET /api/games` (bibliothèque groupée par statut wishlist/
+  playing/completed/abandoned), `POST /api/games/:id/status` (changement de
+  statut), `GET /api/games/:id` (détail, enrichissement paresseux si jamais
+  synchronisé), `DELETE /api/games/:id/tracking`.
+- Helper `ensureGameFromIgdb(igdbId)` (miroir de `ensureMediaFromTmdb`) :
+  crée/met à jour `Media`(type `game`) + `Game` à partir d'IGDB ; renvoie
+  l'existant sans erreur si IGDB est hors-ligne/quota dépassé.
+- Module enregistré dans `apps/server/src/app.ts` (`await
+  app.register(gamesRoutes)`).
+- TDD : test `apps/server/src/__tests__/games.test.ts` (bibliothèque groupée
+  par statut + changement de statut), suite complète 78/78 sans régression.
+- Prépare la tâche suivante : UI mobile de suivi des jeux.
+
+### 2026-07-15 — Jeux vidéo : modèle de données (Task 1)
+- Migration Prisma additive `add_games` : nouvelle table `Game` (mediaId
+  unique, `platforms`/`developer`/`publisher`/`gameModes`/`steamAppId`,
+  `isDlc`, `parentGameId` → relation nommée `GameDlc` vers `Media`), colonne
+  `Media.igdbId` et colonne `UserMediaStatus.playtimeMinutes`. Aucune donnée
+  existante touchée (ALTER TABLE ADD COLUMN nullable + CREATE TABLE).
+- Prépare les tâches suivantes : provider IGDB, module API `/api/games`, UI
+  mobile de suivi des jeux.
+
+### 2026-07-15 — Explorer refondu en flux TikTok
+- Explorer unique plein écran, défilement vertical paginé (suppression de PARCOURIR + deck Tinder).
+- Rail social : like (= À voir) / dislike / déjà vu / commentaire / partage, compteurs (likes, vus, commentaires) agrégés sur toute l'app via `/api/explore/feed`, note ★ TMDb sur la carte.
+- Tap = overlay description ; bottom sheet commentaires réutilisant le hook `useComments` + `CommentCard` partagés ; pull-to-refresh + flux infini.
+
+### 2026-07-15 — Claude
+- **Refactor Commentaires : logique + carte partagées** (page plein écran
+  `/comments/[id]` ET nouveau bottom sheet Explorer façon TikTok), sans
+  changement de comportement de la page existante :
+  - `mobile/components/comments/types.ts` : `CommentDto`, `dateFr`.
+  - `mobile/components/comments/useComments.ts` : requête (même clé
+    `['comments', mediaId]`, cache partagé avec les compteurs
+    `CommentsRowLink`), tri PERTINENTS/RÉCENTS, réponses, `post`/`postReply`,
+    cœur ❤️ et suppression **optimistes** (rollback si échec), partage.
+  - `mobile/components/comments/CommentCard.tsx` : rendu d'une carte
+    (avatar, cœur, réponses, partage, fil de réponses + composeur inline).
+  - `mobile/app/comments/[id].tsx` consomme désormais ces modules (chrome de
+    page inchangé : en-tête, tri, FAB crayon jaune, modale composeur).
+  - `mobile/components/explore/CommentsSheet.tsx` réutilise `useComments` +
+    `CommentCard` (au lieu de l'ancien `CommentsTab`) ; barre de composition
+    **inline en bas** façon TikTok (pas de FAB) ; le hook n'est monté qu'une
+    fois le `mediaId` résolu (composant interne `CommentsPanel`).
+  - Suppression de l'ancien `mobile/components/comments.tsx` (obsolète,
+    devenu doublon).
+  - `cd mobile && npm run typecheck` : 0 erreur.
 
 ### 2026-07-11 — Claude (4)
 - **Explorer : barre de recherche recalée sur TV Time** (comparaison px des

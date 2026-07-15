@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated, Platform } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,9 +16,12 @@ const ICONS: Record<string, keyof typeof Feather.glyphMap> = {
   explore: 'search',
   profile: 'user',
 };
+// L'onglet Jeux utilise une vraie icône manette (Ionicons — Feather n'en a pas).
+const GAMES_ICON: keyof typeof Ionicons.glyphMap = 'game-controller-outline';
 const LABELS: Record<string, string> = {
   index: 'Séries',
   movies: 'Films',
+  games: 'Jeux',
   explore: 'Explorer',
   profile: 'Profil',
 };
@@ -38,7 +41,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
             // Arriver sur Explorer = nouveau tirage du flux (règle produit).
             // Fait ici (changement d'onglet) et non au focus : revenir d'une
             // fiche ne doit pas re-mélanger le flux en pleine navigation.
-            if (route.name === 'explore') qc.invalidateQueries({ queryKey: ['explore', 'feed'] });
+            if (route.name === 'explore') qc.invalidateQueries({ queryKey: ['explore'] }); // feed + jeux
           }
           // Re-clic sur l'onglet déjà actif (façon TV Time) : actualiser les
           // données ET remonter l'écran à son état par défaut (via `bump` +
@@ -49,8 +52,20 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
           }
         };
         return (
-          <Pressable key={route.key} style={styles.item} onPress={onPress}>
-            <TabIcon name={ICONS[route.name] ?? 'circle'} focused={focused} showDot={route.name === 'explore' && !focused} />
+          <Pressable
+            key={route.key}
+            style={styles.item}
+            onPress={onPress}
+            accessibilityRole="tab"
+            accessibilityLabel={LABELS[route.name] ?? route.name}
+            accessibilityState={{ selected: focused }}
+          >
+            <TabIcon
+              name={route.name === 'games' ? undefined : ICONS[route.name] ?? 'circle'}
+              ionicon={route.name === 'games' ? GAMES_ICON : undefined}
+              focused={focused}
+              showDot={route.name === 'explore' && !focused}
+            />
             <Text style={[styles.label, { color: focused ? COLORS.black : COLORS.textMuted }]}>
               {LABELS[route.name] ?? route.name}
             </Text>
@@ -62,16 +77,21 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 // Icône d'onglet : petit « pop » élastique quand l'onglet devient actif.
-function TabIcon({ name, focused, showDot }: { name: keyof typeof Feather.glyphMap; focused: boolean; showDot: boolean }) {
+function TabIcon({ name, ionicon, focused, showDot }: { name?: keyof typeof Feather.glyphMap; ionicon?: keyof typeof Ionicons.glyphMap; focused: boolean; showDot: boolean }) {
   const reduce = useReduceMotion();
   const scale = useRef(new Animated.Value(focused ? 1 : 0.92)).current;
+  const color = focused ? COLORS.black : COLORS.textMuted;
   useEffect(() => {
     if (reduce) { scale.setValue(focused ? 1 : 0.92); return; }
     Animated.spring(scale, { toValue: focused ? 1 : 0.92, useNativeDriver: NATIVE, friction: 5, tension: 200 }).start();
   }, [focused, reduce, scale]);
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <Feather name={name} size={23} color={focused ? COLORS.black : COLORS.textMuted} />
+      {ionicon ? (
+        <Ionicons name={ionicon} size={24} color={color} />
+      ) : (
+        <Feather name={name ?? 'circle'} size={23} color={color} />
+      )}
       {showDot ? <View style={styles.dot} /> : null}
     </Animated.View>
   );

@@ -17,6 +17,7 @@ import { backupRoutes } from './modules/backup/routes.js';
 import { importTvtimeRoutes } from './modules/import-tvtime/routes.js';
 import { socialRoutes } from './modules/social/routes.js';
 import { peopleRoutes } from './modules/people/routes.js';
+import { gamesRoutes } from './modules/games/routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -81,6 +82,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(importTvtimeRoutes);
   await app.register(socialRoutes);
   await app.register(peopleRoutes);
+  await app.register(gamesRoutes);
 
   return app;
 }

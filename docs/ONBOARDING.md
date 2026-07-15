@@ -44,6 +44,8 @@ TVDB_API_KEY="<clé transmise en privé par Étienne>"
 > Demande-la à Étienne en privé. Optionnel : `TMDB_API_KEY` (clé TMDb gratuite)
 > active en plus le flux « Explorer » (tendances) et les images de films.
 
+Jeux : `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` (IGDB via Twitch, `IGDB_ENABLED=true`) ; `STEAM_API_KEY` (import Steam). Voir `docs/superpowers/specs/2026-07-15-jeux-video-design.md`.
+
 ## 4. Lancer le serveur
 
 ```powershell

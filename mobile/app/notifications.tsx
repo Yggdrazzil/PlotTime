@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Image } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import type { Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
@@ -17,7 +18,7 @@ type Notif = {
   imageUrl: string | null;
   date: string;
   isRead: boolean;
-  meta: { actorId?: string; mediaId?: string; mediaType?: 'show' | 'movie'; commentId?: string };
+  meta: { actorId?: string; mediaId?: string; mediaType?: 'show' | 'movie' | 'game'; commentId?: string };
 };
 
 const ICON: Record<string, keyof typeof Feather.glyphMap> = {
@@ -47,7 +48,7 @@ export default function Notifications() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white, paddingTop: insets.top }}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
+        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Retour">
           <Feather name="chevron-left" size={28} color={COLORS.black} />
         </Pressable>
         <Text style={styles.title}>Notifications</Text>
@@ -68,10 +69,14 @@ export default function Notifications() {
               <AppearItem key={n.id} index={i}>
               <Pressable
                 style={[styles.row, !n.isRead && styles.unread]}
-                onPress={() =>
-                  n.meta.mediaId &&
-                  router.push(`/show/${n.meta.mediaId}${n.meta.mediaType === 'movie' ? '?type=movie' : ''}`)
-                }
+                onPress={() => {
+                  if (!n.meta.mediaId) return;
+                  if (n.meta.mediaType === 'game') {
+                    router.push(`/game/${n.meta.mediaId}` as Href);
+                  } else {
+                    router.push(`/show/${n.meta.mediaId}${n.meta.mediaType === 'movie' ? '?type=movie' : ''}` as Href);
+                  }
+                }}
               >
                 <View style={styles.iconWrap}>
                   <Feather name={ICON[n.type] ?? 'bell'} size={20} color={COLORS.black} />

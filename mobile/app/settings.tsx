@@ -45,11 +45,11 @@ function AccountTab() {
   // Nom d'utilisateur = nom d'affichage COURANT (source : profil serveur).
   // Le store local est figé à la connexion : après « Modifier le profil »,
   // il affichait encore l'ancien nom.
-  const profile = useQuery({
+  const profileQ = useQuery({
     queryKey: ['profile'],
     queryFn: () => api.get<{ user: { displayName?: string } }>('/api/profile'),
   });
-  const displayName = profile.data?.user?.displayName ?? user?.displayName ?? '';
+  const displayName = profileQ.data?.user?.displayName ?? user?.displayName ?? '';
 
   // Exporter : télécharge un JSON de toutes ses données (web) / partage (natif).
   const exportData = async () => {
@@ -87,6 +87,10 @@ function AccountTab() {
       <SectionTitle>Import & sauvegarde</SectionTitle>
       <Row label="Importer mes données TV Time" onPress={() => router.push('/import')} />
       <Row label="Exporter mes données SerieTime" onPress={exportData} />
+      <ResyncLibraryRow />
+      <Divider />
+      <SectionTitle>Jeux — Steam</SectionTitle>
+      <SteamImportBlock />
       <Divider />
       <SectionTitle>Vie privée</SectionTitle>
       <PrivateProfileToggle />
@@ -134,6 +138,101 @@ function PrivateProfileToggle() {
       on={isPrivate}
       onToggle={(v) => mut.mutate(v)}
     />
+  );
+}
+
+// « Connecter Steam » : SteamID (ou URL de profil, résolu côté serveur) +
+// import de la bibliothèque possédée. Le profil Steam doit être public.
+function SteamImportBlock() {
+  const qc = useQueryClient();
+  const [steamId, setSteamId] = useState('');
+  const mut = useMutation({
+    mutationFn: (id: string) => api.post<{ imported: number; error?: string }>('/api/games/steam/import', { steamId: id }),
+    onSuccess: (res) => {
+      // Succès de l'appel = profil résolu, jeux importés (ou 0 jeu) : on
+      // invalide la bibliothèque. Si `error` est présent (SteamID invalide),
+      // rien n'a été importé, mais l'invalidation reste sans effet notable.
+      if (!res.error) qc.invalidateQueries({ queryKey: ['games', 'library'] });
+    },
+  });
+  const canSubmit = steamId.trim().length >= 2 && !mut.isPending;
+  const result = mut.data;
+  return (
+    <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
+      <Text style={styles.steamHint}>
+        Connectez votre compte Steam (profil public requis) pour importer votre bibliothèque de jeux possédés.
+      </Text>
+      <TextInput
+        style={styles.mInput}
+        placeholder="SteamID ou URL de profil"
+        placeholderTextColor={COLORS.textSoft}
+        value={steamId}
+        onChangeText={(v) => {
+          setSteamId(v);
+          mut.reset();
+        }}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      <Pressable
+        style={[styles.mBtn, !canSubmit && { opacity: 0.4 }]}
+        disabled={!canSubmit}
+        onPress={() => mut.mutate(steamId.trim())}
+      >
+        {mut.isPending ? <ActivityIndicator color={COLORS.black} /> : <Text style={styles.mBtnText}>IMPORTER MA BIBLIOTHÈQUE</Text>}
+      </Pressable>
+      {result?.error ? (
+        <Text style={styles.errMsg}>
+          {result.error === 'steam_id_invalide' ? 'SteamID ou URL de profil invalide (le profil doit être public).' : result.error}
+        </Text>
+      ) : result ? (
+        <Text style={styles.okMsg}>
+          {result.imported} jeu{result.imported > 1 ? 'x' : ''} importé{result.imported > 1 ? 's' : ''}
+        </Text>
+      ) : mut.isError ? (
+        <Text style={styles.errMsg}>Impossible de contacter le serveur.</Text>
+      ) : null}
+    </View>
+  );
+}
+
+// Rattrape d'un coup les dates de diffusion des épisodes (l'import ne les récupère
+// pas → des séries en cours n'apparaissent pas dans « À voir »). Lance le resync
+// en fond côté serveur ; la liste se remplit sur quelques minutes.
+function ResyncLibraryRow() {
+  const qc = useQueryClient();
+  const mut = useMutation({
+    mutationFn: () => api.post<{ started: boolean; alreadyRunning?: boolean }>('/api/shows/resync-all'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['shows'] }),
+  });
+  const res = mut.data;
+  return (
+    <View style={{ paddingHorizontal: 24, paddingVertical: 8 }}>
+      <Pressable
+        style={[styles.mBtn, mut.isPending && { opacity: 0.4 }]}
+        disabled={mut.isPending}
+        onPress={() => mut.mutate()}
+      >
+        {mut.isPending ? (
+          <ActivityIndicator color={COLORS.black} />
+        ) : (
+          <Text style={styles.mBtnText}>RESYNCHRONISER MA BIBLIOTHÈQUE</Text>
+        )}
+      </Pressable>
+      {res ? (
+        <Text style={styles.okMsg}>
+          {res.alreadyRunning
+            ? 'Resynchronisation déjà en cours…'
+            : 'Resynchronisation lancée — ta liste « À voir » se met à jour dans quelques minutes.'}
+        </Text>
+      ) : mut.isError ? (
+        <Text style={styles.errMsg}>Impossible de contacter le serveur.</Text>
+      ) : (
+        <Text style={styles.steamHint}>
+          Rattrape les dates de diffusion manquantes après un import (séries qui n'apparaissent pas dans « À voir »).
+        </Text>
+      )}
+    </View>
   );
 }
 
@@ -225,7 +324,7 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>{title}</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Fermer">
               <Feather name="x" size={24} color={COLORS.black} />
             </Pressable>
           </View>
@@ -307,15 +406,15 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function Field({ label, value, blue }: { label: string; value: string; blue?: boolean }) {
   return (
     <View style={{ paddingVertical: 12 }}>
-      <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
-      <Text style={{ fontFamily: FONTS.regular, fontSize: 17, color: blue ? COLORS.blue : COLORS.textMuted }}>{value}</Text>
+      <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 14, color: blue ? COLORS.blue : COLORS.textMuted }}>{value}</Text>
     </View>
   );
 }
 function Row({ label, onPress }: { label: string; onPress?: () => void }) {
   return (
     <Pressable style={styles.row} onPress={onPress}>
-      <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
+      <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
       <Feather name="chevron-right" size={20} color={COLORS.black} />
     </Pressable>
   );
@@ -331,8 +430,8 @@ function ToggleRow({ label, sub, on, onToggle }: { label: string; sub?: string; 
   return (
     <View style={styles.toggleRow}>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
-        {sub ? <Text style={{ fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textMuted, lineHeight: 19, marginTop: 2 }}>{sub}</Text> : null}
+        <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
+        {sub ? <Text style={{ fontFamily: FONTS.regular, fontSize: 12.5, color: COLORS.textMuted, lineHeight: 17, marginTop: 2 }}>{sub}</Text> : null}
       </View>
       <Pressable onPress={() => onToggle(!on)} hitSlop={8}>
         <Animated.View style={[styles.toggle, { backgroundColor: v.interpolate({ inputRange: [0, 1], outputRange: [COLORS.chipSelected, COLORS.yellow] }) }]}>
@@ -361,7 +460,7 @@ function RadioRow({ label, on, onPress }: { label: string; on: boolean; onPress:
           </PopIn>
         ) : null}
       </View>
-      <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
+      <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -371,14 +470,14 @@ function Divider() {
 
 const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 15 },
-  tabText: { fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.5, color: COLORS.textSoft },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  tabText: { fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.5, color: COLORS.textSoft },
   tabActive: { color: COLORS.black },
   under: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, backgroundColor: 'transparent' },
   underActive: { backgroundColor: COLORS.black },
-  sectionTitle: { color: COLORS.text, fontSize: 19, fontFamily: FONTS.extraBold, paddingHorizontal: 24, paddingTop: 22 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 13 },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 13, gap: 16 },
+  sectionTitle: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.extraBold, paddingHorizontal: 24, paddingTop: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 11 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 11, gap: 16 },
   toggle: { width: 52, height: 30, borderRadius: 15, padding: 3 },
   knob: { width: 24, height: 24, borderRadius: 12 },
   radio: { width: 26, height: 26, borderRadius: 13, borderWidth: 2.5, borderColor: COLORS.textMuted, alignItems: 'center', justifyContent: 'center' },
@@ -393,12 +492,13 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', paddingHorizontal: 24 },
   sheet: { backgroundColor: COLORS.white, borderRadius: 16, padding: 20 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sheetTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold },
+  sheetTitle: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.extraBold },
+  steamHint: { fontSize: 14, fontFamily: FONTS.regular, color: COLORS.textMuted, lineHeight: 19, marginBottom: 10 },
   mLabel: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.bold, marginTop: 14 },
-  mInput: { color: COLORS.text, borderBottomWidth: 1, borderBottomColor: COLORS.border, fontSize: 17, fontFamily: FONTS.regular, paddingVertical: 10, marginTop: 6 },
+  mInput: { color: COLORS.text, borderBottomWidth: 1, borderBottomColor: COLORS.border, fontSize: 15, fontFamily: FONTS.regular, paddingVertical: 9, marginTop: 6 },
   mBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingVertical: 12, alignItems: 'center', marginTop: 22 },
   mBtnText: { color: COLORS.onAccent, fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
-  okMsg: { fontSize: 16, fontFamily: FONTS.bold, color: COLORS.green, textAlign: 'center', paddingVertical: 20 },
+  okMsg: { fontSize: 14, fontFamily: FONTS.bold, color: COLORS.green, textAlign: 'center', paddingVertical: 16 },
   errMsg: { color: COLORS.red, fontSize: 14, fontFamily: FONTS.regular, marginTop: 12 },
   warn: { fontSize: 15, fontFamily: FONTS.regular, color: COLORS.textMuted, lineHeight: 21, marginBottom: 8 },
   version: { textAlign: 'center', paddingVertical: 24, fontSize: 13, fontFamily: FONTS.bold, color: COLORS.textMuted, letterSpacing: 1 },

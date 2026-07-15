@@ -32,6 +32,13 @@ const envSchema = z.object({
     .transform((v) => (v == null ? false : v.trim().toLowerCase() === 'true' || v.trim() === '1')),
   TVDB_API_KEY: z.string().default(''),
   TVDB_PIN: z.string().default(''),
+  TWITCH_CLIENT_ID: z.string().default(''),
+  TWITCH_CLIENT_SECRET: z.string().default(''),
+  IGDB_ENABLED: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
+  STEAM_API_KEY: z.string().default(''),
   DEFAULT_LANGUAGE: z.string().default('fr-FR'),
   DEFAULT_COUNTRY: z.string().default('FR'),
   DEFAULT_TIMEZONE: z.string().default('Europe/Paris'),

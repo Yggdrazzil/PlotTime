@@ -14,6 +14,7 @@ import { AnimatedFill, Pop, SlideUpBar, FadeSwitch, PressableScale } from '@/com
 import { Stars } from '@/components/Stars';
 import { MarkPreviousPopup, hasUnwatchedPrevious } from '@/components/MarkPreviousPopup';
 import { genresFr, statusFr, airDayFr, compactCount } from '@/lib/frMedia';
+import { FicheSkeleton } from '@/components/FicheSkeleton';
 
 const INTEREST = ['LES ACTEURS', 'LA PRÉMISSE', 'LES CRÉATEURS', 'LA CHAÎNE/LA PLATEFORME', "LA FRANCHISE OU L'UNIVERS", 'AUTRE'];
 const STATUS_LABELS: Record<string, string> = {
@@ -113,8 +114,9 @@ export default function ShowDetail() {
     onSettled: refresh,
   });
   // « Arrêter de regarder » (série commencée) : statut « Arrêtée », la série
-  // rejoint la section ARRÊTÉ de la page Séries du profil. Cocher un épisode
-  // la fera repasser « En cours » (recalcul serveur).
+  // rejoint la section ARRÊTÉ de la page Séries du profil et disparaît de
+  // « À venir ». Le statut est volontairement collant : cocher un épisode ne
+  // la fait PAS repasser « En cours » (cf. recalculateShowStatus côté serveur).
   const abandon = useMutation({
     mutationFn: () => api.post(`/api/shows/${id}/abandon`),
     onMutate: async () => {
@@ -154,7 +156,7 @@ export default function ShowDetail() {
   // (titre centré) à mesure que le contenu défile, quel que soit l'onglet.
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  if (detail.isLoading) return <Loading />;
+  if (detail.isLoading) return <FicheSkeleton heroHeight={240} />;
   if (!detail.data) return <LoadError onRetry={detail.refetch} busy={detail.isRefetching} />;
   const media: MediaDto = detail.data.media;
   const isFollowed = media.userStatus != null;
@@ -194,7 +196,7 @@ export default function ShowDetail() {
           ) : null;
         })()}
         <View style={[styles.heroBtns, { top: insets.top + 4 }]}>
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retour">
             <Feather name="chevron-down" size={30} color="#fff" />
           </Pressable>
           <Pressable onPress={() => setMenu(true)} hitSlop={8} accessibilityLabel="Options">
@@ -300,7 +302,10 @@ export default function ShowDetail() {
           {!isMovie ? (
             <SheetItem icon="clock" label="Regarder plus tard" onPress={() => { setMenu(false); watchLater.mutate(); }} />
           ) : null}
-          {!isMovie && (media.userStatus === 'watching' || media.userStatus === 'paused') ? (
+          {/* « Terminée » incluse : une série finie dont une nouvelle saison sort
+              revient dans « À voir » — on doit pouvoir l'arrêter sans la
+              supprimer (l'historique de visionnage est conservé). */}
+          {!isMovie && (media.userStatus === 'watching' || media.userStatus === 'paused' || media.userStatus === 'completed') ? (
             <SheetItem icon="x-circle" label="Arrêter de regarder" onPress={() => { setMenu(false); abandon.mutate(); }} />
           ) : null}
           {isFollowed ? (
@@ -447,7 +452,7 @@ function ArtworkPicker({
     <Modal visible={mode !== null} animationType="slide" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: COLORS.white }}>
         <View style={pstyles.header}>
-          <Pressable onPress={onClose} hitSlop={12}>
+          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Fermer">
             <Feather name="arrow-left" size={24} color={COLORS.black} />
           </Pressable>
           <Text style={pstyles.title}>{isPoster ? "Modifier l'affiche" : 'Changer la bannière'}</Text>

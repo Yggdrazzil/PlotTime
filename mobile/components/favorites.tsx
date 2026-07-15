@@ -8,7 +8,9 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
-import type { FavSortKey, MediaDto, MediaType } from '@/lib/types';
+import type { FavSortKey, MediaDto } from '@/lib/types';
+// Page favoris drag & drop : séries/films uniquement (les jeux ont leur page dédiée).
+type FavKind = 'show' | 'movie';
 import { useAppStore } from '@/lib/store';
 import { COLORS, FONTS } from '@/lib/theme';
 import { LoadError, EmptyState } from '@/components/ui';
@@ -49,7 +51,7 @@ export function sortFavorites<T extends MediaDto>(items: T[], sort: FavSortKey):
 
 // Données des deux pages : bibliothèque complète (pour Ajouter/Supprimer) dont
 // on extrait les favoris. Les séries gardent leur progression (barres).
-export function useFavoritesData(kind: MediaType) {
+export function useFavoritesData(kind: FavKind) {
   const shows = useQuery({
     queryKey: ['shows', 'library'],
     queryFn: () => api.get<{ items: LibraryShow[] }>('/api/shows/library'),
@@ -102,7 +104,7 @@ const WORDING = {
 // grand titre à gauche, bouton jaune, rangée TRIER PAR (feuille de tri),
 // grille 3 colonnes triée.
 // ============================================================================
-export function FavoritesPage({ kind }: { kind: MediaType }) {
+export function FavoritesPage({ kind }: { kind: FavKind }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const w = WORDING[kind];
@@ -131,10 +133,16 @@ export function FavoritesPage({ kind }: { kind: MediaType }) {
     <Pop style={{ backgroundColor: COLORS.white }}>
       {/* En-tête TV Time : chevron à gauche, « ... » à droite, pas de titre centré. */}
       <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.topBtn}>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.topBtn} accessibilityRole="button" accessibilityLabel="Retour">
           <Feather name="chevron-left" size={28} color={COLORS.black} />
         </Pressable>
-        <Pressable onPress={() => setMenuOpen(true)} hitSlop={10} style={[styles.topBtn, { alignItems: 'flex-end' }]}>
+        <Pressable
+          onPress={() => setMenuOpen(true)}
+          hitSlop={10}
+          style={[styles.topBtn, { alignItems: 'flex-end' }]}
+          accessibilityRole="button"
+          accessibilityLabel="Options"
+        >
           <Feather name="more-horizontal" size={24} color={COLORS.black} />
         </Pressable>
       </View>
@@ -300,7 +308,7 @@ function BottomSheet({
 function FavPicker({
   kind, visible, items, onClose,
 }: {
-  kind: MediaType;
+  kind: FavKind;
   visible: boolean;
   items: MediaDto[];
   onClose: () => void;
@@ -364,7 +372,7 @@ function FavPicker({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: COLORS.white, paddingTop: insets.top }}>
         <View style={styles.pickerHead}>
-          <Pressable onPress={onClose} hitSlop={10} style={styles.topBtn}>
+          <Pressable onPress={onClose} hitSlop={10} style={styles.topBtn} accessibilityRole="button" accessibilityLabel="Fermer">
             <Feather name="chevron-left" size={28} color={COLORS.black} />
           </Pressable>
           <Text style={styles.pickerTitle}>{w.pickerTitle}</Text>
@@ -381,7 +389,7 @@ function FavPicker({
             autoCapitalize="none"
           />
           {q ? (
-            <Pressable onPress={() => setQ('')} hitSlop={8}>
+            <Pressable onPress={() => setQ('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Effacer la recherche">
               <Feather name="x" size={18} color={COLORS.textMuted} />
             </Pressable>
           ) : null}

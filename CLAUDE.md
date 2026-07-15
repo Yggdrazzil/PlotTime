@@ -39,6 +39,7 @@ IP : `ipconfig | Select-String "IPv4"`.
 - `packages/core` + `packages/types` : logique métier et types partagés.
 - Auth multi-comptes e-mail/mot de passe ; SSO Google/Facebook prêt mais désactivé.
 - Contenu via TheTVDB (clé dans `apps/server/.env`, `TVDB_ENABLED=true`) ; TMDb optionnel.
+- Jeux : `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` (IGDB via Twitch, `IGDB_ENABLED=true`) ; `STEAM_API_KEY` (import Steam). Voir `docs/superpowers/specs/2026-07-15-jeux-video-design.md`.
 - Dimension sociale : abonnements, fil, commentaires/réponses, réactions, notifications.
 
 ## Branches (organisation d'équipe)

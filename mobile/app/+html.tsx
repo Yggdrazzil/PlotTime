@@ -9,7 +9,13 @@ export default function Root({ children }: PropsWithChildren) {
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
+        {/* App-like : on bloque le zoom navigateur (double-tap / pincement) qui
+            « décadrait » le flux et rendait les boutons peu réactifs (délai de
+            300 ms). initial-scale figé + user-scalable=no = comportement natif. */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+        />
         <title>SerieTime</title>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -41,6 +47,17 @@ export default function Root({ children }: PropsWithChildren) {
               html, body {
                 -webkit-text-size-adjust: 100%;
                 text-size-adjust: none;
+              }
+              /* Supprime le double-tap-zoom + le délai de clic de ~300 ms sur
+                 mobile : boutons plus réactifs, plus de « mini-zoom » accidentel. */
+              html, body, #root {
+                touch-action: manipulation;
+              }
+              /* Champs de saisie : pas d'anneau de focus navigateur (encadré
+                 orange/bleu incohérent avec le style « soulignement » de l'app).
+                 Le focus reste signalé par le caret + les styles de l'app. */
+              input:focus, textarea:focus {
+                outline: none;
               }
             `,
           }}

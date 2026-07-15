@@ -7,7 +7,7 @@ import { requireAuth } from '../auth/routes.js';
 import { serializeEpisode, serializeMedia } from '../media/serialize.js';
 import { createWatchEvent, markEpisodeWatched, recalculateShowStatus } from '../media/actions.js';
 import { nextFavoriteOrder } from '../media/favorites.js';
-import { refreshStaleContinuingShows } from './refresh.js';
+import { refreshStaleContinuingShows, resyncAllUserShows, isResyncRunning } from './refresh.js';
 import {
   syncCreditsFromTmdb,
   syncProvidersFromTmdb,
@@ -46,19 +46,45 @@ export async function showRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Spec §17 : file "À voir" groupée.
+  // « Resynchroniser ma bibliothèque » : rattrape d'un coup les dates de diffusion
+  // manquantes (l'import crée les épisodes sans dates → séries absentes de « À voir »
+  // tant qu'on n'a pas ouvert leur fiche). Lancé en fond, la réponse n'attend pas.
+  app.post('/api/shows/resync-all', async (request) => {
+    const already = isResyncRunning(request.userId);
+    if (!already) void resyncAllUserShows(request.userId).catch(() => undefined);
+    return { started: true, alreadyRunning: already };
+  });
+
   app.get('/api/shows/queue', async (request) => {
     const userId = request.userId;
     // Balayage d'arrière-plan (fire-and-forget) : les séries en cours périmées
     // sont resynchronisées pour que les nouvelles saisons rejoignent « À voir ».
     void refreshStaleContinuingShows(userId).catch(() => undefined);
+    // Séries suivies SANS leurs épisodes : charger les lignes complètes
+    // (résumés, titres…) de dizaines de milliers d'épisodes rendait la requête
+    // inutilisable (>60 s constatés sur une grosse bibliothèque importée).
     const statuses = await prisma.userMediaStatus.findMany({
       where: { userId, media: { type: 'show' }, isHidden: false },
       include: {
         media: {
-          include: { show: { include: { episodes: true } } },
+          include: { show: { select: { id: true, mediaId: true, network: true, platform: true } } },
         },
       },
     });
+    // Épisodes en colonnes MINIMALES (5 champs) : suffisant pour calculer le
+    // prochain épisode / restants / badges. Les fiches complètes des seuls
+    // « prochains épisodes » retenus sont chargées ensuite (≤ 1 par série).
+    const showIds = statuses.map((s) => s.media.show?.id).filter((x): x is string => Boolean(x));
+    const lightEpisodes = await prisma.episode.findMany({
+      where: { showId: { in: showIds } },
+      select: { id: true, showId: true, seasonNumber: true, episodeNumber: true, airDate: true },
+    });
+    const episodesByShow = new Map<string, typeof lightEpisodes>();
+    for (const e of lightEpisodes) {
+      const arr = episodesByShow.get(e.showId);
+      if (arr) arr.push(e);
+      else episodesByShow.set(e.showId, [e]);
+    }
 
     const episodeStatuses = await prisma.userEpisodeStatus.findMany({
       where: { userId, status: 'watched' },
@@ -67,11 +93,18 @@ export async function showRoutes(app: FastifyInstance): Promise<void> {
     const watchedSet = new Set(episodeStatuses.map((e) => e.episodeId));
 
     const now = new Date();
-    const items: QueueItemDto[] = [];
+    type PendingItem = {
+      status: (typeof statuses)[number];
+      group: QueueItemDto['group'];
+      nextId: string | null;
+      remaining: number;
+      refs: { id: string; seasonNumber: number; episodeNumber: number; airDate: string | null; watched: boolean }[];
+    };
+    const pendings: PendingItem[] = [];
     for (const status of statuses) {
       const show = status.media.show;
       if (!show) continue;
-      const refs = show.episodes.map((e) => ({
+      const refs = (episodesByShow.get(show.id) ?? []).map((e) => ({
         id: e.id,
         seasonNumber: e.seasonNumber,
         episodeNumber: e.episodeNumber,
@@ -109,7 +142,18 @@ export async function showRoutes(app: FastifyInstance): Promise<void> {
 
       if ((group === 'pas_commence' || group === 'abandonne') && refs.length > 0 && remaining === 0) continue;
 
-      const nextEpisode = next ? show.episodes.find((e) => e.id === next.id) ?? null : null;
+      pendings.push({ status, group, nextId: next?.id ?? null, remaining, refs });
+    }
+
+    // Fiches complètes des seuls « prochains épisodes » retenus (une requête).
+    const nextIds = pendings.map((p) => p.nextId).filter((x): x is string => Boolean(x));
+    const fullNext = await prisma.episode.findMany({ where: { id: { in: nextIds } } });
+    const fullById = new Map(fullNext.map((e) => [e.id, e]));
+
+    const items: QueueItemDto[] = [];
+    for (const { status, group, nextId, remaining, refs } of pendings) {
+      const show = status.media.show!;
+      const nextEpisode = nextId ? fullById.get(nextId) ?? null : null;
       const badges: QueueItemDto['badges'] = [];
       if (nextEpisode) {
         // PREMIERE : 1er épisode d'une série OU d'une saison (façon TV Time).
