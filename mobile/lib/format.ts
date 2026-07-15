@@ -41,7 +41,7 @@ const GROUP_LABELS: Record<string, string> = {
   a_voir: 'À VOIR',
   pas_regarde_depuis_un_moment: 'PAS REGARDÉ DEPUIS UN MOMENT',
   pas_commence: 'PAS COMMENCÉ',
-  abandonne: 'ABANDONNÉ',
+  abandonne: 'ARRÊTÉ',
 };
 export function queueGroupLabel(group: string): string {
   return GROUP_LABELS[group] ?? group.toUpperCase();

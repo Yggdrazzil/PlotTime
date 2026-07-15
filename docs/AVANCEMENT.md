@@ -71,6 +71,17 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 
 ## Journal des modifications
 
+### 2026-07-16 — Circuit « Arrêté » vérifié + finitions
+- Audit du circuit « Arrêter de regarder » : fiche → statut `abandoned`,
+  barre rouge + section Arrêté dans la bibliothèque, exclusion de « À venir »,
+  groupe séparé en bas de « À voir » (parité TV Time), import TV Time
+  `active=0`, statut collant au recalcul. Films : « Supprimer le film »
+  (pas de statut arrêté, parité TV Time).
+- Correctifs : « Arrêter de regarder » disponible aussi pour une série
+  « Terminée » qui revient dans « À voir » avec une nouvelle saison (avant :
+  seule option = supprimer la série et perdre l'historique) ; libellé du
+  groupe de la file harmonisé « ABANDONNÉ » → « ARRÊTÉ ».
+
 ### 2026-07-16 — Finitions UX : accessibilité, squelettes de fiches, scrims dégradés
 - **Accessibilité** : ~49 boutons icône-seule (rail Explorer, chevrons retour,
   ⋯, cœur, coches, X de modals, onglets…) reçoivent `accessibilityLabel`

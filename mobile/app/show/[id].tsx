@@ -114,8 +114,9 @@ export default function ShowDetail() {
     onSettled: refresh,
   });
   // « Arrêter de regarder » (série commencée) : statut « Arrêtée », la série
-  // rejoint la section ARRÊTÉ de la page Séries du profil. Cocher un épisode
-  // la fera repasser « En cours » (recalcul serveur).
+  // rejoint la section ARRÊTÉ de la page Séries du profil et disparaît de
+  // « À venir ». Le statut est volontairement collant : cocher un épisode ne
+  // la fait PAS repasser « En cours » (cf. recalculateShowStatus côté serveur).
   const abandon = useMutation({
     mutationFn: () => api.post(`/api/shows/${id}/abandon`),
     onMutate: async () => {
@@ -301,7 +302,10 @@ export default function ShowDetail() {
           {!isMovie ? (
             <SheetItem icon="clock" label="Regarder plus tard" onPress={() => { setMenu(false); watchLater.mutate(); }} />
           ) : null}
-          {!isMovie && (media.userStatus === 'watching' || media.userStatus === 'paused') ? (
+          {/* « Terminée » incluse : une série finie dont une nouvelle saison sort
+              revient dans « À voir » — on doit pouvoir l'arrêter sans la
+              supprimer (l'historique de visionnage est conservé). */}
+          {!isMovie && (media.userStatus === 'watching' || media.userStatus === 'paused' || media.userStatus === 'completed') ? (
             <SheetItem icon="x-circle" label="Arrêter de regarder" onPress={() => { setMenu(false); abandon.mutate(); }} />
           ) : null}
           {isFollowed ? (
