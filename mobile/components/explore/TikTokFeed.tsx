@@ -23,7 +23,7 @@ import { PullToRefreshView } from './PullToRefreshView';
 import { useResolveMedia } from './useResolveMedia';
 import { FEED_CATEGORIES, catOf, type FeedCategory, type FeedItem } from './types';
 
-const keyOf = (f: FeedItem) => `${f.type}:${f.tmdbId ?? f.id}`;
+const keyOf = (f: FeedItem) => (f.igdbId ? `game:${f.igdbId}` : `${f.type}:${f.tmdbId ?? f.id}`);
 
 export function TikTokFeed() {
   const insets = useSafeAreaInsets();
@@ -47,10 +47,24 @@ export function TikTokFeed() {
     staleTime: 30 * 60_000,
   });
 
+  // Catégorie JEUX : source séparée (IGDB), pas le feed séries/films.
+  const isGames = cat === 'jeux';
+  const gamesQuery = useQuery({
+    queryKey: ['explore', 'games'],
+    queryFn: () => api.get<{ feed: FeedItem[] }>('/api/explore/games'),
+    enabled: isGames,
+    staleTime: 30 * 60_000,
+  });
+
   const all = useMemo(() => [...(data?.feed ?? []), ...extra], [data?.feed, extra]);
   const deck = useMemo(
-    () => (cat === 'tout' ? all : all.filter((f) => catOf(f) === cat)),
-    [all, cat],
+    () =>
+      isGames
+        ? gamesQuery.data?.feed ?? []
+        : cat === 'tout'
+          ? all
+          : all.filter((f) => catOf(f) === cat),
+    [all, cat, isGames, gamesQuery.data],
   );
   // Le deck courant, lu par les callbacks stables (onViewable) sans closure périmée.
   const deckRef = useRef(deck);
@@ -65,7 +79,7 @@ export function TikTokFeed() {
   // Flux infini : re-tire une page et ajoute les nouveautés (dédup). 2 fetchs
   // secs consécutifs → on arrête d'essayer (garde-fou anti-boucle).
   const loadMore = useCallback(async () => {
-    if (loadingMore || dryRef.current >= 2) return;
+    if (isGames || loadingMore || dryRef.current >= 2) return; // pool jeux fini : pas d'infini
     setLoadingMore(true);
     try {
       const res = await api.get<{ feed: FeedItem[] }>('/api/explore/feed');
@@ -81,7 +95,7 @@ export function TikTokFeed() {
     } finally {
       setLoadingMore(false);
     }
-  }, [all, loadingMore]);
+  }, [all, loadingMore, isGames]);
 
   // Suit la carte active + prefetch des affiches suivantes pour un snap fluide.
   // Callback stable (RN interdit de le changer entre les rendus) : lit deckRef.
@@ -101,10 +115,10 @@ export function TikTokFeed() {
   const onRefresh = useCallback(async () => {
     dryRef.current = 0;
     setExtra([]);
-    await refetch();
+    await (isGames ? gamesQuery.refetch() : refetch());
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
     setActiveIndex(0);
-  }, [refetch]);
+  }, [refetch, isGames, gamesQuery]);
 
   const advance = useCallback(
     (index: number) => {
@@ -114,12 +128,13 @@ export function TikTokFeed() {
     [deck.length],
   );
 
-  if (isLoading) return <Loading />;
+  const refreshing = isGames ? gamesQuery.isRefetching : isRefetching;
+  if (isGames ? gamesQuery.isLoading : isLoading) return <Loading />;
 
   return (
     <View style={styles.wrap} onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>
       {height > 0 && deck.length > 0 ? (
-        <PullToRefreshView refreshing={isRefetching} onRefresh={onRefresh} scrollYRef={scrollY}>
+        <PullToRefreshView refreshing={refreshing} onRefresh={onRefresh} scrollYRef={scrollY}>
           <FlatList
             ref={listRef}
             data={deck}

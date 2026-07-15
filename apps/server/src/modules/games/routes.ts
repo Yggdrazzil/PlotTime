@@ -121,6 +121,37 @@ export async function gamesRoutes(app: FastifyInstance): Promise<void> {
     return { popular: popular.map(card), upcoming: upcoming.map(card) };
   });
 
+  // Flux « JEUX » de l'Explorer TikTok : cartes plein écran (mêmes champs que le
+  // feed séries/films), alimentées par IGDB (populaires + à venir).
+  app.get('/api/explore/games', async () => {
+    const { igdbPopular, igdbUpcoming, igdbImageUrl } = await import('../../services/igdb/index.js');
+    const [popular, upcoming] = await Promise.all([igdbPopular(), igdbUpcoming()]);
+    const seen = new Set<number>();
+    const pool = [...popular, ...upcoming].filter((g) => (seen.has(g.id) ? false : (seen.add(g.id), true)));
+    const feed = pool.map((g) => ({
+      id: null,
+      igdbId: String(g.id),
+      tmdbId: null,
+      tvdbId: null,
+      type: 'game' as const,
+      category: 'jeux' as const,
+      title: g.name,
+      year: g.first_release_date ? new Date(g.first_release_date * 1000).getFullYear() : null,
+      posterPath: g.cover ? igdbImageUrl(g.cover.image_id) : null,
+      backdropPath: g.artworks?.length
+        ? igdbImageUrl(g.artworks[0]!.image_id, 't_1080p')
+        : g.cover
+          ? igdbImageUrl(g.cover.image_id, 't_1080p')
+          : null,
+      overview: g.summary ?? null,
+      voteAverage: typeof g.total_rating === 'number' ? g.total_rating / 10 : null,
+      inLibrary: false,
+      stats: { likes: 0, watched: 0, comments: 0 },
+      me: { liked: false, watched: false },
+    }));
+    return { feed };
+  });
+
   // Sorties + DLC à venir des jeux SUIVIS, groupés par date (miroir de /api/shows/upcoming).
   app.get('/api/games/upcoming', async (request) => {
     const rows = await prisma.userMediaStatus.findMany({

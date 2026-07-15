@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, Platform } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Feather, Ionicons } from '@expo/vector-icons';
+import { useRouter, type Href } from 'expo-router';
 import { api, tmdbImage } from '@/lib/api';
 import { COLORS, FONTS } from '@/lib/theme';
 import { shareMedia } from '@/lib/share';
@@ -42,11 +42,12 @@ export function TikTokCard({
   // Portrait plein écran : l'AFFICHE (poster) est cadrée pour ce format, en haute
   // résolution et affichée ENTIÈRE (contain → aucun rognage). Un fond flouté
   // (backdrop, sinon l'affiche) remplit l'écran derrière pour l'immersion.
+  const isGame = Boolean(item.igdbId);
   const poster = tmdbImage(item.posterPath, 'original') ?? tmdbImage(item.backdropPath, 'w1280');
   const bg = tmdbImage(item.backdropPath, 'w780') ?? tmdbImage(item.posterPath, 'w780');
   const meta = [
     item.year,
-    item.category === 'anime' ? 'Animé' : item.type === 'show' ? 'Série' : 'Film',
+    isGame ? 'Jeu' : item.category === 'anime' ? 'Animé' : item.type === 'show' ? 'Série' : 'Film',
   ]
     .filter(Boolean)
     .join(' · ');
@@ -54,7 +55,7 @@ export function TikTokCard({
   const openFiche = async (f: FeedItem) => {
     try {
       const id = await resolveMedia(f);
-      router.push(`/show/${id}${f.type === 'movie' ? '?type=movie' : ''}`);
+      router.push((f.igdbId ? `/game/${id}` : `/show/${id}${f.type === 'movie' ? '?type=movie' : ''}`) as Href);
     } catch {
       /* best-effort */
     }
@@ -77,7 +78,11 @@ export function TikTokCard({
     try {
       const id = await resolveMedia(item);
       if (wasLiked) {
-        await api.del(item.type === 'movie' ? `/api/movies/${id}/tracking` : `/api/shows/${id}/tracking`);
+        await api.del(
+          isGame ? `/api/games/${id}/tracking` : item.type === 'movie' ? `/api/movies/${id}/tracking` : `/api/shows/${id}/tracking`,
+        );
+      } else if (isGame) {
+        await api.post(`/api/games/${id}/status`, { status: 'wishlist' });
       } else {
         await api.post(item.type === 'movie' ? `/api/movies/${id}/watchlist` : `/api/shows/${id}/watchlater`);
       }
@@ -102,7 +107,11 @@ export function TikTokCard({
     try {
       const id = await resolveMedia(item);
       if (wasWatched) {
-        await api.del(item.type === 'movie' ? `/api/movies/${id}/tracking` : `/api/shows/${id}/tracking`);
+        await api.del(
+          isGame ? `/api/games/${id}/tracking` : item.type === 'movie' ? `/api/movies/${id}/tracking` : `/api/shows/${id}/tracking`,
+        );
+      } else if (isGame) {
+        await api.post(`/api/games/${id}/status`, { status: 'completed' });
       } else if (item.type === 'movie') {
         await api.post(`/api/movies/${id}/watched`, {});
       } else {
@@ -157,7 +166,11 @@ export function TikTokCard({
 
       <View style={styles.caption} pointerEvents="box-none">
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Feather name={item.type === 'show' ? 'tv' : 'film'} size={20} color="#fff" />
+          {isGame ? (
+            <Ionicons name="game-controller" size={20} color="#fff" />
+          ) : (
+            <Feather name={item.type === 'show' ? 'tv' : 'film'} size={20} color="#fff" />
+          )}
           <Text style={styles.title} numberOfLines={2}>
             {item.title}
           </Text>

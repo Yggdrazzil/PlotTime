@@ -9,16 +9,21 @@ export function useResolveMedia(): (item: FeedItem) => Promise<string> {
 
   return (item: FeedItem) => {
     if (item.id) return Promise.resolve(item.id);
-    const key = `${item.type}:${item.tmdbId}`;
+    const isGame = Boolean(item.igdbId);
+    const key = isGame ? `game:${item.igdbId}` : `${item.type}:${item.tmdbId}`;
     const cached = cache.get(key);
     if (cached) return Promise.resolve(cached);
     const running = inflight.get(key);
     if (running) return running;
 
-    const path =
-      item.type === 'movie' ? '/api/movies/add-from-tmdb' : '/api/shows/add-from-tmdb';
+    const path = isGame
+      ? '/api/games/add-from-igdb'
+      : item.type === 'movie'
+        ? '/api/movies/add-from-tmdb'
+        : '/api/shows/add-from-tmdb';
+    const body = isGame ? { igdbId: item.igdbId } : { tmdbId: item.tmdbId, follow: false };
     const p = api
-      .post<{ mediaId: string }>(path, { tmdbId: item.tmdbId, follow: false })
+      .post<{ mediaId: string }>(path, body)
       .then((res) => {
         cache.set(key, res.mediaId);
         inflight.delete(key);
