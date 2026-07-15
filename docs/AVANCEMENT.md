@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-15** (Claude) — Commentaires : logique et carte partagées (`useComments` + `CommentCard`) entre la page plein écran et le bottom sheet Explorer façon TikTok
+Dernière mise à jour : **2026-07-15** (Claude) — Explorer refondu en flux TikTok plein écran (branchement de `TikTokFeed`, suppression de l'ancien Explorer PARCOURIR/DÉCOUVRIR)
 
 ---
 
@@ -65,6 +65,11 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 ## Journal des modifications
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
+
+### 2026-07-15 — Explorer refondu en flux TikTok
+- Explorer unique plein écran, défilement vertical paginé (suppression de PARCOURIR + deck Tinder).
+- Rail social : like (= À voir) / dislike / déjà vu / commentaire / partage, compteurs (likes, vus, commentaires) agrégés sur toute l'app via `/api/explore/feed`, note ★ TMDb sur la carte.
+- Tap = overlay description ; bottom sheet commentaires réutilisant le hook `useComments` + `CommentCard` partagés ; pull-to-refresh + flux infini.
 
 ### 2026-07-15 — Claude
 - **Refactor Commentaires : logique + carte partagées** (page plein écran
