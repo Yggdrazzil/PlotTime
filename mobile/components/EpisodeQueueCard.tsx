@@ -74,7 +74,7 @@ export function EpisodeQueueCard({
         <View style={styles.checkWrap}>
           <CheckCircle
             onPress={onCheck}
-            size={38}
+            size={34}
             checked={watched}
             checkedBg={COLORS.green}
             checkedFg="#fff"
@@ -86,21 +86,22 @@ export function EpisodeQueueCard({
 }
 
 const styles = StyleSheet.create({
-  // Cotes calquées sur TV Time (captures 393dp) : vignette 96, coche 38,
-  // code 20, titre 13, carte ~130dp avec badge, rayon 10, ~5 cartes visibles.
+  // Densité recalée sur TV Time (comparaison px, même téléphone, captures
+  // 2026-07-15) : texte épisode plus petit (17), paddings resserrés — l'écran
+  // montre autant de cartes que TV Time, sans changer la structure.
   card: {
-    flexDirection: 'row', marginHorizontal: 12, marginBottom: 12, backgroundColor: COLORS.white,
-    borderRadius: 10, minHeight: 104, overflow: 'hidden', ...SHADOW.card,
+    flexDirection: 'row', marginHorizontal: 12, marginBottom: 10, backgroundColor: COLORS.white,
+    borderRadius: 10, minHeight: 96, overflow: 'hidden', ...SHADOW.card,
   },
   cardWatched: { opacity: 0.45 },
-  thumb: { width: 96, backgroundColor: '#e5e5e5' },
+  thumb: { width: 92, backgroundColor: '#e5e5e5' },
   thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
-  body: { flex: 1, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 13, gap: 7 },
+  body: { flex: 1, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 5 },
   // Le code (S03 | E02) reste sur UNE ligne ; « +N » (restants) ne le pousse jamais.
   codeRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  code: { fontSize: 20, fontFamily: FONTS.bold, flexShrink: 1 },
-  plus: { fontSize: 13, fontFamily: FONTS.bold, color: COLORS.textMuted, flexShrink: 0 },
-  epTitle: { fontFamily: FONTS.regular, fontSize: 13 },
+  code: { fontSize: 17, fontFamily: FONTS.bold, flexShrink: 1 },
+  plus: { fontSize: 12, fontFamily: FONTS.bold, color: COLORS.textMuted, flexShrink: 0 },
+  epTitle: { fontFamily: FONTS.regular, fontSize: 12.5 },
   badges: { flexDirection: 'row', gap: 6 },
-  checkWrap: { justifyContent: 'center', paddingRight: 14 },
+  checkWrap: { justifyContent: 'center', paddingRight: 12 },
 });
