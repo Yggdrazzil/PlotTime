@@ -96,6 +96,7 @@ model Media {
   tmdbId            String?
   tvdbId            String?
   imdbId            String?
+  igdbId            String?
 
   sourcePriority    String?
   lastSyncedAt      DateTime?
@@ -105,6 +106,8 @@ model Media {
 
   show              Show?
   movie             Movie?
+  game              Game?
+  dlcParents        Game[]    @relation("GameDlc")
   statuses          UserMediaStatus[]
   watchEvents       WatchEvent[]
   ratings           Rating[]
@@ -219,6 +222,28 @@ model Movie {
   updatedAt DateTime @updatedAt
 }
 
+model Game {
+  id           String   @id @default(cuid())
+  mediaId      String   @unique
+  media        Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  platforms    String?
+  developer    String?
+  publisher    String?
+  gameModes    String?
+  steamAppId   String?
+  isDlc        Boolean  @default(false)
+
+  parentGameId String?
+  parentGame   Media?   @relation("GameDlc", fields: [parentGameId], references: [id], onDelete: SetNull)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([steamAppId])
+  @@index([parentGameId])
+}
+
 model UserMediaStatus {
   id            String    @id @default(cuid())
   userId        String
@@ -236,6 +261,7 @@ model UserMediaStatus {
   isHidden      Boolean   @default(false)
   personalNote  String?
   rating        Float?
+  playtimeMinutes Int?
 
   addedAt       DateTime  @default(now())
   startedAt     DateTime?

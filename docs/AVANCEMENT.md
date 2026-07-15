@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-15** (Claude) — Explorer refondu en flux TikTok plein écran (branchement de `TikTokFeed`, suppression de l'ancien Explorer PARCOURIR/DÉCOUVRIR)
+Dernière mise à jour : **2026-07-15** (Claude) — Jeux vidéo : modèle de données Prisma (`Game`, `Media.igdbId`, `UserMediaStatus.playtimeMinutes`)
 
 ---
 
@@ -45,6 +45,7 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Hébergement VPS | ✅ Fait | Prod sur le VPS Hostinger de Benjamin : `https://serietime.studio-vives.fr` (Docker isolé, HTTPS Let's Encrypt, backup DB nocturne) |
 | Web app (navigateur / écran d'accueil) | ✅ Fait | Export Expo web servi par Nginx à la racine du domaine (`/api` proxifié) ; utilisable iPhone + Android sans store |
 | Distribution native (APK / stores) | ⏳ Optionnel | EAS Build documenté dans le README ; la web app couvre déjà l'usage quotidien |
+| Jeux vidéo — modèle de données | ✅ Fait | Table `Game` (plateformes, développeur, éditeur, modes, Steam App ID, DLC) + `Media.igdbId` + `UserMediaStatus.playtimeMinutes` (migration `add_games`) ; reste à faire : provider IGDB, module API jeux, UI mobile |
 
 ## Prochaines étapes (par priorité)
 
@@ -65,6 +66,15 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 ## Journal des modifications
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
+
+### 2026-07-15 — Jeux vidéo : modèle de données (Task 1)
+- Migration Prisma additive `add_games` : nouvelle table `Game` (mediaId
+  unique, `platforms`/`developer`/`publisher`/`gameModes`/`steamAppId`,
+  `isDlc`, `parentGameId` → relation nommée `GameDlc` vers `Media`), colonne
+  `Media.igdbId` et colonne `UserMediaStatus.playtimeMinutes`. Aucune donnée
+  existante touchée (ALTER TABLE ADD COLUMN nullable + CREATE TABLE).
+- Prépare les tâches suivantes : provider IGDB, module API `/api/games`, UI
+  mobile de suivi des jeux.
 
 ### 2026-07-15 — Explorer refondu en flux TikTok
 - Explorer unique plein écran, défilement vertical paginé (suppression de PARCOURIR + deck Tinder).
