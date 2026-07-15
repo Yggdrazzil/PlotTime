@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-15** (Claude) — Jeux vidéo : notifications de sortie + journal V1 (Task 10)
+Dernière mise à jour : **2026-07-15** (Claude) — Jeux vidéo : parité fiche (menu ⋯, bande-annonce)
 
 ---
 
@@ -50,7 +50,7 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Jeux vidéo — module API | ✅ Fait | `apps/server/src/modules/games/routes.ts` : `GET /api/games/search`, `POST /api/games/add-from-igdb`, `GET /api/games` (bibliothèque groupée par statut wishlist/playing/completed/abandoned), `POST /api/games/:id/status`, `GET /api/games/:id` (enrichissement paresseux), `GET /api/games/discover`, `GET /api/games/upcoming`, `POST /api/games/steam/import`, `DELETE /api/games/:id/tracking` |
 | Jeux vidéo — onglet Jeux (mobile) | ✅ Fait | `mobile/app/(tabs)/games.tsx` : bibliothèque par statut, recherche IGDB, carrousels « Populaires »/« À venir » (découverte, tap = ajoute + ouvre la fiche), « Sorties à venir » (jeux suivis, groupés par mois) |
 | Jeux vidéo — connexion Steam (mobile) | ✅ Fait | Bloc « Jeux — Steam » dans `mobile/app/settings.tsx` (onglet Compte) : SteamID/URL de profil → import bibliothèque possédée |
-| Jeux vidéo — fiche jeu (mobile) | ✅ Fait | `mobile/app/game/[id].tsx` : miroir simplifié de la fiche série (jaquette, infos, sélecteur de statut wishlist/playing/completed/abandoned, temps de jeu, commentaires), suivi optimiste avec rollback |
+| Jeux vidéo — fiche jeu (mobile) | ✅ Fait | `mobile/app/game/[id].tsx` : parité avec la fiche série/film — menu « … » (Personnaliser affiche/bannière via `GET/POST /api/games/:id/images|poster|banner`, Favoris `POST /api/games/:id/favorite`, Ajouter à une liste, Partager, Retirer), aperçu bande-annonce 16:9 (miniature YouTube + iframe autoplay sur web / ouverture YouTube sur natif, `videoId` IGDB), sélecteur de statut, temps de jeu, commentaires ; suivi optimiste avec rollback |
 | Jeux vidéo — notifications de sortie | ✅ Fait | Passe du worker de fond (`apps/server/src/services/sync-worker.ts`) : `Notification` de type `game_release` quand `Media.releaseDate` d'un jeu suivi (non masqué) tombe aujourd'hui, dédupliquée par `(userId, mediaId, type)` |
 
 ## Prochaines étapes (par priorité)
@@ -72,6 +72,43 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 ## Journal des modifications
 
 > Entrée type : `### AAAA-MM-JJ — Auteur` puis une liste courte de ce qui a changé.
+
+### 2026-07-15 — Jeux vidéo : parité fiche avec séries/films (Claude)
+- Objectif : la fiche jeu offre la même expérience que la fiche série/film — menu
+  « … », personnalisation jaquette/bannière, favoris, listes, partage, aperçu
+  bande-annonce.
+- **Serveur** :
+  - `apps/server/src/modules/media/favorites.ts` : `nextFavoriteOrder` accepte
+    désormais `'show' | 'movie' | 'game'`.
+  - `apps/server/src/modules/games/routes.ts` : `POST /api/games/:id/favorite`
+    (miroir séries/films — bascule `isFavorite`/`favoritedAt`/`favoriteOrder`,
+    notifie les abonnés ; **pas** de `createWatchEvent`, les jeux ne génèrent
+    aucun événement de visionnage — isolation cross-domaine avec le fil
+    `/api/social/feed`, qui lit `WatchEvent`), `GET /api/games/:id/images`
+    (posters = cover IGDB, backdrops = artworks + screenshots IGDB, appel
+    « live » mis en cache par `ApiCache`), `POST /api/games/:id/poster` et
+    `POST /api/games/:id/banner`. `GET /api/games/:id` renvoie maintenant
+    `isFavorite` et `videoId` (premier id vidéo YouTube IGDB).
+  - `apps/server/src/services/igdb/index.ts` : champs IGDB étendus
+    (`videos.video_id,videos.name,screenshots.image_id`), type `IgdbGame`
+    complété — pas de nouvelle colonne DB, tout est récupéré à la volée et mis
+    en cache par `igdbQuery`/`ApiCache`.
+  - Tests ajoutés dans `apps/server/src/__tests__/games.test.ts` (aller-retour
+    favori sur la fiche détail, mise à jour affiche/bannière).
+- **Mobile** : `mobile/app/game/[id].tsx` réécrit sur le modèle de
+  `mobile/app/show/[id].tsx` — bouton « … » dans le bandeau (même
+  placement/style), menu Personnaliser/Favoris/Ajouter à une liste/Retirer/Partager
+  (composants `PersonalizeMenu`/`ArtworkPicker`/`ListsSheet`/`SheetItem`
+  dupliqués en version légère, comme demandé plutôt qu'une extraction risquée),
+  bannière = `backdropPath` avec jaquette en surimpression, bloc « Bande-annonce »
+  16:9 sous l'en-tête (miniature YouTube + bouton lecture ; tap = iframe
+  autoplay intégré sur web, ouverture de l'URL YouTube via `Linking` sur natif —
+  aucune nouvelle dépendance native). Le bouton « Retirer » (suivi) est
+  maintenant dans le menu « … » au lieu d'être affiché en permanence dans la
+  section Suivi, pour rester cohérent avec la fiche série/film.
+- Gates : `cd apps/server && corepack pnpm exec tsc --noEmit` → 0 erreur ;
+  `corepack pnpm test` → 82/82 (14 fichiers) ; `cd mobile && npm run typecheck`
+  → 0 erreur.
 
 ### 2026-07-15 — Onglet Jeux vidéo (V1)
 - Domaine jeux calqué sur séries : Media.type=game + sous-table Game + provider IGDB + module games + UserMediaStatus (Voulus/En cours/Terminés/Abandonnés, temps de jeu).

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Image } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Image, Platform, Linking } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { COLORS, FONTS } from '@/lib/theme';
 import { Loading, LoadError } from '@/components/ui';
 import { Pop, SlideUpBar } from '@/components/anim';
 import { Stars } from '@/components/Stars';
+import { shareMedia } from '@/lib/share';
 
 // Miroir de la réponse GET /api/games/:id (serveur : apps/server/src/modules/games/routes.ts).
 type GameDetailDto = {
@@ -26,6 +27,8 @@ type GameDetailDto = {
   publisher: string | null;
   gameModes: string | null;
   releaseDate: string | null;
+  isFavorite: boolean;
+  videoId: string | null;
 };
 
 const GAME_STATUSES = ['wishlist', 'playing', 'completed', 'abandoned'] as const;
@@ -45,15 +48,19 @@ function formatPlaytime(minutes: number): string {
   return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
 }
 
-// Fiche jeu — miroir simplifié de mobile/app/show/[id].tsx (header jaquette,
-// infos, sélecteur de statut, commentaires). Suivi optimiste avec rollback,
-// comme les autres fiches de l'app.
+// Fiche jeu — parité avec mobile/app/show/[id].tsx : menu « ... » (Personnaliser,
+// Favoris, Ajouter à une liste, Partager, Retirer), aperçu bande-annonce.
+// Suivi optimiste avec rollback, comme les autres fiches de l'app.
 export default function GameDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [toast, setToast] = useState<string | null>(null);
+  const [menu, setMenu] = useState(false);
+  const [persoMenu, setPersoMenu] = useState(false);
+  const [artwork, setArtwork] = useState<'poster' | 'banner' | null>(null);
+  const [listsOpen, setListsOpen] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -100,6 +107,19 @@ export default function GameDetail() {
     onSettled: refresh,
   });
 
+  const favorite = useMutation({
+    mutationFn: () => api.post<{ ok: boolean; isFavorite: boolean }>(`/api/games/${id}/favorite`),
+    onMutate: () => patch({ isFavorite: !detail.data?.isFavorite }),
+    onError: (_e, _v, ctx) => rollback(ctx),
+    onSettled: refresh,
+  });
+
+  const share = () => {
+    if (!detail.data) return;
+    const url = typeof window !== 'undefined' ? window.location.href : undefined;
+    shareMedia(detail.data.title, url);
+  };
+
   if (detail.isLoading) return <Loading />;
   if (!detail.data) return <LoadError onRetry={detail.refetch} busy={detail.isRefetching} />;
   const game = detail.data;
@@ -111,9 +131,14 @@ export default function GameDetail() {
         <View style={styles.hero}>
           {heroUri ? <Image source={{ uri: heroUri }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
           <View style={styles.heroShade} />
-          <Pressable style={[styles.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()} hitSlop={8}>
-            <Feather name="chevron-down" size={30} color="#fff" />
-          </Pressable>
+          <View style={[styles.heroBtns, { top: insets.top + 8 }]}>
+            <Pressable onPress={() => router.back()} hitSlop={8}>
+              <Feather name="chevron-down" size={30} color="#fff" />
+            </Pressable>
+            <Pressable onPress={() => setMenu(true)} hitSlop={8} accessibilityLabel="Options">
+              <Feather name="more-horizontal" size={28} color="#fff" />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.headRow}>
@@ -131,6 +156,8 @@ export default function GameDetail() {
           </View>
         </View>
 
+        {game.videoId ? <TrailerPreview videoId={game.videoId} /> : null}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Suivi</Text>
           <View style={styles.statusRow}>
@@ -147,12 +174,6 @@ export default function GameDetail() {
               </Pressable>
             ))}
           </View>
-          {game.userStatus ? (
-            <Pressable style={styles.removeBtn} onPress={() => removeTracking.mutate()} disabled={removeTracking.isPending}>
-              <Feather name="minus-square" size={18} color={COLORS.red} />
-              <Text style={styles.removeBtnText}>Retirer</Text>
-            </Pressable>
-          ) : null}
         </View>
 
         {game.overview ? (
@@ -184,6 +205,51 @@ export default function GameDetail() {
           <Text style={styles.toastText}>{toast}</Text>
         </View>
       </SlideUpBar>
+
+      <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
+        <Pressable style={styles.overlay} onPress={() => setMenu(false)} />
+        <View style={[styles.sheet, { bottom: insets.bottom + 8 }]}>
+          {game.userStatus ? (
+            <View style={styles.menuStatusRow}>
+              <Text style={styles.menuStatusText}>{STATUS_LABELS[game.userStatus as GameStatus]}</Text>
+            </View>
+          ) : null}
+          <SheetItem icon="edit-2" label="Personnaliser" onPress={() => { setMenu(false); setPersoMenu(true); }} />
+          <SheetItem
+            icon="heart"
+            color={game.isFavorite ? COLORS.red : COLORS.black}
+            label={game.isFavorite ? 'Retirer des favoris' : 'Favoris'}
+            onPress={() => { favorite.mutate(); setMenu(false); }}
+          />
+          <SheetItem icon="plus-square" label="Ajouter à une liste" onPress={() => { setMenu(false); setListsOpen(true); }} />
+          {game.userStatus ? (
+            <SheetItem
+              icon="minus-square"
+              label="Retirer"
+              onPress={() => { setMenu(false); removeTracking.mutate(); }}
+            />
+          ) : null}
+          <SheetItem icon="share-2" label="Partager" onPress={() => { setMenu(false); share(); }} last />
+        </View>
+      </Modal>
+
+      <PersonalizeMenu
+        visible={persoMenu}
+        onClose={() => setPersoMenu(false)}
+        onPick={(m) => { setPersoMenu(false); setArtwork(m); }}
+      />
+      <ArtworkPicker
+        mediaId={String(id)}
+        mode={artwork}
+        onClose={() => setArtwork(null)}
+        onApplied={(what) => { refresh(); showToast(what === 'poster' ? 'Affiche mise à jour' : 'Bannière mise à jour'); }}
+      />
+      <ListsSheet
+        mediaId={String(id)}
+        visible={listsOpen}
+        onClose={() => setListsOpen(false)}
+        onChanged={(added, title) => showToast(added ? `Ajouté à « ${title} »` : `Retiré de « ${title} »`)}
+      />
     </Pop>
   );
 }
@@ -194,6 +260,308 @@ function InfoRow({ icon, label }: { icon: keyof typeof Feather.glyphMap; label: 
       <Feather name={icon} size={20} color={COLORS.black} />
       <Text style={styles.infoText}>{label}</Text>
     </View>
+  );
+}
+
+// Aperçu bande-annonce (16:9) : miniature YouTube + bouton lecture centré. Sur
+// web, tap = iframe intégré autoplay ; sur natif, tap = ouverture YouTube
+// (pas de nouvelle dépendance native).
+function TrailerPreview({ videoId }: { videoId: string }) {
+  const [playing, setPlaying] = useState(false);
+  const thumbUri = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+
+  const play = () => {
+    if (Platform.OS === 'web') {
+      setPlaying(true);
+    } else {
+      Linking.openURL(`https://www.youtube.com/watch?v=${videoId}`).catch(() => undefined);
+    }
+  };
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Bande-annonce</Text>
+      <View style={styles.trailerBox}>
+        {playing && Platform.OS === 'web' ? (
+          // RN-web rend les tags DOM natifs via React.createElement — pas d'équivalent
+          // <video>/<iframe> dans les primitives RN, pas de nouvelle dépendance.
+          React.createElement('iframe', {
+            src: `https://www.youtube.com/embed/${videoId}?autoplay=1`,
+            style: { width: '100%', height: '100%', border: 0 },
+            allow: 'autoplay; encrypted-media; picture-in-picture',
+            allowFullScreen: true,
+          })
+        ) : (
+          <Pressable style={StyleSheet.absoluteFill} onPress={play}>
+            <Image source={{ uri: thumbUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            <View style={styles.trailerPlayShade}>
+              <View style={styles.trailerPlayBtn}>
+                <Feather name="play" size={26} color="#fff" />
+              </View>
+            </View>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function SheetItem({
+  icon,
+  label,
+  onPress,
+  color,
+  last,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  onPress: () => void;
+  color?: string;
+  last?: boolean;
+}) {
+  return (
+    <Pressable style={[styles.sheetItem, last && { borderBottomWidth: 0 }]} onPress={onPress}>
+      <Feather name={icon} size={20} color={color ?? COLORS.black} />
+      <Text style={styles.sheetLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// « Personnaliser » (copie de show/[id].tsx) : propose « Modifier l'affiche »
+// et « Changer la bannière ».
+function PersonalizeMenu({
+  visible,
+  onClose,
+  onPick,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onPick: (mode: 'poster' | 'banner') => void;
+}) {
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.overlay} onPress={onClose} />
+      <View style={[styles.sheet, { bottom: insets.bottom + 8 }]}>
+        <Text style={pstyles.menuHeader}>Personnaliser</Text>
+        <Pressable style={pstyles.menuItem} onPress={() => onPick('poster')}>
+          <Text style={pstyles.menuItemText}>Modifier l&apos;affiche</Text>
+        </Pressable>
+        <Pressable style={pstyles.menuItem} onPress={() => onPick('banner')}>
+          <Text style={pstyles.menuItemText}>Changer la bannière</Text>
+        </Pressable>
+      </View>
+    </Modal>
+  );
+}
+
+// Écran plein « Modifier l'affiche » / « Changer la bannière » (copie de
+// show/[id].tsx, base fixée à `games`) : grille d'affiches 2 colonnes ou liste
+// de bannières ; l'image active est assombrie avec ★ « Sélectionnée ».
+function ArtworkPicker({
+  mediaId,
+  mode,
+  onClose,
+  onApplied,
+}: {
+  mediaId: string;
+  mode: 'poster' | 'banner' | null;
+  onClose: () => void;
+  onApplied: (what: 'poster' | 'banner') => void;
+}) {
+  const [busyUri, setBusyUri] = useState<string | null>(null);
+  const images = useQuery({
+    queryKey: ['media-images', 'games', mediaId],
+    queryFn: () =>
+      api.get<{ posters: string[]; backdrops: string[]; selectedPoster: string | null; selectedBackdrop: string | null }>(
+        `/api/games/${mediaId}/images`,
+      ),
+    enabled: mode !== null,
+  });
+
+  const apply = async (uri: string) => {
+    if (busyUri || !mode) return;
+    setBusyUri(uri);
+    try {
+      if (mode === 'poster') await api.post(`/api/games/${mediaId}/poster`, { posterPath: uri });
+      else await api.post(`/api/games/${mediaId}/banner`, { backdropPath: uri });
+      images.refetch();
+      onApplied(mode);
+    } finally {
+      setBusyUri(null);
+    }
+  };
+
+  const isPoster = mode === 'poster';
+  const list = (isPoster ? images.data?.posters : images.data?.backdrops) ?? [];
+  const selectedUri = isPoster ? images.data?.selectedPoster : images.data?.selectedBackdrop;
+
+  const cell = (uri: string) => {
+    const selected = uri === selectedUri;
+    return (
+      <Pressable key={uri} style={isPoster ? pstyles.posterWrap : pstyles.bannerWrap} onPress={() => apply(uri)}>
+        <Image
+          source={{ uri: tmdbImage(uri, isPoster ? 'w342' : 'w500') ?? uri }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+        {selected ? (
+          <View style={pstyles.selectedShade}>
+            <View style={pstyles.selectedRow}>
+              <Text style={pstyles.selectedStar}>★</Text>
+              <Text style={pstyles.selectedText}>Sélectionnée</Text>
+            </View>
+          </View>
+        ) : null}
+        {busyUri === uri ? (
+          <View style={pstyles.busy}>
+            <ActivityIndicator color="#fff" />
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  };
+
+  return (
+    <Modal visible={mode !== null} animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+        <View style={pstyles.header}>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <Feather name="arrow-left" size={24} color={COLORS.black} />
+          </Pressable>
+          <Text style={pstyles.title}>{isPoster ? "Modifier l'affiche" : 'Changer la bannière'}</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        {images.isLoading ? (
+          <Loading />
+        ) : list.length === 0 ? (
+          <Text style={pstyles.emptyNote}>
+            {isPoster ? 'Aucune affiche disponible.' : 'Aucune bannière disponible pour ce jeu.'}
+          </Text>
+        ) : (
+          <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 40 }}>
+            <View style={isPoster ? pstyles.grid : pstyles.bannerList}>{list.map(cell)}</View>
+          </ScrollView>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+// « Ajouter à une liste » (copie de show/[id].tsx) : coche/décoche les listes
+// existantes, création rapide.
+function ListsSheet({
+  mediaId,
+  visible,
+  onClose,
+  onChanged,
+}: {
+  mediaId: string;
+  visible: boolean;
+  onClose: () => void;
+  onChanged: (added: boolean, title: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const qc = useQueryClient();
+  const [newTitle, setNewTitle] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  type PickerList = { id: string; title: string; itemCount: number; containsMediaId?: boolean };
+  const pickerKey = ['lists', 'picker', mediaId];
+  const lists = useQuery({
+    queryKey: pickerKey,
+    queryFn: () => api.get<{ lists: PickerList[] }>(`/api/lists?mediaId=${mediaId}`),
+    enabled: visible,
+  });
+  const syncOthers = () => {
+    qc.invalidateQueries({ queryKey: ['lists'] });
+    qc.invalidateQueries({ queryKey: ['profile'] });
+  };
+
+  const toggle = async (l: PickerList) => {
+    if (busyId) return;
+    setBusyId(l.id);
+    const added = !l.containsMediaId;
+    const prev = qc.getQueryData<{ lists: PickerList[] }>(pickerKey);
+    qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (d) =>
+      d ? { lists: d.lists.map((x) => (x.id === l.id ? { ...x, containsMediaId: added, itemCount: Math.max(0, x.itemCount + (added ? 1 : -1)) } : x)) } : d,
+    );
+    onChanged(added, l.title);
+    try {
+      if (added) await api.post(`/api/lists/${l.id}/items`, { mediaId });
+      else await api.del(`/api/lists/${l.id}/items/${mediaId}`);
+      syncOthers();
+    } catch {
+      if (prev) qc.setQueryData(pickerKey, prev);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const create = async () => {
+    const title = newTitle.trim();
+    if (!title || creating) return;
+    setCreating(true);
+    setNewTitle('');
+    const prev = qc.getQueryData<{ lists: PickerList[] }>(pickerKey);
+    const tempId = `tmp-${title}`;
+    qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (d) =>
+      d ? { lists: [...d.lists, { id: tempId, title, itemCount: 1, containsMediaId: true }] } : d,
+    );
+    onChanged(true, title);
+    try {
+      const res = await api.post<{ id: string }>('/api/lists', { title });
+      await api.post(`/api/lists/${res.id}/items`, { mediaId });
+      qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (d) =>
+        d ? { lists: d.lists.map((x) => (x.id === tempId ? { ...x, id: res.id } : x)) } : d,
+      );
+      syncOthers();
+    } catch {
+      if (prev) qc.setQueryData(pickerKey, prev);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.overlay} onPress={onClose} />
+      <View style={[styles.sheet, { maxHeight: '70%', bottom: insets.bottom + 8 }]}>
+        <View style={styles.menuStatusRow}>
+          <Text style={styles.menuStatusText}>Ajouter à une liste</Text>
+        </View>
+        <ScrollView keyboardShouldPersistTaps="handled">
+          {lists.isLoading ? (
+            <Loading />
+          ) : (
+            (lists.data?.lists ?? []).map((l) => (
+              <Pressable key={l.id} style={styles.sheetItem} onPress={() => toggle(l)}>
+                <Feather name={l.containsMediaId ? 'check-square' : 'square'} size={22} color={l.containsMediaId ? '#1a9c4b' : COLORS.black} />
+                <Text style={styles.sheetLabel} numberOfLines={1}>
+                  {l.title}
+                </Text>
+                {busyId === l.id ? <ActivityIndicator color={COLORS.black} size="small" /> : (
+                  <Text style={pstyles.listCount}>{l.itemCount}</Text>
+                )}
+              </Pressable>
+            ))
+          )}
+          <View style={pstyles.newListRow}>
+            <TextInput
+              style={pstyles.newListInput}
+              placeholder="Nouvelle liste…"
+              placeholderTextColor={COLORS.textSoft}
+              value={newTitle}
+              onChangeText={setNewTitle}
+              onSubmitEditing={create}
+            />
+            <Pressable style={[pstyles.newListBtn, (!newTitle.trim() || creating) && { opacity: 0.4 }]} onPress={create} disabled={!newTitle.trim() || creating}>
+              {creating ? <ActivityIndicator color={COLORS.black} size="small" /> : <Text style={pstyles.newListBtnText}>CRÉER</Text>}
+            </Pressable>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 
@@ -217,7 +585,7 @@ function CommentsRow({ mediaId, title }: { mediaId: string; title: string }) {
 const styles = StyleSheet.create({
   hero: { height: 200, backgroundColor: '#1a1a22', overflow: 'hidden' },
   heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
-  backBtn: { position: 'absolute', left: 14 },
+  heroBtns: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14 },
   headRow: { flexDirection: 'row', gap: 14, padding: 20, marginTop: -50 },
   poster: { width: 100, aspectRatio: 2 / 3, borderRadius: 8, backgroundColor: '#e5e5e5' },
   posterEmpty: { alignItems: 'center', justifyContent: 'center' },
@@ -230,8 +598,6 @@ const styles = StyleSheet.create({
   statusChipSel: { backgroundColor: COLORS.yellow },
   statusChipText: { fontFamily: FONTS.bold, fontSize: 14 },
   statusChipTextSel: { color: COLORS.black },
-  removeBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, alignSelf: 'flex-start' },
-  removeBtnText: { fontFamily: FONTS.semiBold, fontSize: 15, color: COLORS.red },
   overview: { fontFamily: FONTS.regular, fontSize: 16, lineHeight: 23 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   infoText: { fontFamily: FONTS.regular, fontSize: 16, flexShrink: 1 },
@@ -240,4 +606,41 @@ const styles = StyleSheet.create({
   toastBar: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: COLORS.yellow, paddingTop: 18, alignItems: 'center' },
   toastRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   toastText: { fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
+  // Aperçu bande-annonce 16:9.
+  trailerBox: { width: '100%', aspectRatio: 16 / 9, borderRadius: 8, overflow: 'hidden', backgroundColor: '#1a1a22' },
+  trailerPlayShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center' },
+  trailerPlayBtn: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  // Menu « ... » : carte flottante compacte (mêmes cotes que show/[id].tsx).
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
+  sheet: { position: 'absolute', left: 8, right: 8, bottom: 8, backgroundColor: COLORS.white, borderRadius: 14, overflow: 'hidden' },
+  menuStatusRow: { backgroundColor: COLORS.chipGrey, borderBottomWidth: 3, borderBottomColor: COLORS.yellow, height: 48, justifyContent: 'center', paddingHorizontal: 20 },
+  menuStatusText: { fontFamily: FONTS.regular, fontSize: 16, color: '#444' },
+  sheetItem: { flexDirection: 'row', alignItems: 'center', gap: 14, height: 48, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.borderLight },
+  sheetLabel: { fontSize: 17, fontFamily: FONTS.regular },
+});
+
+const pstyles = StyleSheet.create({
+  menuHeader: { fontSize: 15, fontFamily: FONTS.regular, color: '#555', paddingHorizontal: 22, paddingTop: 20, paddingBottom: 8 },
+  menuItem: { paddingHorizontal: 22, paddingVertical: 13 },
+  menuItemText: { fontSize: 16, fontFamily: FONTS.regular },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16,
+    paddingTop: 54, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border,
+  },
+  title: { fontSize: 18, fontFamily: FONTS.bold },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  posterWrap: { width: '48.3%', aspectRatio: 2 / 3, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e5e5e5' },
+  bannerList: { gap: 12 },
+  bannerWrap: { width: '100%', aspectRatio: 16 / 9, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e5e5e5' },
+  selectedShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  selectedRow: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 14 },
+  selectedStar: { color: COLORS.yellow, fontSize: 19, lineHeight: 22 },
+  selectedText: { color: COLORS.white, fontSize: 16, fontFamily: FONTS.semiBold },
+  busy: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
+  emptyNote: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15, padding: 20 },
+  listCount: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15 },
+  newListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 24, paddingVertical: 16 },
+  newListInput: { flex: 1, borderBottomWidth: 1, borderBottomColor: COLORS.border, fontFamily: FONTS.regular, fontSize: 16, paddingVertical: 8 },
+  newListBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
+  newListBtnText: { fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
 });

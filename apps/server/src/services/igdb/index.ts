@@ -19,6 +19,8 @@ export type IgdbGame = {
   release_dates?: { date?: number; human?: string; platform?: { name: string } }[];
   dlcs?: { id: number; name: string }[];
   expansions?: { id: number; name: string }[];
+  videos?: { video_id: string; name?: string }[];
+  screenshots?: { image_id: string }[];
 };
 
 // Champs demandés à IGDB (Apicalypse). Réutilisé par search/game/popular/upcoming.
@@ -26,7 +28,7 @@ const FIELDS =
   'fields name,summary,first_release_date,cover.image_id,artworks.image_id,genres.name,' +
   'platforms.name,involved_companies.developer,involved_companies.publisher,involved_companies.company.name,' +
   'game_modes.name,total_rating,total_rating_count,release_dates.date,release_dates.human,release_dates.platform.name,' +
-  'dlcs.name,expansions.name';
+  'dlcs.name,expansions.name,videos.video_id,videos.name,screenshots.image_id';
 
 export function igdbImageUrl(imageId: string, size = 't_cover_big'): string {
   return `https://images.igdb.com/igdb/image/upload/${size}/${imageId}.jpg`;

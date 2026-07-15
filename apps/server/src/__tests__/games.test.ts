@@ -84,3 +84,55 @@ describe('Jeux vidéo — bibliothèque groupée par statut', () => {
     expect(Array.isArray(res.json().groups)).toBe(true);
   });
 });
+
+describe('Jeux vidéo — parité fiche (favori, jaquette/bannière)', () => {
+  it('bascule le favori d’un jeu (aller-retour) et le reflète sur la fiche détail', async () => {
+    const { prisma } = await import('../db/client.js');
+    const g = await prisma.media.create({ data: { type: 'game', igdbId: '99', title: 'Portal' } });
+    await prisma.game.create({ data: { mediaId: g.id, platforms: 'PC' } });
+
+    const before = await app.inject({ method: 'GET', url: `/api/games/${g.id}`, headers: bearer('Alice') });
+    expect(before.statusCode).toBe(200);
+    expect(before.json().isFavorite).toBe(false);
+
+    const on = await app.inject({ method: 'POST', url: `/api/games/${g.id}/favorite`, headers: bearer('Alice') });
+    expect(on.statusCode).toBe(200);
+    expect(on.json().isFavorite).toBe(true);
+
+    const afterOn = await app.inject({ method: 'GET', url: `/api/games/${g.id}`, headers: bearer('Alice') });
+    expect(afterOn.json().isFavorite).toBe(true);
+
+    const off = await app.inject({ method: 'POST', url: `/api/games/${g.id}/favorite`, headers: bearer('Alice') });
+    expect(off.statusCode).toBe(200);
+    expect(off.json().isFavorite).toBe(false);
+
+    const afterOff = await app.inject({ method: 'GET', url: `/api/games/${g.id}`, headers: bearer('Alice') });
+    expect(afterOff.json().isFavorite).toBe(false);
+  });
+
+  it('modifie l’affiche et la bannière d’un jeu (POST poster/banner)', async () => {
+    const { prisma } = await import('../db/client.js');
+    const g = await prisma.media.create({ data: { type: 'game', igdbId: '100', title: 'Half-Life' } });
+    await prisma.game.create({ data: { mediaId: g.id, platforms: 'PC' } });
+
+    const poster = await app.inject({
+      method: 'POST',
+      url: `/api/games/${g.id}/poster`,
+      payload: { posterPath: 'https://images.igdb.com/igdb/image/upload/t_cover_big/custom.jpg' },
+      headers: bearer('Alice'),
+    });
+    expect(poster.statusCode).toBe(200);
+
+    const banner = await app.inject({
+      method: 'POST',
+      url: `/api/games/${g.id}/banner`,
+      payload: { backdropPath: 'https://images.igdb.com/igdb/image/upload/t_1080p/custom-bg.jpg' },
+      headers: bearer('Alice'),
+    });
+    expect(banner.statusCode).toBe(200);
+
+    const detail = await app.inject({ method: 'GET', url: `/api/games/${g.id}`, headers: bearer('Alice') });
+    expect(detail.json().posterPath).toBe('https://images.igdb.com/igdb/image/upload/t_cover_big/custom.jpg');
+    expect(detail.json().backdropPath).toBe('https://images.igdb.com/igdb/image/upload/t_1080p/custom-bg.jpg');
+  });
+});

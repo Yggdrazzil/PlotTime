@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 import { igdbGame, igdbSearch, igdbToMedia, igdbImageUrl } from '../../services/igdb/index.js';
+import { nextFavoriteOrder } from '../media/favorites.js';
 
 const GAME_STATUSES = ['wishlist', 'playing', 'completed', 'abandoned'] as const;
 
@@ -94,6 +95,88 @@ export async function gamesRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
+  // Favori (parité fiche série/film) : bascule isFavorite + horodatage + ordre
+  // personnalisé. Pas de createWatchEvent ici : les jeux ne génèrent aucun
+  // événement de visionnage (isolation cross-domaine avec le fil séries/films,
+  // cf. /api/social/feed qui lit WatchEvent).
+  app.post('/api/games/:id/favorite', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const media = await prisma.media.findFirst({ where: { id, type: 'game' } });
+    if (!media) return reply.code(404).send({ error: 'not_found' });
+    const existing = await prisma.userMediaStatus.findUnique({
+      where: { userId_mediaId: { userId: request.userId, mediaId: id } },
+    });
+    const isFavorite = !(existing?.isFavorite ?? false);
+    const fav = isFavorite
+      ? { isFavorite, favoritedAt: new Date(), favoriteOrder: await nextFavoriteOrder(request.userId, 'game') }
+      : { isFavorite, favoritedAt: null, favoriteOrder: null };
+    await prisma.userMediaStatus.upsert({
+      where: { userId_mediaId: { userId: request.userId, mediaId: id } },
+      create: { userId: request.userId, mediaId: id, status: existing?.status ?? 'wishlist', ...fav },
+      update: fav,
+    });
+    if (isFavorite) {
+      // Notification des abonnés en arrière-plan, comme pour séries/films
+      // (table Notification, distincte du fil WatchEvent — mobile/app/notifications.tsx
+      // sait déjà router vers /game/:id pour mediaType === 'game').
+      void (async () => {
+        const me = await prisma.user.findUnique({ where: { id: request.userId } });
+        const { notifyFollowers } = await import('../social/notify.js');
+        await notifyFollowers(request.userId, {
+          type: 'friend_favorite',
+          title: `${me?.displayName ?? 'Quelqu’un'} a ajouté ${media.localizedTitle ?? media.title} à ses favoris`,
+          imageUrl: media.posterPath,
+          mediaId: id,
+        });
+      })().catch(() => undefined);
+    }
+    return { ok: true, isFavorite };
+  });
+
+  app.post('/api/games/:id/poster', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { posterPath } = z.object({ posterPath: z.string() }).parse(request.body);
+    const media = await prisma.media.findFirst({ where: { id, type: 'game' } });
+    if (!media) return reply.code(404).send({ error: 'not_found' });
+    await prisma.media.update({ where: { id }, data: { posterPath } });
+    return { ok: true };
+  });
+
+  app.post('/api/games/:id/banner', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { backdropPath } = z.object({ backdropPath: z.string() }).parse(request.body);
+    const media = await prisma.media.findFirst({ where: { id, type: 'game' } });
+    if (!media) return reply.code(404).send({ error: 'not_found' });
+    await prisma.media.update({ where: { id }, data: { backdropPath } });
+    return { ok: true };
+  });
+
+  // Images disponibles pour personnaliser affiche/bannière — appel IGDB « live »
+  // (mis en cache par igdbQuery/ApiCache) plutôt qu'une persistance en base.
+  app.get('/api/games/:id/images', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const media = await prisma.media.findFirst({ where: { id, type: 'game' } });
+    if (!media) return reply.code(404).send({ error: 'not_found' });
+    let posters: string[] = media.posterPath ? [media.posterPath] : [];
+    let backdrops: string[] = media.backdropPath ? [media.backdropPath] : [];
+    if (media.igdbId) {
+      const g = await igdbGame(Number(media.igdbId));
+      if (g) {
+        const coverUrls = g.cover ? [igdbImageUrl(g.cover.image_id, 't_cover_big')] : [];
+        const artworkUrls = (g.artworks ?? []).map((a) => igdbImageUrl(a.image_id, 't_1080p'));
+        const screenshotUrls = (g.screenshots ?? []).map((s) => igdbImageUrl(s.image_id, 't_1080p'));
+        posters = [...new Set([...posters, ...coverUrls])];
+        backdrops = [...new Set([...backdrops, ...artworkUrls, ...screenshotUrls])];
+      }
+    }
+    return {
+      posters,
+      backdrops,
+      selectedPoster: media.posterPath,
+      selectedBackdrop: media.backdropPath,
+    };
+  });
+
   app.get('/api/games/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
     const media = await prisma.media.findFirst({ where: { id, type: 'game' }, include: { game: true } });
@@ -102,11 +185,20 @@ export async function gamesRoutes(app: FastifyInstance): Promise<void> {
     if (media.igdbId && !media.lastSyncedAt) await ensureGameFromIgdb(media.igdbId);
     const fresh = await prisma.media.findUnique({ where: { id }, include: { game: true } });
     const status = await prisma.userMediaStatus.findUnique({ where: { userId_mediaId: { userId: request.userId, mediaId: id } } });
+    // Bande-annonce : premier id vidéo YouTube IGDB, récupéré « live » (caché
+    // par igdbQuery) — pas de nouvelle colonne DB pour ça.
+    let videoId: string | null = null;
+    if (fresh!.igdbId) {
+      const g = await igdbGame(Number(fresh!.igdbId));
+      videoId = g?.videos?.[0]?.video_id ?? null;
+    }
     return {
       ...serializeGame(fresh!, status),
       overview: fresh!.overview, backdropPath: fresh!.backdropPath,
       developer: fresh!.game?.developer ?? null, publisher: fresh!.game?.publisher ?? null,
       gameModes: fresh!.game?.gameModes ?? null, releaseDate: fresh!.releaseDate?.toISOString() ?? null,
+      isFavorite: status?.isFavorite ?? false,
+      videoId,
     };
   });
 
