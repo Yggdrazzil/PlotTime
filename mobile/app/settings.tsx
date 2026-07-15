@@ -373,15 +373,15 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function Field({ label, value, blue }: { label: string; value: string; blue?: boolean }) {
   return (
     <View style={{ paddingVertical: 12 }}>
-      <Text style={{ fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
-      <Text style={{ fontFamily: FONTS.regular, fontSize: 17, color: blue ? COLORS.blue : COLORS.textMuted }}>{value}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 14, color: blue ? COLORS.blue : COLORS.textMuted }}>{value}</Text>
     </View>
   );
 }
 function Row({ label, onPress }: { label: string; onPress?: () => void }) {
   return (
     <Pressable style={styles.row} onPress={onPress}>
-      <Text style={{ fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
       <Feather name="chevron-right" size={20} color={COLORS.black} />
     </Pressable>
   );
@@ -397,8 +397,8 @@ function ToggleRow({ label, sub, on, onToggle }: { label: string; sub?: string; 
   return (
     <View style={styles.toggleRow}>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
-        {sub ? <Text style={{ fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textMuted, lineHeight: 19, marginTop: 2 }}>{sub}</Text> : null}
+        <Text style={{ fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
+        {sub ? <Text style={{ fontFamily: FONTS.regular, fontSize: 12.5, color: COLORS.textMuted, lineHeight: 17, marginTop: 2 }}>{sub}</Text> : null}
       </View>
       <Pressable onPress={() => onToggle(!on)} hitSlop={8}>
         <Animated.View style={[styles.toggle, { backgroundColor: v.interpolate({ inputRange: [0, 1], outputRange: ['#dddddd', COLORS.yellow] }) }]}>
@@ -427,7 +427,7 @@ function RadioRow({ label, on, onPress }: { label: string; on: boolean; onPress:
           </PopIn>
         ) : null}
       </View>
-      <Text style={{ fontFamily: FONTS.regular, fontSize: 17 }}>{label}</Text>
+      <Text style={{ fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -437,14 +437,14 @@ function Divider() {
 
 const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 15 },
-  tabText: { fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.5, color: COLORS.textSoft },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  tabText: { fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.5, color: COLORS.textSoft },
   tabActive: { color: COLORS.black },
   under: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, backgroundColor: 'transparent' },
   underActive: { backgroundColor: COLORS.black },
-  sectionTitle: { fontSize: 19, fontFamily: FONTS.extraBold, paddingHorizontal: 24, paddingTop: 22 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 13 },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 13, gap: 16 },
+  sectionTitle: { fontSize: 16, fontFamily: FONTS.extraBold, paddingHorizontal: 24, paddingTop: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 11 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 11, gap: 16 },
   toggle: { width: 52, height: 30, borderRadius: 15, padding: 3 },
   knob: { width: 24, height: 24, borderRadius: 12 },
   radio: { width: 26, height: 26, borderRadius: 13, borderWidth: 2.5, borderColor: '#4a4a52', alignItems: 'center', justifyContent: 'center' },
@@ -459,13 +459,13 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', paddingHorizontal: 24 },
   sheet: { backgroundColor: COLORS.white, borderRadius: 16, padding: 20 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sheetTitle: { fontSize: 18, fontFamily: FONTS.extraBold },
+  sheetTitle: { fontSize: 16, fontFamily: FONTS.extraBold },
   steamHint: { fontSize: 14, fontFamily: FONTS.regular, color: COLORS.textMuted, lineHeight: 19, marginBottom: 10 },
   mLabel: { fontSize: 14, fontFamily: FONTS.bold, marginTop: 14 },
-  mInput: { borderBottomWidth: 1, borderBottomColor: COLORS.border, fontSize: 17, fontFamily: FONTS.regular, paddingVertical: 10, marginTop: 6 },
+  mInput: { borderBottomWidth: 1, borderBottomColor: COLORS.border, fontSize: 15, fontFamily: FONTS.regular, paddingVertical: 9, marginTop: 6 },
   mBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingVertical: 12, alignItems: 'center', marginTop: 22 },
   mBtnText: { fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
-  okMsg: { fontSize: 16, fontFamily: FONTS.bold, color: COLORS.green, textAlign: 'center', paddingVertical: 20 },
+  okMsg: { fontSize: 14, fontFamily: FONTS.bold, color: COLORS.green, textAlign: 'center', paddingVertical: 16 },
   errMsg: { color: COLORS.red, fontSize: 14, fontFamily: FONTS.regular, marginTop: 12 },
   warn: { fontSize: 15, fontFamily: FONTS.regular, color: COLORS.textMuted, lineHeight: 21, marginBottom: 8 },
   version: { textAlign: 'center', paddingVertical: 24, fontSize: 13, fontFamily: FONTS.bold, color: COLORS.textMuted, letterSpacing: 1 },

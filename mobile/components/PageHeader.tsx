@@ -23,8 +23,8 @@ export function PageHeader({ title, right }: { title: string; right?: React.Reac
 
 const styles = StyleSheet.create({
   wrap: { backgroundColor: COLORS.white },
-  bar: { height: 60, alignItems: 'center', justifyContent: 'center' },
+  bar: { height: 52, alignItems: 'center', justifyContent: 'center' },
   back: { position: 'absolute', left: 8, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 18, fontFamily: FONTS.bold },
+  title: { fontSize: 16, fontFamily: FONTS.bold },
   right: { position: 'absolute', right: 12 },
 });
