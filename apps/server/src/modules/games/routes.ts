@@ -109,4 +109,38 @@ export async function gamesRoutes(app: FastifyInstance): Promise<void> {
       gameModes: fresh!.game?.gameModes ?? null, releaseDate: fresh!.releaseDate?.toISOString() ?? null,
     };
   });
+
+  app.get('/api/games/discover', async () => {
+    const { igdbPopular, igdbUpcoming, igdbImageUrl } = await import('../../services/igdb/index.js');
+    const card = (g: { id: number; name: string; first_release_date?: number; cover?: { image_id: string } }) => ({
+      igdbId: String(g.id), title: g.name,
+      year: g.first_release_date ? new Date(g.first_release_date * 1000).getFullYear() : null,
+      posterPath: g.cover ? igdbImageUrl(g.cover.image_id) : null,
+    });
+    const [popular, upcoming] = await Promise.all([igdbPopular(), igdbUpcoming()]);
+    return { popular: popular.map(card), upcoming: upcoming.map(card) };
+  });
+
+  // Sorties + DLC à venir des jeux SUIVIS, groupés par date (miroir de /api/shows/upcoming).
+  app.get('/api/games/upcoming', async (request) => {
+    const rows = await prisma.userMediaStatus.findMany({
+      where: { userId: request.userId, media: { type: 'game' }, isHidden: false },
+      include: { media: { include: { game: true } } },
+    });
+    const now = Date.now();
+    const upcoming = rows
+      .map((r) => r.media)
+      .filter((m) => m.releaseDate && m.releaseDate.getTime() > now)
+      .sort((a, b) => (a.releaseDate!.getTime() - b.releaseDate!.getTime()));
+    // Groupage simple par mois (JJ/MM/AAAA détaillé côté client).
+    const groups = new Map<string, { id: string; title: string; posterPath: string | null; releaseDate: string }[]>();
+    for (const m of upcoming) {
+      const d = m.releaseDate!;
+      const label = `${d.toLocaleString('fr-FR', { month: 'long' })} ${d.getFullYear()}`;
+      const arr = groups.get(label) ?? [];
+      arr.push({ id: m.id, title: m.title, posterPath: m.posterPath, releaseDate: d.toISOString() });
+      groups.set(label, arr);
+    }
+    return { groups: [...groups.entries()].map(([label, items]) => ({ label, items })) };
+  });
 }

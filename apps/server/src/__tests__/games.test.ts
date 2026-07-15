@@ -77,4 +77,10 @@ describe('Jeux vidéo — bibliothèque groupée par statut', () => {
     expect(lib.json().completed.map((m: { title: string }) => m.title)).toContain('Halo');
     expect(lib.json().playing).toEqual([]);
   });
+
+  it('/api/games/upcoming renvoie des groupes (vide si aucun suivi à venir)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/games/upcoming', headers: bearer('Alice') });
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.json().groups)).toBe(true);
+  });
 });
