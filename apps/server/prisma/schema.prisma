@@ -50,6 +50,11 @@ model User {
   comments        Comment[]
   reactions       CommentReaction[]
 
+  // Gamification (spec 2026-07-16 §7).
+  progress        UserProgress?
+  badges          UserBadge[]
+  challenges      UserChallenge[]
+
   // Un compte SSO est identifié de façon unique par (provider, providerId).
   // Les comptes "password" ont providerId = null (SQLite autorise plusieurs NULL).
   @@unique([provider, providerId])
@@ -555,6 +560,45 @@ model Comment {
   @@index([userId])
   @@index([parentId])
   @@index([createdAt])
+}
+
+// --- Gamification (spec 2026-07-16) ------------------------------------------
+
+// Progression agrégée : recalculée intégralement depuis les données (recompute
+// idempotent) — jamais incrémentée à la main.
+model UserProgress {
+  userId        String   @id
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  currentStreak Int      @default(0)
+  bestStreak    Int      @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+// Palier de badge débloqué (une ligne par palier, tier 1 = bronze …).
+model UserBadge {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId    String
+  tier       Int
+  unlockedAt DateTime @default(now())
+
+  @@unique([userId, badgeId, tier])
+  @@index([userId])
+  @@index([unlockedAt])
+}
+
+// Défi mensuel accompli ("2026-07-marathon") — idempotent via l'unicité.
+model UserChallenge {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challengeId String
+  completedAt DateTime @default(now())
+
+  @@unique([userId, challengeId])
 }
 
 // Réaction emoji à un commentaire (une par utilisateur et par commentaire).

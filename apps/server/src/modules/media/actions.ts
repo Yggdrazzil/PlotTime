@@ -1,5 +1,6 @@
 import { prisma } from '../../db/client.js';
 import { toJson } from '../../utils/json.js';
+import { scheduleRecompute } from '../gamification/service.js';
 
 // Spec §32.1 — marquer épisode vu.
 export async function markEpisodeWatched(
@@ -28,6 +29,7 @@ export async function markEpisodeWatched(
     },
   });
   await recalculateShowStatus(userId, episode.showId, watchedAt);
+  scheduleRecompute(userId); // gamification : XP/badges/streak (débouncé)
 }
 
 // Spec §32.2 — marquer épisode non vu.
@@ -52,6 +54,7 @@ export async function markEpisodeUnwatched(userId: string, episodeId: string): P
     },
   });
   await recalculateShowStatus(userId, episode.showId, null);
+  scheduleRecompute(userId); // gamification : recompute idempotent après dé-coche
 }
 
 export async function recalculateShowStatus(

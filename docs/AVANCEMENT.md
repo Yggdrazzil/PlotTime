@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-15** (Claude) — Recherche jeux déplacée dans l'Explorer (onglet JEUX)
+Dernière mise à jour : **2026-07-16** (Claude) — Gamification côté serveur (XP, badges, streaks, défis, classement hebdo)
 
 ---
 
@@ -52,6 +52,8 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Jeux vidéo — connexion Steam (mobile) | ✅ Fait | Bloc « Jeux — Steam » dans `mobile/app/settings.tsx` (onglet Compte) : SteamID/URL de profil → import bibliothèque possédée |
 | Jeux vidéo — fiche jeu (mobile) | ✅ Fait | `mobile/app/game/[id].tsx` : parité avec la fiche série/film — menu « … » (Personnaliser affiche/bannière via `GET/POST /api/games/:id/images|poster|banner`, Favoris `POST /api/games/:id/favorite`, Ajouter à une liste, Partager, Retirer), aperçu bande-annonce 16:9 (miniature YouTube + iframe autoplay sur web / ouverture YouTube sur natif, `videoId` IGDB), sélecteur de statut, temps de jeu, commentaires ; suivi optimiste avec rollback |
 | Jeux vidéo — notifications de sortie | ✅ Fait | Passe du worker de fond (`apps/server/src/services/sync-worker.ts`) : `Notification` de type `game_release` quand `Media.releaseDate` d'un jeu suivi (non masqué) tombe aujourd'hui, dédupliquée par `(userId, mediaId, type)` |
+| Gamification — serveur (XP, badges, streaks, défis, classement) | ✅ Fait | Modèles `UserProgress`/`UserBadge`/`UserChallenge`, `modules/gamification/` (recompute idempotent débouncé + backfill au boot), `GET /api/gamification/me` + `/leaderboard`, items `badge` dans le fil social, XP rétroactif à l'import |
+| Gamification — mobile (page Trophées, toasts, pastille niveau) | ⏳ À faire | Spec §10 de `docs/superpowers/specs/2026-07-16-gamification-design.md` — l'API `/api/gamification/me` est prête |
 
 ## Prochaines étapes (par priorité)
 
@@ -70,6 +72,30 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-16 — Gamification (serveur) : XP, niveaux, badges, streaks, défis, classement
+- Spec `docs/superpowers/specs/2026-07-16-gamification-design.md` — partie
+  serveur (le moteur pur vit déjà dans `packages/core/src/gamification/`).
+- **Prisma** : modèles `UserProgress`, `UserBadge`, `UserChallenge`
+  (migration `20260716112602_gamification`, cascade à la suppression du compte).
+- **`apps/server/src/modules/gamification/service.ts`** : `collectStats`
+  (counts + colonnes seules, jamais de lignes complètes — bibliothèques
+  20 000+ épisodes), `recomputeUser` (recompute idempotent : défis du mois →
+  XP/niveau → badges → notifications `badge_unlocked` / `level_up` /
+  `challenge_completed` pour les seules nouveautés, silencieux au premier
+  calcul), `scheduleRecompute` (débounce 750 ms/utilisateur),
+  `backfillAllUsers` (au boot du serveur).
+- **Routes** : `GET /api/gamification/me` (recompute léger sans écriture :
+  niveau, titre, streaks, catalogue complet des badges avec progression,
+  défis du mois) et `GET /api/gamification/leaderboard` (XP hebdo depuis
+  lundi 00:00 Europe/Paris, moi + comptes suivis, requêtes groupées).
+- **Hooks** (`scheduleRecompute`) : épisode vu/dévu, « cocher les précédents »,
+  changement de date, film vu/dévu, statut/retrait jeu, commentaire, follow ;
+  recompute direct en fin de phase apply de l'import TV Time (XP rétroactif).
+- **Fil social** : items `kind: 'badge'` (déblocages récents des comptes
+  suivis) + `level` sur les utilisateurs du fil et du classement (batché).
+- Tests : `apps/server/src/__tests__/gamification.test.ts` (6 tests
+  d'intégration) — 88 tests serveur verts.
 
 ### 2026-07-16 — À venir : historique des sorties passées (HIER, AVANT-HIER…)
 - `/api/shows/upcoming` remonte 14 jours en arrière : les épisodes parus mais

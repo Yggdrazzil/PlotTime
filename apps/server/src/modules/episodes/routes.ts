@@ -4,6 +4,7 @@ import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 import { serializeEpisode } from '../media/serialize.js';
 import { createWatchEvent, markEpisodeUnwatched, markEpisodeWatched, recalculateShowStatus } from '../media/actions.js';
+import { scheduleRecompute } from '../gamification/service.js';
 
 export async function episodeRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
@@ -77,6 +78,7 @@ export async function episodeRoutes(app: FastifyInstance): Promise<void> {
       until: { seasonNumber: target.seasonNumber, episodeNumber: target.episodeNumber },
     });
     await recalculateShowStatus(request.userId, target.showId, now);
+    scheduleRecompute(request.userId); // gamification (cette route ne passe pas par markEpisodeWatched)
     return { ok: true, count: previous.length };
   });
 
@@ -125,6 +127,7 @@ export async function episodeRoutes(app: FastifyInstance): Promise<void> {
       create: { userId: request.userId, episodeId: id, status: 'watched', watchedAt: date },
       update: { watchedAt: date },
     });
+    scheduleRecompute(request.userId); // gamification : la date de visionnage change jour J / streaks
     return { ok: true };
   });
 }

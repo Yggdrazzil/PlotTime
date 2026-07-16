@@ -4,6 +4,7 @@ import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 import { serializeMedia } from '../media/serialize.js';
 import { createWatchEvent } from '../media/actions.js';
+import { scheduleRecompute } from '../gamification/service.js';
 import { nextFavoriteOrder } from '../media/favorites.js';
 import {
   ensureMediaFromTmdb,
@@ -155,6 +156,7 @@ export async function movieRoutes(app: FastifyInstance): Promise<void> {
     await prisma.watchEvent.create({
       data: { userId: request.userId, mediaId: id, eventType: 'watched', eventDate: watchedAt, source: 'app' },
     });
+    scheduleRecompute(request.userId); // gamification : film vu
     return { ok: true };
   });
 
@@ -168,6 +170,7 @@ export async function movieRoutes(app: FastifyInstance): Promise<void> {
       update: { status: 'watchlist', completedAt: null },
     });
     await createWatchEvent(request.userId, id, 'marked_unwatched');
+    scheduleRecompute(request.userId); // gamification : recompute idempotent après dé-coche
     return { ok: true };
   });
 

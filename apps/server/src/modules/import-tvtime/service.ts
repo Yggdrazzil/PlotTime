@@ -31,6 +31,7 @@ import {
 import { syncShowEpisodesFromTmdb } from '../../services/tmdb/index.js';
 import { syncEpisodesFromTvdb, tvdbEnabled } from '../../services/tvdb/index.js';
 import { markEpisodeWatched, recalculateShowStatus } from '../media/actions.js';
+import { recomputeUser } from '../gamification/service.js';
 
 const IMPORTS_DIR = path.resolve('data/imports');
 
@@ -758,6 +759,10 @@ async function runImportJobInner(
       }
     }
   }
+
+  // Gamification : XP rétroactif dès la fin de la phase apply — recompute
+  // DIRECT (pas débouncé) : premier calcul silencieux ou diff notifié.
+  await recomputeUser(userId).catch(() => undefined);
 
   const mediaMappings = await prisma.importMapping.findMany({
     where: { importId, matchStatus: { in: ['matched_auto', 'matched_manual'] }, matchedMediaId: { not: null } },

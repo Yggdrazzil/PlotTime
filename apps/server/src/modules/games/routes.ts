@@ -4,6 +4,7 @@ import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 import { igdbGame, igdbSearch, igdbToMedia, igdbImageUrl } from '../../services/igdb/index.js';
 import { nextFavoriteOrder } from '../media/favorites.js';
+import { scheduleRecompute } from '../gamification/service.js';
 
 const GAME_STATUSES = ['wishlist', 'playing', 'completed', 'abandoned'] as const;
 
@@ -86,12 +87,14 @@ export async function gamesRoutes(app: FastifyInstance): Promise<void> {
       create: { userId: request.userId, mediaId: id, status },
       update: { status },
     });
+    scheduleRecompute(request.userId); // gamification : jeu terminé (ou plus terminé)
     return { ok: true };
   });
 
   app.delete('/api/games/:id/tracking', async (request) => {
     const { id } = request.params as { id: string };
     await prisma.userMediaStatus.deleteMany({ where: { userId: request.userId, mediaId: id } });
+    scheduleRecompute(request.userId); // gamification : recompute idempotent après retrait
     return { ok: true };
   });
 

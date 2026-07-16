@@ -1,6 +1,7 @@
 import { buildApp } from './app.js';
 import { env } from './config/env.js';
 import { startBackgroundSync } from './services/sync-worker.js';
+import { backfillAllUsers } from './modules/gamification/service.js';
 
 const app = await buildApp();
 
@@ -11,6 +12,9 @@ try {
   // à jour, indépendamment de l'activité. Démarre uniquement le vrai serveur
   // (les tests utilisent buildApp directement, sans ce worker).
   startBackgroundSync();
+  // Gamification : premier calcul (silencieux) pour les comptes sans
+  // UserProgress — backfill au boot, fire-and-forget (spec §11).
+  void backfillAllUsers().catch((err) => app.log.error(err));
 } catch (err) {
   app.log.error(err);
   process.exit(1);

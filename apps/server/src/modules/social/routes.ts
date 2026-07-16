@@ -4,6 +4,8 @@ import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 import { serializeMedia } from '../media/serialize.js';
 import { notifyFollowers, notifyUser } from './notify.js';
+import { BADGES } from '@serietime/core';
+import { scheduleRecompute } from '../gamification/service.js';
 
 type PublicUser = { id: string; displayName: string; avatarUrl: string | null; isPrivate: boolean };
 
@@ -27,14 +29,19 @@ function summarizeReactions(reactions: { emoji: string; userId: string }[], me: 
 }
 
 type FeedItem = {
-  kind: 'watch' | 'comment';
+  kind: 'watch' | 'comment' | 'badge';
   id: string;
   date: string;
   eventType: string;
-  user: PublicUser;
-  media: { id: string; title: string; posterPath: string | null; type: string };
-  episode: { seasonNumber: number; episodeNumber: number; title: string } | null;
+  // `level` (gamification) n'est ajouté qu'ici et dans le leaderboard, en
+  // batch (une requête UserProgress pour tous les ids) — publicUser() est
+  // appelé unitairement partout ailleurs et y ajouter un lookup ferait un N+1.
+  user: PublicUser & { level?: number };
+  // Absents pour kind: 'badge' (déblocage de badge, sans média associé).
+  media?: { id: string; title: string; posterPath: string | null; type: string };
+  episode?: { seasonNumber: number; episodeNumber: number; title: string } | null;
   body?: string;
+  badge?: { id: string; label: string; tier: number };
 };
 
 export async function socialRoutes(app: FastifyInstance): Promise<void> {
@@ -51,6 +58,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
       create: { followerId: request.userId, followingId: userId },
       update: {},
     });
+    scheduleRecompute(userId); // gamification : badge « Célébrité » du compte suivi
     return { ok: true, following: true };
   });
 
@@ -162,7 +170,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
     const ids = [...(await followingIdSet(request.userId))];
     if (ids.length === 0) return { items: [] as FeedItem[] };
 
-    const [events, comments] = await Promise.all([
+    const [events, comments, badges, progresses] = await Promise.all([
       prisma.watchEvent.findMany({
         where: { userId: { in: ids }, eventType: { in: ['watched', 'favorited', 'added_to_watchlist'] } },
         include: { user: true, media: true, episode: true },
@@ -175,7 +183,18 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         orderBy: { createdAt: 'desc' },
         take: 40,
       }),
+      // Gamification : déblocages de badges récents des comptes suivis.
+      prisma.userBadge.findMany({
+        where: { userId: { in: ids } },
+        include: { user: true },
+        orderBy: { unlockedAt: 'desc' },
+        take: 20,
+      }),
+      // Niveau des comptes suivis, en une requête (pas de N+1).
+      prisma.userProgress.findMany({ where: { userId: { in: ids } }, select: { userId: true, level: true } }),
     ]);
+    const levelById = new Map(progresses.map((p) => [p.userId, p.level]));
+    const withLevel = (u: PublicUser): FeedItem['user'] => ({ ...publicUser(u), level: levelById.get(u.id) ?? 1 });
 
     const items: FeedItem[] = [
       ...events.map((e): FeedItem => ({
@@ -183,7 +202,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         id: e.id,
         date: e.eventDate.toISOString(),
         eventType: e.eventType,
-        user: publicUser(e.user),
+        user: withLevel(e.user),
         media: {
           id: e.mediaId,
           title: e.media.localizedTitle ?? e.media.title,
@@ -199,7 +218,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         id: c.id,
         date: c.createdAt.toISOString(),
         eventType: 'comment',
-        user: publicUser(c.user),
+        user: withLevel(c.user),
         media: {
           id: c.mediaId,
           title: c.media.localizedTitle ?? c.media.title,
@@ -210,6 +229,18 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
           ? { seasonNumber: c.episode.seasonNumber, episodeNumber: c.episode.episodeNumber, title: c.episode.title }
           : null,
         body: c.body,
+      })),
+      ...badges.map((b): FeedItem => ({
+        kind: 'badge',
+        id: b.id,
+        date: b.unlockedAt.toISOString(),
+        eventType: 'badge_unlocked',
+        user: withLevel(b.user),
+        badge: {
+          id: b.badgeId,
+          label: BADGES.find((def) => def.id === b.badgeId)?.label ?? b.badgeId,
+          tier: b.tier,
+        },
       })),
     ]
       .sort((a, b) => b.date.localeCompare(a.date))
@@ -312,6 +343,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         commentId: comment.id,
       });
     }
+    scheduleRecompute(request.userId); // gamification : commentaire posté
     return { id: comment.id };
   });
 
