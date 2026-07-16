@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, checkHealth, ApiError } from '@/lib/api';
@@ -119,7 +119,11 @@ export default function Setup() {
       contentContainerStyle={{ paddingTop: insets.top + 40, paddingHorizontal: 24, paddingBottom: 40 }}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.brand}>SerieTime</Text>
+      {/* Logo de marque au-dessus du titre (icône ronde du pack). */}
+      <View style={styles.brandRow}>
+        <Image source={require('../assets/branding/pwa-icon-192.png')} style={styles.brandLogo} resizeMode="cover" />
+        <Text style={styles.brand}>SerieTime</Text>
+      </View>
 
       {step === 'server' ? (
         <>
@@ -232,6 +236,8 @@ export default function Setup() {
 }
 
 const styles = StyleSheet.create({
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  brandLogo: { width: 52, height: 52, borderRadius: 14 },
   brand: { color: COLORS.text, fontSize: 34, fontFamily: FONTS.extraBold },
   lead: { fontFamily: FONTS.regular, fontSize: 16, color: COLORS.textMuted, marginTop: 24 },
   label: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.bold, marginTop: 24 },

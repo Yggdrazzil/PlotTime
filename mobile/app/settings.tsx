@@ -552,6 +552,7 @@ function AppTab() {
           ['light', 'Thème clair'],
           ['dark', 'Thème sombre'],
           ['sunset', 'Thème Sunset'],
+          ['midnight', 'Thème Nuit — les couleurs SerieTime'],
         ] as [ThemePreference, string][]
       ).map(([v, l]) => (
         <RadioRow key={v} label={l} on={themePref === v} onPress={() => pickTheme(v)} />
