@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-16** (Claude) — Rose du logo en accent secondaire du THÈME NUIT UNIQUEMENT (pastilles de section, points de notification, compteurs « +N ») ; thèmes Clair et Sunset inchangés
+Dernière mise à jour : **2026-07-17** (Claude) — Renommage PlotTime (ex-SerieTime) partout où le nom est visible + icône PWA maskable (fin du zoom sur l'écran d'accueil Android) ; rose du logo appliqué au vrai thème Nuit (midnight) après fusion de main
 Dernière mise à jour : **2026-07-17** (Claude) — Jeux : « Possédé » devient un interrupteur « Je possède » (booléen `isOwned`) indépendant du statut (retour Étienne) ; fiche jeu réorganisée (infos à côté de la jaquette, statuts remontés avant le trailer, section Informations fusionnée dans la fiche d'identité)
 
 Mise à jour précédente : **2026-07-16** (Claude) — Popup de migration douce vers le SSO : invite les comptes e-mail connectés (web) qui n'ont lié ni Google ni Discord, non bloquante (« Plus tard »)
@@ -82,6 +82,33 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-17 — Claude : renommage PlotTime + icône PWA « maskable »
+- **L'application s'appelle désormais PlotTime** (ex-SerieTime). Renommé
+  partout où le nom est visible : titre et meta de la web app (`+html.tsx`),
+  manifest PWA (`name`/`short_name`), `app.json` (`name`), écran de
+  connexion, Paramètres (export, comptes liés, libellé du thème Nuit),
+  messages de partage (fiches, épisodes, favoris, commentaires), message de
+  modération, docs (README, ONBOARDING, ce fichier). Compatibilité conservée :
+  le client accepte `app: SerieTime` OU `PlotTime` au `/health` (serveur pas
+  encore redéployé) et l'import de sauvegardes accepte les anciens exports ;
+  `APP_NAME` par défaut passe à PlotTime (⚠ si le `.env` du VPS force
+  `APP_NAME=SerieTime`, le mettre à jour). NON renommés (identifiants
+  techniques, cassants) : slug/scheme Expo, `com.serietime.app`, clés
+  localStorage `serietime-*`, nom du repo GitHub, domaine
+  serietime.studio-vives.fr (infra Benjamin).
+- **Icône zoomée sur l'écran d'accueil Android (PWA)** : le manifest servait
+  la même image bord-à-bord en `purpose: any` ET `maskable` — le lanceur
+  rogne l'icône maskable à sa zone sûre (~80 %), d'où l'effet « zoomé » sans
+  le fond bleu (le multitâche, lui, affiche l'icône `any`, correcte).
+  Nouvelles `public/maskable-192/512.png` composées depuis les assets
+  adaptive (fond bleu plein + motif avec marges, motif mesuré à 21-78 % du
+  canevas) ; le manifest pointe `maskable` dessus. L'icône d'accueil se met
+  à jour à la re-création du raccourci / mise à jour du WebAPK.
+- Correctif au passage : `auth-signup-disabled.test.ts` (main) ne définissait
+  pas `DATABASE_URL` et ne passait que sur les machines avec `.env` local →
+  aligné sur le motif des autres tests (SQLite temporaire + migrate deploy).
+  **152 tests serveur verts** post-merge.
 
 ### 2026-07-16 — Claude (10)
 - **Rose du logo en accent secondaire du THÈME NUIT — uniquement** (demande
