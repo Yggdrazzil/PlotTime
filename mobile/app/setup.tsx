@@ -7,6 +7,7 @@ import { useAppStore } from '@/lib/store';
 import { CONFIGURED_SERVER_URL } from '@/lib/config';
 import { COLORS, FONTS } from '@/lib/theme';
 import { SsoButtons } from '@/components/SsoButtons';
+import { ssoWebAvailable } from '@/lib/sso';
 
 type Step = 'server' | 'auth';
 type Mode = 'login' | 'register';
@@ -161,68 +162,93 @@ export default function Setup() {
             {mode === 'register' ? 'Créez votre compte.' : 'Connectez-vous.'}
           </Text>
 
-          {mode === 'register' ? (
+          {/* Inscription (web) : Google / Discord UNIQUEMENT — aucun mot de passe
+              à créer ni à perdre. Les comptes e-mail existants gardent la
+              connexion classique (onglet « Se connecter »). Sur natif (Expo Go),
+              le SSO est web-only : on garde le formulaire e-mail en secours. */}
+          {mode === 'register' && ssoWebAvailable() ? (
             <>
-              <Text style={styles.label}>Nom d’affichage</Text>
+              <Text style={styles.ssoNote}>
+                Inscris-toi en un clic avec Google ou Discord — pas de mot de passe à retenir,
+                et tu récupères ton compte à tout moment.
+              </Text>
+              <SsoButtons onToken={oauth} />
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              <Pressable
+                onPress={() => {
+                  setMode('login');
+                  setError(null);
+                }}
+              >
+                <Text style={styles.link}>J’ai déjà un compte — Se connecter</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              {mode === 'register' ? (
+                <>
+                  <Text style={styles.label}>Nom d’affichage</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={displayName}
+                    onChangeText={setDisplayName}
+                    autoCapitalize="words"
+                  />
+                </>
+              ) : null}
+
+              <Text style={styles.label}>E-mail</Text>
               <TextInput
                 style={styles.input}
-                value={displayName}
-                onChangeText={setDisplayName}
-                autoCapitalize="words"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                placeholder="vous@exemple.com"
+                placeholderTextColor={COLORS.textSoft}
               />
+
+              <Text style={styles.label}>Mot de passe</Text>
+              <TextInput
+                style={styles.input}
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+                onSubmitEditing={() => canSubmit && submit()}
+                placeholder="6 caractères minimum"
+                placeholderTextColor={COLORS.textSoft}
+              />
+
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+
+              <Pressable style={[styles.btnYellow, !canSubmit && styles.disabled]} onPress={submit} disabled={!canSubmit}>
+                <Text style={styles.btnYellowText}>
+                  {busy
+                    ? mode === 'register'
+                      ? 'CRÉATION…'
+                      : 'CONNEXION…'
+                    : mode === 'register'
+                      ? 'CRÉER MON COMPTE'
+                      : 'SE CONNECTER'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  setMode(mode === 'register' ? 'login' : 'register');
+                  setError(null);
+                }}
+              >
+                <Text style={styles.link}>
+                  {mode === 'register' ? 'J’ai déjà un compte — Se connecter' : 'Créer un nouveau compte'}
+                </Text>
+              </Pressable>
+
+              {/* SSO (web app) : Google / Discord. Masqué s'ils ne sont pas configurés. */}
+              <SsoButtons onToken={oauth} separator="ou" />
             </>
-          ) : null}
-
-          <Text style={styles.label}>E-mail</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            placeholder="vous@exemple.com"
-            placeholderTextColor={COLORS.textSoft}
-          />
-
-          <Text style={styles.label}>Mot de passe</Text>
-          <TextInput
-            style={styles.input}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-            onSubmitEditing={() => canSubmit && submit()}
-            placeholder="6 caractères minimum"
-            placeholderTextColor={COLORS.textSoft}
-          />
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <Pressable style={[styles.btnYellow, !canSubmit && styles.disabled]} onPress={submit} disabled={!canSubmit}>
-            <Text style={styles.btnYellowText}>
-              {busy
-                ? mode === 'register'
-                  ? 'CRÉATION…'
-                  : 'CONNEXION…'
-                : mode === 'register'
-                  ? 'CRÉER MON COMPTE'
-                  : 'SE CONNECTER'}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => {
-              setMode(mode === 'register' ? 'login' : 'register');
-              setError(null);
-            }}
-          >
-            <Text style={styles.link}>
-              {mode === 'register' ? 'J’ai déjà un compte — Se connecter' : 'Créer un nouveau compte'}
-            </Text>
-          </Pressable>
-
-          {/* SSO (web app) : Google / Facebook. Masqué s'ils ne sont pas configurés. */}
-          <SsoButtons onToken={oauth} separator="ou" />
+          )}
 
           {needsServerStep ? (
             <Pressable onPress={() => setStep('server')}>
@@ -240,6 +266,7 @@ const styles = StyleSheet.create({
   brandLogo: { width: 52, height: 52, borderRadius: 14 },
   brand: { color: COLORS.text, fontSize: 34, fontFamily: FONTS.extraBold },
   lead: { fontFamily: FONTS.regular, fontSize: 16, color: COLORS.textMuted, marginTop: 24 },
+  ssoNote: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textMuted, marginTop: 16, marginBottom: 4, lineHeight: 20 },
   label: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.bold, marginTop: 24 },
   input: { color: COLORS.text, borderBottomWidth: 1, borderBottomColor: COLORS.border, fontFamily: FONTS.regular, fontSize: 17, paddingVertical: 10, marginTop: 6 },
   error: { color: COLORS.red, fontFamily: FONTS.regular, fontSize: 15, marginTop: 12 },
