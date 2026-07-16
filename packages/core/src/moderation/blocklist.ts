@@ -98,11 +98,12 @@ export const BLOCKLIST: Record<ModerationCategory, string[]> = {
     // fr
     'tapette',
     'tarlouze',
-    'pédé', // normalisé → « pede » (attrape « pédés »)
-    'pd', // court → frontière de mot (n'attrape pas « rapide »/« pdf »)
+    // NB : PAS « pédé » — sa forme normalisée « pede » = mot PT/ES courant
+    // (« pede » = « demande »). On couvre l'abréviation « pd » (frontière de mot,
+    // n'attrape pas « rapide »/« pdf »/« speed » — vérifié), la plus écrite.
+    'pd',
     'tantouze',
     'fiotte',
-    'enculé de sa race', // slur homophobe/haineux composé
     // es
     'maricon',
     'maricones',
