@@ -22,9 +22,11 @@ export type IgdbGame = {
   videos?: { video_id: string; name?: string }[];
   screenshots?: { image_id: string }[];
   // Filtrage éditions/DLC : type de jeu (0=jeu principal, 14=update…) et
-  // version parente (Deluxe/GOTY pointent le jeu de base).
+  // version parente (Deluxe/GOTY pointent le jeu de base) ; parent_game =
+  // jeu de base d'un DLC/extension.
   game_type?: number;
   version_parent?: number;
+  parent_game?: number;
   // Note presse agrégée (0-100) — le plus proche d'un Metacritic via IGDB.
   aggregated_rating?: number;
 };
@@ -34,7 +36,7 @@ const FIELDS =
   'fields name,summary,first_release_date,cover.image_id,artworks.image_id,genres.name,' +
   'platforms.name,involved_companies.developer,involved_companies.publisher,involved_companies.company.name,' +
   'game_modes.name,total_rating,total_rating_count,release_dates.date,release_dates.human,release_dates.platform.name,' +
-  'dlcs.name,expansions.name,videos.video_id,videos.name,screenshots.image_id,game_type,version_parent,aggregated_rating';
+  'dlcs.name,expansions.name,videos.video_id,videos.name,screenshots.image_id,game_type,version_parent,parent_game,aggregated_rating';
 
 // « Vrai jeu » pour la recherche/découverte : exclut les rééditions (Deluxe,
 // GOTY… = version_parent), les DLC/extensions/bundles/updates (game_type 1, 2,
@@ -51,15 +53,20 @@ export function igdbImageUrl(imageId: string, size = 't_cover_big'): string {
   return `https://images.igdb.com/igdb/image/upload/${size}/${imageId}.jpg`;
 }
 
-export async function igdbSearch(q: string): Promise<IgdbGame[]> {
+// Corps Apicalypse exposés pour les tests (le cache ApiCache est adressé par
+// ce corps exact — les tests le pré-remplissent pour tourner sans réseau).
+export function searchQueryBody(q: string): string {
   // NB : le champ IGDB `category` a été déprécié (migré vers `game_type`) et
   // `where category = 0` ne matche plus RIEN → on ne filtre plus par type ici.
-  const body = `search "${q.replace(/"/g, '')}"; ${FIELDS}; limit 30;`;
-  return ((await igdbQuery<IgdbGame[]>('games', body, DAY)) ?? []).filter(isMainGame);
+  return `search "${q.replace(/"/g, '')}"; ${FIELDS}; limit 30;`;
+}
+
+export async function igdbSearch(q: string): Promise<IgdbGame[]> {
+  return ((await igdbQuery<IgdbGame[]>('games', searchQueryBody(q), DAY)) ?? []).filter(isMainGame);
 }
 
 export async function igdbGame(id: number): Promise<IgdbGame | null> {
-  const body = `${FIELDS}; where id = ${id};`;
+  const body = gameQueryBody(id);
   const r = await igdbQuery<IgdbGame[]>('games', body, 7 * DAY);
   return r && r.length ? r[0]! : null;
 }
@@ -108,7 +115,37 @@ export function igdbToMedia(g: IgdbGame) {
       developer: dev,
       publisher: pub,
       gameModes: norm(g.game_modes),
+      // Édition (Deluxe…) ou extension/DLC : exclu de la recherche « jeux »
+      // (seul le jeu de base y apparaît), mais fiche ouvrable normalement.
+      isDlc: !isMainGame(g),
     },
     dlcNames: (g.dlcs ?? []).map((d) => d.name),
   };
+}
+
+// Éditions (Deluxe, GOTY… = version_parent) et extensions/DLC (parent_game)
+// d'un jeu de base — la section « Éditions et extensions » de la fiche.
+const RELATED_FIELDS =
+  'fields name,first_release_date,cover.image_id,game_type,version_parent,parent_game';
+
+export function igdbRelatedBody(igdbId: number): string {
+  return `${RELATED_FIELDS}; where parent_game = ${igdbId} | version_parent = ${igdbId}; sort first_release_date asc; limit 25;`;
+}
+
+export type IgdbRelated = {
+  id: number;
+  name: string;
+  first_release_date?: number;
+  cover?: { image_id: string };
+  game_type?: number;
+  version_parent?: number;
+  parent_game?: number;
+};
+
+export async function igdbRelated(igdbId: number): Promise<IgdbRelated[]> {
+  return (await igdbQuery<IgdbRelated[]>('games', igdbRelatedBody(igdbId), 7 * DAY)) ?? [];
+}
+
+export function gameQueryBody(id: number): string {
+  return `${FIELDS}; where id = ${id};`;
 }

@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Image, Platform, Linking } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Feather, Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import { COLORS, FONTS } from '@/lib/theme';
 import { Loading, LoadError } from '@/components/ui';
-import { Pop, SlideUpBar } from '@/components/anim';
+import { Pop, PressableScale, SlideUpBar } from '@/components/anim';
 import { Stars } from '@/components/Stars';
 import { shareMedia } from '@/lib/share';
 import { FicheSkeleton } from '@/components/FicheSkeleton';
@@ -34,6 +34,18 @@ type GameDetailDto = {
   videoId: string | null;
   // Note presse agrégée IGDB (0-100) — équivalent le plus proche de Metacritic.
   criticScore: number | null;
+  // Éditions (Deluxe, GOTY…) et extensions/DLC — section latérale de la fiche.
+  related?: RelatedGameDto[];
+};
+
+type RelatedGameDto = {
+  igdbId: string;
+  localId: string | null;
+  inLibrary: boolean;
+  title: string;
+  year: number | null;
+  posterPath: string | null;
+  kind: 'edition' | 'extension';
 };
 
 const GAME_STATUSES = ['wishlist', 'playing', 'completed', 'abandoned'] as const;
@@ -221,6 +233,8 @@ export default function GameDetail() {
             <Text style={styles.muted}>Non disponible</Text>
           ) : null}
         </View>
+
+        <RelatedGamesRow items={game.related ?? []} />
 
         <CommentsRow mediaId={game.id} title={game.title} />
       </ScrollView>
@@ -596,6 +610,67 @@ function ListsSheet({
   );
 }
 
+
+// « Éditions et extensions » (façon app Xbox) : cartes à défilement latéral —
+// jaquette + bandeau nom + type. Clic : fiche locale directe si déjà en base,
+// sinon import IGDB silencieux puis ouverture (fiche jeu standard : on peut y
+// mettre Voulu / En cours / … comme n'importe quel jeu).
+function RelatedGamesRow({ items }: { items: RelatedGameDto[] }) {
+  const router = useRouter();
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  if (!items.length) return null;
+  const open = async (r: RelatedGameDto) => {
+    if (openingId) return;
+    if (r.localId) {
+      router.push(('/game/' + r.localId) as Href);
+      return;
+    }
+    setOpeningId(r.igdbId);
+    try {
+      const res = await api.post<{ mediaId: string | null }>('/api/games/add-from-igdb', { igdbId: r.igdbId });
+      if (res.mediaId) router.push(('/game/' + res.mediaId) as Href);
+    } finally {
+      setOpeningId(null);
+    }
+  };
+  return (
+    <View style={[styles.section, { paddingHorizontal: 0 }]}>
+      <Text style={[styles.sectionTitle, { paddingHorizontal: 20 }]}>Éditions et extensions</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 20, paddingTop: 14 }}>
+        {items.map((r) => (
+          <PressableScale key={r.igdbId} style={styles.relCard} onPress={() => open(r)}>
+            <View style={styles.relCover}>
+              {r.posterPath ? (
+                <Image source={{ uri: r.posterPath }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              ) : (
+                <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+                  <Ionicons name="game-controller-outline" size={30} color="#9a9a9a" />
+                </View>
+              )}
+              {r.inLibrary ? (
+                <View style={styles.relBadge}>
+                  <Feather name="check" size={16} color={COLORS.onAccent} />
+                </View>
+              ) : null}
+              {openingId === r.igdbId ? (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' }]}>
+                  <ActivityIndicator color="#fff" />
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.relCap}>
+              <Text style={styles.relName} numberOfLines={2}>{r.title}</Text>
+              <Text style={styles.relKind}>
+                {[r.kind === 'edition' ? 'Édition' : 'Extension', r.year].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+          </PressableScale>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
 // Rangée « Commentaires » (titre + chevron) ouvrant la page dédiée /comments/:id
 // (générique par mediaId, cf. mobile/app/comments/[id].tsx). `CommentsRowLink`
 // (show/[id].tsx) n'est pas exporté depuis ce fichier ; on reproduit ici la
@@ -628,6 +703,14 @@ const styles = StyleSheet.create({
   factLabel: { fontFamily: FONTS.bold, color: COLORS.black },
   section: { paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   sectionTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold, marginBottom: 12 },
+  // « Éditions et extensions » : cartes 150 façon app Xbox (jaquette 3/4 +
+  // bandeau nom/type), badge coche jaune si déjà en bibliothèque.
+  relCard: { width: 150, borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.chipGrey },
+  relCover: { width: 150, height: 200, backgroundColor: COLORS.imagePlaceholder },
+  relBadge: { position: 'absolute', top: 0, right: 8, width: 30, height: 26, backgroundColor: COLORS.yellow, borderBottomLeftRadius: 6, borderBottomRightRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  relCap: { paddingHorizontal: 10, paddingVertical: 9, minHeight: 64 },
+  relName: { color: COLORS.text, fontSize: 13.5, fontFamily: FONTS.bold, lineHeight: 18 },
+  relKind: { color: COLORS.textMuted, fontSize: 11.5, fontFamily: FONTS.regular, marginTop: 3 },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   statusChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: COLORS.chipGrey },
   statusChipSel: { backgroundColor: COLORS.yellow },

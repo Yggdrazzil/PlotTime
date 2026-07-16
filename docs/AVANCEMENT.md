@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-16** (Claude) — Recherche : onglets sur une ligne, les jeux ne sortent plus en « Film » (fuite IGDB corrigée), recherche jeux = bibliothèque locale + IGDB
+Dernière mise à jour : **2026-07-16** (Claude) — Jeux : la recherche ne montre que les jeux de base ; fiche jeu avec section « Éditions et extensions » (défilement latéral façon Xbox, fiches ouvrables et suivables)
 
 ---
 
@@ -70,6 +70,21 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-16 — Claude (3)
+- **Recherche jeux : jeux de base uniquement** — les éditions (Deluxe,
+  collector, GOTY… = `version_parent` IGDB) et extensions/DLC/updates sont
+  exclues des résultats, y compris celles déjà importées en base (marquage
+  `game.isDlc` à l'import + rattrapage automatique à l'ouverture de la fiche).
+- **Fiche jeu : section « Éditions et extensions »** (défilement latéral façon
+  app Xbox, avant Commentaires) : cartes jaquette + nom + type (Édition /
+  Extension), badge coche jaune si déjà en bibliothèque. Clic → fiche
+  descriptive standard (import IGDB silencieux si besoin) où l'on peut mettre
+  Voulu / En cours / Terminé / Abandonné comme n'importe quel jeu. Données via
+  `where parent_game = X | version_parent = X` (IGDB, cache 7 j).
+- Tests : 85 verts (2 nouveaux avec cache IGDB simulé — zéro réseau) ;
+  vérifié au navigateur 8/8 (recherche filtrée, section affichée avant
+  Commentaires, clic extension → fiche + mise en « Voulus » confirmée serveur).
 
 ### 2026-07-16 — Claude (2)
 - **Recherche Explorer : rangée d'onglets corrigée** — « SÉRIES ET FILMS » se
