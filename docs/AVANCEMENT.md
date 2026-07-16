@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-16** (Claude) — Détection pornographie renforcée (marqueurs porno multilingues sur titres/résumés séries/films/animés **et** jeux, mots-clés TMDb `without_keywords`, garde IGDB) sans bloquer la violence + popup drôle au commentaire bloqué
+Dernière mise à jour : **2026-07-16** (Claude) — Modération (commentaires haineux + anti-porno renforcé, popup drôle) et lot UX du 16/07 d'Étienne (fenêtre épisode harmonisée, navigation, thèmes, bibliothèques)
 
 ---
 
@@ -284,6 +284,91 @@ l'utilisateur (mêmes réponses API, même UX).
 - Tests : `apps/server/src/__tests__/password-reset.test.ts` (8 tests : flux
   complet avec login au nouveau mot de passe, jeton expiré/déjà utilisé/inconnu,
   identité SSO non liée refusée, autres champs intacts) — 99 tests serveur verts.
+### 2026-07-16 — Claude (7)
+- **Fenêtre épisode : tailles harmonisées** (retour récurrent « textes trop
+  gros ») — code épisode 30→22, dates/méta 17→14, titres de section 20→16,
+  synopsis 16/23→13,5/20, pastilles plateformes et icônes réduites, coche
+  46→40. Alignée sur l'échelle des cartes de l'onglet Séries.
+- **Fiche série → onglet ÉPISODES : taper une carte ouvre la fenêtre
+  épisode** (la même que depuis l'onglet Séries, swipe latéral inclus) —
+  dans « Continuer le suivi » comme dans « Tous les épisodes » (les épisodes
+  non diffusés restent inertes, la coche garde son geste propre).
+- **« Continuer le suivi » = carrousel latéral** : tous les épisodes diffusés
+  non vus (dans l'ordre, la carte suivante dépasse à droite, snap façon
+  TV Time) — chacun cochable ; cocher fait avancer la file (cache optimiste).
+- Vérifié au banc Playwright (7/7) : 3 cartes côte à côte, glissement tactile
+  effectif, ouverture de la fenêtre depuis le carrousel ET depuis une rangée
+  de saison (sur le bon épisode), tailles 22px/16px mesurées au DOM.
+
+### 2026-07-16 — Claude (6)
+- **Bibliothèques du profil (Séries / Films) + onglet Jeux : pastille de
+  statut FLOTTANTE** — « EN COURS », « TERMINÉ »… suit le défilement et change
+  au passage des sections, comme dans l'onglet Séries (réfs TV Time). La
+  mécanique est extraite dans `components/FloatingSection.tsx`
+  (`useFloatingSection` + `FloatingSectionPill`) et l'onglet Séries refactoré
+  dessus. Elle apparaît aussi quand un filtre de progression est actif.
+- **Barres de progression colorées par STATUT** (`STATUS_BAR` dans
+  `lib/theme.ts`, couleurs fixes dans tous les thèmes — codes de statut, pas
+  accents) : jaune « En cours », vert « À jour », **bleu « Terminé »** (barre
+  pleine — TV Time affiche du violet, choix produit : bleu), **orange
+  « Regarder plus tard »**, **rouge « Arrêté »** — la barre montre où on s'est
+  arrêté (épisodes vus / diffusés). Rien pour « Pas commencé ».
+- La bibliothèque Séries gagne une section « Regarder plus tard » dédiée
+  (avant, ces séries étaient mélangées à « Pas commencé »).
+- **Fiche série : la barre de progression sous la bannière** suit les mêmes
+  couleurs de statut (elle n'existait qu'en jaune/vert) — vérifié au banc
+  (5/5 : couleur ET niveau de remplissage exacts pour chaque statut).
+- Vérifié au banc Playwright (16/16) : 5 couleurs et largeurs de barres
+  exactes (pleine / partielle / 2 épisodes sur 4), sections dans l'ordre,
+  pastille flottante en défilement sur Séries + Jeux, pastille en mode filtré,
+  onglet Séries sans régression après refactor. Captures comparées aux réfs.
+
+### 2026-07-16 — Claude (5)
+- **Correctif : liseré blanc en bas d'écran (barre de gestes Android) avec les
+  thèmes Sombre/Sunset.** Android échantillonne la couleur des barres système
+  au chargement de la page ; le `meta theme-color` n'était mis à jour qu'après
+  l'exécution du bundle JS → la barre de gestes restait blanche (valeur du
+  manifest). Un script « pré-peinture » dans `app/+html.tsx` lit la préférence
+  (`localStorage`, ou `prefers-color-scheme` en mode système) et applique fond
+  `<html>` + `theme-color` AVANT le premier rendu — supprime aussi le flash
+  blanc au rechargement (changement de thème). NB : si un `bg` de palette
+  change dans `lib/theme.ts`, reporter la valeur dans ce script.
+- **Natif (Android/iPhone)** : `userInterfaceStyle` passé de `light` à
+  `automatic` dans `app.json` — le verrou « clair » empêchait le thème sombre
+  de suivre l'appareil en natif. `edgeToEdgeEnabled` étant déjà actif, le bas
+  d'écran natif prend la couleur de la barre d'onglets (thémée, avec
+  `paddingBottom: insets.bottom`).
+- Vérifié au banc Playwright (17/17) : pour chaque thème (clair/sombre/
+  sunset/système), `theme-color` et fond `<html>` corrects AVANT l'exécution
+  du bundle et après chargement complet ; scénario réel « changement de thème
+  → reload déjà sombre ». (L'onglet Profil garde volontairement son
+  `theme-color` #20202a — en-tête sombre façon TV Time.)
+- **QA post-gamification** (Benjamin a fusionné XP/badges/défis sur `main`) :
+  91 tests serveur verts (après `prisma generate` — nouveaux modèles Prisma),
+  typecheck mobile 0 erreur, bancs re-joués sur le code fusionné : thèmes 8/8,
+  jeux éditions/extensions 8/8 (un « échec » = bascule de statut due à l'état
+  résiduel du banc, pas une régression), retour 16/16, parcours QA global OK
+  (3 alertes = faux positifs connus du robot), écrans Trophées/Badges/
+  Classement vérifiés en clair ET en sombre (captures).
+
+### 2026-07-16 — Claude (4)
+- **Correctif : bouton « Retour » muet après un changement de thème.** Le
+  changement de thème recharge la page web (nécessaire pour ré-appliquer les
+  StyleSheet) ; la pile de navigation expo-router repart alors de zéro et
+  `router.back()` ne faisait plus rien. Même symptôme pour tout écran ouvert
+  par lien direct ou après un rechargement du navigateur.
+- Nouveau helper `mobile/lib/nav.ts` → `goBack(fallback)` : `router.back()`
+  si la pile contient un écran précédent (`router.canGoBack()`), sinon
+  `router.replace(fallback)` avec un repli logique par écran (Paramètres,
+  Notifications, Amis, bibliothèques et favoris → Profil ; fiche série/film,
+  personne, commentaires → Accueil ; fiche jeu → onglet Jeux ; profil
+  public → Amis ; couverture → Édition du profil).
+- Balayage complet : les 17 `router.back()` de l'app (14 fichiers) passent
+  par `goBack` ; plus aucun appel direct. Les nouveaux écrans gamification
+  (Trophées, stats, classement) passent déjà par `PageHeader`, donc couverts.
+- Vérifié au banc Playwright (15/15) : scénario exact du bug (thème sombre →
+  reload → retour → Profil), navigations directes sur 9 écrans, et priorité
+  conservée à l'historique réel quand la pile n'est pas vide.
 
 ### 2026-07-16 — Gamification (serveur) : XP, niveaux, badges, streaks, défis, classement
 - Spec `docs/superpowers/specs/2026-07-16-gamification-design.md` — partie
@@ -318,6 +403,7 @@ l'utilisateur (mêmes réponses API, même UX).
   l'historique de visionnage de « À voir ». Une sortie manquée reste visible
   14 jours.
 - `pastGroupLabel` ajouté à `packages/core` (testé).
+
 ### 2026-07-16 — Claude (3)
 - **Recherche jeux : jeux de base uniquement** — les éditions (Deluxe,
   collector, GOTY… = `version_parent` IGDB) et extensions/DLC/updates sont

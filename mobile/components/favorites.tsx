@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
@@ -133,7 +134,7 @@ export function FavoritesPage({ kind }: { kind: FavKind }) {
     <Pop style={{ backgroundColor: COLORS.white }}>
       {/* En-tête TV Time : chevron à gauche, « ... » à droite, pas de titre centré. */}
       <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.topBtn} accessibilityRole="button" accessibilityLabel="Retour">
+        <Pressable onPress={() => goBack('/profile')} hitSlop={10} style={styles.topBtn} accessibilityRole="button" accessibilityLabel="Retour">
           <Feather name="chevron-left" size={28} color={COLORS.black} />
         </Pressable>
         <Pressable

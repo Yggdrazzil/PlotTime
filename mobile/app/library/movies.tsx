@@ -9,6 +9,7 @@ import { COLORS, FONTS } from '@/lib/theme';
 import { LoadError, EmptyState } from '@/components/ui';
 import { LibHeader, SectionPill, Grid, MovieCell } from '@/components/library';
 import { Pop } from '@/components/anim';
+import { useFloatingSection, FloatingSectionPill } from '@/components/FloatingSection';
 import { GridSkeleton } from '@/components/skeletons';
 import { usePullRefresh } from '@/lib/usePullRefresh';
 
@@ -37,6 +38,8 @@ export default function LibraryMoviesScreen() {
   const seen = data?.seen ?? [];
   const unseen = data?.unseen ?? [];
   const { refreshing, onRefresh } = usePullRefresh([refetch]);
+  // Pastille de statut FLOTTANTE : suit le défilement, comme l'onglet Séries.
+  const { registerSection, onListScroll, floatLabel } = useFloatingSection();
 
   return (
     <Pop style={{ backgroundColor: COLORS.white }}>
@@ -55,23 +58,29 @@ export default function LibraryMoviesScreen() {
       ) : seen.length === 0 && unseen.length === 0 ? (
         <EmptyState title="Aucun film" message="Ajoutez des films depuis Explorer." />
       ) : (
-        <ScrollView
-          contentContainerStyle={{ paddingBottom: 120 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.yellow} colors={[COLORS.yellow]} />}
-        >
-          {seen.length > 0 ? (
-            <View>
-              <SectionPill label="Vu" />
-              <Grid>{seen.map((m) => <MovieCell key={m.id} movie={m} />)}</Grid>
-            </View>
-          ) : null}
-          {unseen.length > 0 ? (
-            <View>
-              <SectionPill label="Non vu" />
-              <Grid>{unseen.map((m) => <MovieCell key={m.id} movie={m} />)}</Grid>
-            </View>
-          ) : null}
-        </ScrollView>
+        <View style={{ flex: 1 }}>
+          <ScrollView
+            contentContainerStyle={{ paddingBottom: 120 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.yellow} colors={[COLORS.yellow]} />}
+            onScroll={onListScroll}
+            scrollEventThrottle={16}
+          >
+            {seen.length > 0 ? (
+              <View onLayout={registerSection('Vu')}>
+                <SectionPill label="Vu" />
+                <Grid>{seen.map((m) => <MovieCell key={m.id} movie={m} />)}</Grid>
+              </View>
+            ) : null}
+            {unseen.length > 0 ? (
+              <View onLayout={registerSection('Non vu')}>
+                <SectionPill label="Non vu" />
+                <Grid>{unseen.map((m) => <MovieCell key={m.id} movie={m} />)}</Grid>
+              </View>
+            ) : null}
+          </ScrollView>
+          {/* Pastille de statut flottante (suit le scroll, comme l'onglet Séries). */}
+          <FloatingSectionPill label={floatLabel} />
+        </View>
       )}
       <Pressable style={styles.filtresBtn} onPress={() => setSheet(true)}>
         <Feather name="sliders" size={18} color={COLORS.black} />

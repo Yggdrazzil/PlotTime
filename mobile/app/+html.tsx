@@ -22,8 +22,34 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="SerieTime" />
         {/* Barre de statut : blanc pour se fondre avec le haut de l'app (le jaune
-            de marque tranchait trop, notamment en PWA installée sur Android). */}
+            de marque tranchait trop, notamment en PWA installée sur Android).
+            Le script ci-dessous remplace cette valeur par le fond du thème actif
+            AVANT le premier rendu. */}
         <meta name="theme-color" content="#FFFFFF" />
+        {/* Thème AVANT peinture : Android échantillonne la couleur des barres
+            système (statut + barre de gestes en bas) au chargement de la page —
+            attendre le bundle JS laissait un liseré blanc en bas en Sombre/Sunset.
+            Les fonds ci-dessous doivent rester alignés sur `bg` des palettes de
+            `lib/theme.ts`. Teinter <html> évite aussi le flash blanc au reload
+            (changement de thème). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                try {
+                  var pref = localStorage.getItem('serietime-theme');
+                  var theme = (pref === 'light' || pref === 'dark' || pref === 'sunset')
+                    ? pref
+                    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                  var bg = theme === 'dark' ? '#121217' : theme === 'sunset' ? '#FAF5EE' : '#FFFFFF';
+                  document.documentElement.style.backgroundColor = bg;
+                  var meta = document.querySelector('meta[name="theme-color"]');
+                  if (meta) meta.setAttribute('content', bg);
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
         {/* Manifest PWA : sur Android, c'est lui qui transforme « ajouter à
             l'écran d'accueil » en vraie app plein écran (et non un raccourci
             navigateur). iOS s'appuie sur les metas apple-* ci-dessus. */}

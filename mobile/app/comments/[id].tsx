@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS } from '@/lib/theme';
 import { EmptyState, Loading } from '@/components/ui';
@@ -60,7 +61,7 @@ export default function CommentsScreen() {
     <Pop style={{ backgroundColor: COLORS.white }}>
       {/* En-tête TV Time : titre + compteur centrés. */}
       <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.headSide} accessibilityRole="button" accessibilityLabel="Retour">
+        <Pressable onPress={() => goBack('/')} hitSlop={10} style={styles.headSide} accessibilityRole="button" accessibilityLabel="Retour">
           <Feather name="chevron-left" size={28} color={COLORS.black} />
         </Pressable>
         <View style={{ flex: 1, alignItems: 'center' }}>

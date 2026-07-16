@@ -8,6 +8,7 @@ import { api, tmdbImage } from '@/lib/api';
 import { COLORS, FONTS, RADIUS } from '@/lib/theme';
 import { PillHeader, EmptyState, Loading, LoadError, Poster } from '@/components/ui';
 import { AppearItem } from '@/components/anim';
+import { useFloatingSection, FloatingSectionPill } from '@/components/FloatingSection';
 import { useTabResetSeq } from '@/lib/tabReset';
 import { usePullRefresh } from '@/lib/usePullRefresh';
 
@@ -79,6 +80,9 @@ function GamesScreenInner() {
   });
 
   const { refreshing, onRefresh } = usePullRefresh([library.refetch, upcoming.refetch, discover.refetch]);
+  // Pastille de statut FLOTTANTE (VOULUS, EN COURS…) : suit le défilement,
+  // comme l'onglet Séries et les bibliothèques du profil.
+  const { registerSection, onListScroll, floatLabel } = useFloatingSection();
 
   // Ajout depuis la découverte : ajoute (statut « Voulus ») puis ouvre la
   // fiche (recherche déplacée dans l'Explorer, cf. app/(tabs)/explore.tsx).
@@ -143,11 +147,16 @@ function GamesScreenInner() {
       ) : library.isError && !library.data ? (
         <LoadError onRetry={library.refetch} busy={library.isRefetching} />
       ) : (
+        // Vue intermédiaire flex:1 : la pastille flottante se positionne par
+        // rapport à elle (sous la barre de statut, pas dessus).
+        <View style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={{ paddingTop: 12, paddingBottom: 20 }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.yellow} colors={[COLORS.yellow]} />
           }
+          onScroll={onListScroll}
+          scrollEventThrottle={16}
         >
           {library.data ? (
             <>
@@ -161,7 +170,7 @@ function GamesScreenInner() {
                     const start = n + 1;
                     n += items.length;
                     return (
-                      <View key={key}>
+                      <View key={key} onLayout={registerSection(label)}>
                         <PillHeader label={label} />
                         {grid(items, start)}
                       </View>
@@ -176,7 +185,7 @@ function GamesScreenInner() {
                   passée, groupés par mois (n'apparaît que si non vide, donc
                   jamais affiché quand la bibliothèque est vide). */}
               {upcoming.data && upcoming.data.groups.length > 0 ? (
-                <>
+                <View onLayout={registerSection('Sorties à venir')}>
                   <PillHeader label="SORTIES À VENIR" />
                   {upcoming.data.groups.map((g) => (
                     <View key={g.label} style={{ paddingBottom: 8 }}>
@@ -184,7 +193,7 @@ function GamesScreenInner() {
                       {upcomingRow(g.items)}
                     </View>
                   ))}
-                </>
+                </View>
               ) : null}
 
               {/* Découverte IGDB : toujours sous la bibliothèque, seul contenu
@@ -195,22 +204,25 @@ function GamesScreenInner() {
               ) : discover.data ? (
                 <>
                   {discover.data.popular.length > 0 ? (
-                    <>
+                    <View onLayout={registerSection('Populaires')}>
                       <PillHeader label="POPULAIRES" />
                       {discoverRow(discover.data.popular)}
-                    </>
+                    </View>
                   ) : null}
                   {discover.data.upcoming.length > 0 ? (
-                    <>
+                    <View onLayout={registerSection('À venir')}>
                       <PillHeader label="À VENIR" />
                       {discoverRow(discover.data.upcoming)}
-                    </>
+                    </View>
                   ) : null}
                 </>
               ) : null}
             </>
           ) : null}
         </ScrollView>
+        {/* Pastille de statut flottante (suit le scroll, comme l'onglet Séries). */}
+        <FloatingSectionPill label={floatLabel} />
+        </View>
       )}
     </View>
   );

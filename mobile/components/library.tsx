@@ -2,10 +2,11 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Image, Dimensions } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tmdbImage } from '@/lib/api';
 import type { MediaDto } from '@/lib/types';
-import { COLORS, FONTS } from '@/lib/theme';
+import { COLORS, FONTS, STATUS_BAR } from '@/lib/theme';
 import { AnimatedFill, PressableScale } from '@/components/anim';
 
 // Progression d'une série basée sur les épisodes DIFFUSÉS (fournie par l'API).
@@ -30,7 +31,7 @@ export function LibHeader({ title, right }: { title: string; right?: React.React
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-      <Pressable onPress={() => router.back()} hitSlop={10} style={styles.headerSide} accessibilityRole="button" accessibilityLabel="Retour">
+      <Pressable onPress={() => goBack('/profile')} hitSlop={10} style={styles.headerSide} accessibilityRole="button" accessibilityLabel="Retour">
         <Feather name="chevron-left" size={26} color={COLORS.black} />
       </Pressable>
       <Text style={styles.headerTitle} numberOfLines={1}>
@@ -55,16 +56,23 @@ export function Grid({ children }: { children: React.ReactNode }) {
   return <View style={styles.grid}>{children}</View>;
 }
 
-// Affiche d'une série avec barre de progression (diffusés) : jaune en cours,
-// verte quand tous les épisodes disponibles sont vus, ROUGE si arrêtée (TV Time).
+// Affiche d'une série avec barre de progression (diffusés), colorée par STATUT
+// (réfs TV Time) : jaune En cours, vert À jour, BLEU Terminé (pleine), ORANGE
+// Regarder plus tard, ROUGE Arrêté — la barre montre où on s'est arrêté.
 export function ShowCell({ show, bar = true }: { show: LibraryShow; bar?: boolean }) {
   const router = useRouter();
   const uri = tmdbImage(show.posterPath);
-  const { watched, total } = show.progress;
+  const { watched, total } = show.progress ?? { watched: 0, total: 0 };
   const started = watched > 0;
   const done = total > 0 && watched >= total;
-  const abandoned = show.userStatus === 'abandoned';
-  const pct = total > 0 ? Math.min(100, (watched / total) * 100) : 0;
+  const kind: keyof typeof STATUS_BAR =
+    show.userStatus === 'abandoned' ? 'stopped'
+    : show.userStatus === 'completed' ? 'completed'
+    : show.userStatus === 'watchlist' ? 'watchlist'
+    : done ? 'upToDate' : 'watching';
+  // Terminé = barre pleine (TV Time) ; sinon avancement réel dans les diffusés.
+  const pct = kind === 'completed' ? 100 : total > 0 ? Math.min(100, (watched / total) * 100) : 0;
+  const showBar = bar && (kind === 'completed' || started);
   return (
     <PressableScale style={styles.cell} onPress={() => router.push(`/show/${show.id}`)}>
       <View style={styles.posterBox}>
@@ -78,9 +86,9 @@ export function ShowCell({ show, bar = true }: { show: LibraryShow; bar?: boolea
             </Text>
           </View>
         )}
-        {bar && started ? (
-          <View style={[styles.barTrack, abandoned && { backgroundColor: 'rgba(229,57,53,0.30)' }]}>
-            <AnimatedFill pct={pct} color={abandoned ? COLORS.red : done ? COLORS.green : COLORS.yellow} style={styles.barFill} />
+        {showBar ? (
+          <View style={[styles.barTrack, { backgroundColor: STATUS_BAR[kind].track }]}>
+            <AnimatedFill pct={pct} color={STATUS_BAR[kind].fill} style={styles.barFill} />
           </View>
         ) : null}
       </View>

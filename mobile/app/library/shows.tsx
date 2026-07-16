@@ -8,6 +8,7 @@ import { COLORS, FONTS } from '@/lib/theme';
 import { LoadError, EmptyState } from '@/components/ui';
 import { LibHeader, SectionPill, Grid, ShowCell, type LibraryShow } from '@/components/library';
 import { Pop, AppearItem } from '@/components/anim';
+import { useFloatingSection, FloatingSectionPill } from '@/components/FloatingSection';
 import { GridSkeleton } from '@/components/skeletons';
 import { usePullRefresh } from '@/lib/usePullRefresh';
 
@@ -28,14 +29,25 @@ const SORT_OPTS: { key: Sort; label: string }[] = [
   { key: 'added', label: 'Dernier ajout' },
   { key: 'alpha', label: 'Ordre alphabétique' },
 ];
-// Sections par défaut (façon TV Time), dans l'ordre.
-const GROUP_ORDER = ['en_cours', 'a_jour', 'termine', 'pas_commence', 'arretees'] as const;
+// Sections par défaut (façon TV Time), dans l'ordre. « Regarder plus tard »
+// a sa propre section (barre ORANGE) — plus mélangée à « Pas commencé ».
+const GROUP_ORDER = ['en_cours', 'a_jour', 'termine', 'plus_tard', 'pas_commence', 'arretees'] as const;
 const GROUP_LABEL: Record<string, string> = {
   en_cours: 'En cours',
   a_jour: 'À jour',
   termine: 'Terminé',
+  plus_tard: 'Regarder plus tard',
   pas_commence: 'Pas commencé',
   arretees: 'Arrêté',
+};
+// Libellé court de la pastille quand un filtre est actif (façon TV Time).
+const FILTER_PILL: Record<Exclude<Progress, 'all'>, string> = {
+  watching: 'En cours',
+  not_started: 'Pas commencé',
+  watchlist: 'Regarder plus tard',
+  up_to_date: 'À jour',
+  completed: 'Terminé',
+  abandoned: 'Arrêté',
 };
 
 const remaining = (s: LibraryShow) => Math.max(0, s.progress.total - s.progress.watched);
@@ -43,7 +55,8 @@ const remaining = (s: LibraryShow) => Math.max(0, s.progress.total - s.progress.
 function groupOf(s: LibraryShow): (typeof GROUP_ORDER)[number] {
   if (s.userStatus === 'abandoned') return 'arretees';
   if (s.userStatus === 'completed') return 'termine';
-  if (s.userStatus === 'not_started' || s.userStatus === 'watchlist') return 'pas_commence';
+  if (s.userStatus === 'watchlist') return 'plus_tard';
+  if (s.userStatus === 'not_started') return 'pas_commence';
   return remaining(s) === 0 ? 'a_jour' : 'en_cours';
 }
 
@@ -111,15 +124,24 @@ export default function LibraryShowsScreen() {
 }
 
 function Body({ items, sort, filter, refreshCtl }: { items: LibraryShow[]; sort: Sort; filter: Progress; refreshCtl: React.ComponentProps<typeof ScrollView>['refreshControl'] }) {
+  // Pastille de statut FLOTTANTE : suit le défilement, comme l'onglet Séries.
+  const { registerSection, onListScroll, floatLabel } = useFloatingSection();
   if (items.length === 0) return <EmptyState title="Aucune série suivie" message="Ajoutez des séries depuis Explorer." />;
 
-  // Filtre actif : grille à plat. Sinon : sections par statut (façon TV Time).
+  // Filtre actif : grille à plat sous la pastille du statut choisi.
   if (filter !== 'all') {
     const list = sortItems(items.filter((s) => matchesFilter(s, filter)), sort);
+    const label = FILTER_PILL[filter];
     return (
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} refreshControl={refreshCtl}>
-        <Grid>{list.map((s) => <ShowCell key={s.id} show={s} />)}</Grid>
-      </ScrollView>
+      <View style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 120 }} refreshControl={refreshCtl} onScroll={onListScroll} scrollEventThrottle={16}>
+          <View onLayout={registerSection(label)}>
+            <SectionPill label={label} />
+            <Grid>{list.map((s) => <ShowCell key={s.id} show={s} />)}</Grid>
+          </View>
+        </ScrollView>
+        <FloatingSectionPill label={floatLabel} />
+      </View>
     );
   }
 
@@ -129,14 +151,19 @@ function Body({ items, sort, filter, refreshCtl }: { items: LibraryShow[]; sort:
     groups.set(g, [...(groups.get(g) ?? []), s]);
   });
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 120 }} refreshControl={refreshCtl}>
-      {GROUP_ORDER.filter((g) => groups.has(g)).map((g, gi) => (
-        <AppearItem key={g} index={gi}>
-          <SectionPill label={GROUP_LABEL[g]!} />
-          <Grid>{sortItems(groups.get(g)!, sort).map((s) => <ShowCell key={s.id} show={s} />)}</Grid>
-        </AppearItem>
-      ))}
-    </ScrollView>
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} refreshControl={refreshCtl} onScroll={onListScroll} scrollEventThrottle={16}>
+        {GROUP_ORDER.filter((g) => groups.has(g)).map((g, gi) => (
+          <View key={g} onLayout={registerSection(GROUP_LABEL[g]!)}>
+            <AppearItem index={gi}>
+              <SectionPill label={GROUP_LABEL[g]!} />
+              <Grid>{sortItems(groups.get(g)!, sort).map((s) => <ShowCell key={s.id} show={s} />)}</Grid>
+            </AppearItem>
+          </View>
+        ))}
+      </ScrollView>
+      <FloatingSectionPill label={floatLabel} />
+    </View>
   );
 }
 

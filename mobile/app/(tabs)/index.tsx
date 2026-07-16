@@ -12,7 +12,8 @@ import { PillHeader, TopTabs, EmptyState, LoadError, ShowPill, Badge, CheckCircl
 import { EpisodeQueueCard } from '@/components/EpisodeQueueCard';
 import { EpisodeSheet, type EpisodeSheetTarget } from '@/components/EpisodeSheet';
 import { useTabResetSeq } from '@/lib/tabReset';
-import { AppearItem, FadeSwitch, PopIn } from '@/components/anim';
+import { AppearItem, FadeSwitch } from '@/components/anim';
+import { useFloatingSection, FloatingSectionPill } from '@/components/FloatingSection';
 import { QueueSkeleton } from '@/components/skeletons';
 import { usePullRefresh } from '@/lib/usePullRefresh';
 
@@ -50,28 +51,8 @@ function QueueView() {
   const didInitialScroll = useRef(false);
   // Fenêtre « fiche épisode » (swipe latéral entre épisodes, façon TV Time).
   const [sheet, setSheet] = useState<EpisodeSheetTarget | null>(null);
-  // Pastille de section FLOTTANTE : position y de chaque entête de section
-  // (mesurée au layout) + libellé courant selon le défilement.
-  const sectionYs = useRef<{ label: string; y: number }[]>([]);
-  const [floatLabel, setFloatLabel] = useState<string | null>(null);
-  const registerSection = (label: string) => (e: { nativeEvent: { layout: { y: number } } }) => {
-    const arr = sectionYs.current.filter((s) => s.label !== label);
-    arr.push({ label, y: e.nativeEvent.layout.y });
-    arr.sort((a, b) => a.y - b.y);
-    sectionYs.current = arr;
-  };
-  const onListScroll = (e: { nativeEvent: { contentOffset: { y: number } } }) => {
-    const y = e.nativeEvent.contentOffset.y;
-    // Section courante = dernière entête arrivée en haut ; la pastille flotte
-    // seulement quand l'entête EN DUR est sortie de l'écran (sinon doublon).
-    let current: { label: string; rel: number } | null = null;
-    for (const s of sectionYs.current) {
-      const rel = s.y - y;
-      if (rel <= 8) current = { label: s.label, rel };
-    }
-    const next = current && current.rel <= -34 ? current.label : null;
-    if (next !== floatLabel) setFloatLabel(next);
-  };
+  // Pastille de section FLOTTANTE (mécanique partagée, cf. FloatingSection).
+  const { registerSection, onListScroll, floatLabel } = useFloatingSection();
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['shows', 'queue'],
     queryFn: () => api.get<{ items: QueueItemDto[] }>('/api/shows/queue'),
@@ -216,13 +197,7 @@ function QueueView() {
 
       {/* Pastille de section flottante (façon TV Time) : suit le défilement,
           change de libellé au passage d'une section, rebond à l'apparition. */}
-      {floatLabel ? (
-        <View style={styles.floatPillWrap} pointerEvents="none">
-          <PopIn key={floatLabel} style={styles.floatPill}>
-            <Text style={styles.floatPillText}>{floatLabel.toUpperCase()}</Text>
-          </PopIn>
-        </View>
-      ) : null}
+      <FloatingSectionPill label={floatLabel} />
 
       <EpisodeSheet target={sheet} onClose={() => setSheet(null)} />
     </View>
@@ -338,14 +313,6 @@ function UpcomingCard({ item }: { item: UpcomingItemDto }) {
 
 // Cotes TV Time, identiques à EpisodeQueueCard (code 20, titre 13, rayon 10).
 const styles = StyleSheet.create({
-  // Pastille de section flottante : mêmes cotes que la pastille en dur
-  // (police 11, hauteur ~19dp), légère ombre pour se détacher des cartes.
-  floatPillWrap: { position: 'absolute', top: 8, left: 0, right: 0, alignItems: 'center' },
-  floatPill: {
-    backgroundColor: COLORS.pillGrey, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 4,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 5, elevation: 4,
-  },
-  floatPillText: { color: COLORS.white, fontSize: 11, fontFamily: FONTS.bold, letterSpacing: 0.8 },
   upcard: {
     flexDirection: 'row', marginHorizontal: 12, marginBottom: 12, backgroundColor: COLORS.white,
     borderRadius: 10, minHeight: 96, overflow: 'hidden', ...SHADOW.card,

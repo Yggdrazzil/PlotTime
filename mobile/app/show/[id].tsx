@@ -3,16 +3,18 @@ import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, Activi
 import { Feather, Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import type { EpisodeDto, MediaDto } from '@/lib/types';
 import { episodeCode } from '@/lib/format';
-import { COLORS, RADIUS, SHADOW, FONTS } from '@/lib/theme';
+import { COLORS, RADIUS, SHADOW, FONTS, STATUS_BAR } from '@/lib/theme';
 import { TopTabs, CheckCircle, Loading, LoadError, EmptyState } from '@/components/ui';
 import { AnimatedFill, Pop, SlideUpBar, FadeSwitch, PressableScale } from '@/components/anim';
 import { Stars } from '@/components/Stars';
 import { MarkPreviousPopup, hasUnwatchedPrevious } from '@/components/MarkPreviousPopup';
+import { EpisodeSheet, type EpisodeSheetTarget } from '@/components/EpisodeSheet';
 import { genresFr, statusFr, airDayFr, compactCount } from '@/lib/frMedia';
 import { FicheSkeleton } from '@/components/FicheSkeleton';
 
@@ -168,7 +170,10 @@ export default function ShowDetail() {
   const smallOpacity = scrollY.interpolate({ inputRange: [90, 150], outputRange: [0, 1], extrapolate: 'clamp' });
   const onScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false });
 
-  // Barre de progression globale : épisodes diffusés vus / diffusés (hors spéciaux).
+  // Barre de progression globale : épisodes diffusés vus / diffusés (hors
+  // spéciaux), colorée par STATUT comme dans les bibliothèques du profil :
+  // jaune En cours, vert À jour, bleu Terminé (pleine), orange Regarder plus
+  // tard, rouge Arrêté (la barre montre où on s'est arrêté).
   const heroProg = (() => {
     if (isMovie) return null;
     let aired = 0;
@@ -181,7 +186,14 @@ export default function ShowDetail() {
         if (e.watched) watched += 1;
       }
     }
-    return aired > 0 ? { pct: Math.min(100, (watched / aired) * 100), complete: watched >= aired } : null;
+    if (aired === 0) return null;
+    const complete = watched >= aired;
+    const kind: keyof typeof STATUS_BAR =
+      media.userStatus === 'abandoned' ? 'stopped'
+      : media.userStatus === 'completed' ? 'completed'
+      : media.userStatus === 'watchlist' ? 'watchlist'
+      : complete ? 'upToDate' : 'watching';
+    return { pct: kind === 'completed' ? 100 : Math.min(100, (watched / aired) * 100), ...STATUS_BAR[kind] };
   })();
 
   return (
@@ -197,7 +209,7 @@ export default function ShowDetail() {
           ) : null;
         })()}
         <View style={[styles.heroBtns, { top: insets.top + 4 }]}>
-          <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retour">
+          <Pressable onPress={() => goBack('/')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retour">
             <Feather name="chevron-down" size={30} color="#fff" />
           </Pressable>
           <Pressable onPress={() => setMenu(true)} hitSlop={8} accessibilityLabel="Options">
@@ -223,14 +235,10 @@ export default function ShowDetail() {
                 ].filter(Boolean).join(' • ')}
           </Text>
         </Animated.View>
-        {/* Progression globale au bas de la bannière : jaune en cours, verte à jour. */}
+        {/* Progression globale au bas de la bannière, colorée par statut. */}
         {heroProg ? (
-          <View style={styles.heroProgressTrack}>
-            <AnimatedFill
-              pct={heroProg.pct}
-              color={heroProg.complete ? COLORS.green : COLORS.yellow}
-              style={styles.heroProgressFill}
-            />
+          <View style={[styles.heroProgressTrack, { backgroundColor: heroProg.track }]}>
+            <AnimatedFill pct={heroProg.pct} color={heroProg.fill} style={styles.heroProgressFill} />
           </View>
         ) : null}
       </Animated.View>
@@ -251,7 +259,7 @@ export default function ShowDetail() {
             {tab === 'À PROPOS' ? (
               <AboutTab media={media} detail={detail.data} mediaId={String(id)} interest={interest} setInterest={setInterest} onScroll={onScroll} />
             ) : (
-              <EpisodesTab showId={String(id)} posterPath={media.posterPath} onChange={refresh} onScroll={onScroll} />
+              <EpisodesTab showId={String(id)} title={media.title} posterPath={media.posterPath} onChange={refresh} onScroll={onScroll} />
             )}
           </FadeSwitch>
         </>
@@ -980,12 +988,17 @@ function EpThumb({ stillPath, fallback }: { stillPath?: string | null; fallback?
   );
 }
 
-function EpisodesTab({ showId, posterPath, onChange, onScroll }: { showId: string; posterPath?: string | null; onChange: () => void; onScroll?: any }) {
+function EpisodesTab({ showId, title, posterPath, onChange, onScroll }: { showId: string; title: string; posterPath?: string | null; onChange: () => void; onScroll?: any }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState<Record<number, boolean>>({});
   // Pop-up « Cocher aussi les épisodes précédents ? » : proposée quand on
   // coche un épisode alors que des épisodes antérieurs diffusés sont non vus.
   const [prevAsk, setPrevAsk] = useState<EpisodeDto | null>(null);
+  // Fenêtre « fiche épisode » (la même que depuis l'onglet Séries) : ouverte
+  // en tapant une carte, dans « Continuer le suivi » comme dans les saisons.
+  const [sheet, setSheet] = useState<EpisodeSheetTarget | null>(null);
+  const openSheet = (e: EpisodeDto) =>
+    setSheet({ mediaId: showId, mediaTitle: title, posterPath, episode: e });
   // Snackbar « Marquer tout comme non vu » (2ᵉ appui sur la coche maîtresse).
   const [confirmUnmark, setConfirmUnmark] = useState(false);
   useEffect(() => {
@@ -1147,23 +1160,48 @@ function EpisodesTab({ showId, posterPath, onChange, onScroll }: { showId: strin
       onScroll={onScroll}
       scrollEventThrottle={16}
     >
-      {data.nextEpisode ? (
-        <View style={{ paddingTop: 20, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight, backgroundColor: COLORS.white }}>
-          <Text style={[styles.sectionTitle, { paddingHorizontal: 24 }]}>{anyWatched ? 'Continuer le suivi' : 'Démarrer le suivi'}</Text>
-          <View style={{ padding: 12 }}>
-            <View style={styles.eprow}>
-              <EpThumb stillPath={data.nextEpisode.stillPath} fallback={posterPath} />
-              <View style={{ flex: 1, padding: 12, justifyContent: 'center' }}>
-                <Text style={styles.epCode}>{episodeCode(data.nextEpisode.seasonNumber, data.nextEpisode.episodeNumber)}</Text>
-                <Text style={styles.epRowTitle} numberOfLines={1}>{data.nextEpisode.title}</Text>
-              </View>
-              <View style={{ justifyContent: 'center', paddingRight: 14 }}>
-                <CheckCircle checked={data.nextEpisode.watched} onPress={() => toggleEp.mutate(data.nextEpisode!)} />
-              </View>
-            </View>
+      {data.nextEpisode ? (() => {
+        // Carrousel latéral (façon TV Time) : TOUS les épisodes réguliers déjà
+        // diffusés et non vus, dans l'ordre — on coche l'un, la carte suivante
+        // prend sa place (la liste se recalcule via le cache optimiste).
+        const queue = seasons
+          .filter((s) => !isSpecial(s))
+          .flatMap((s) => s.episodes)
+          .filter((e) => !isUpcoming(e.airDate) && !e.watched)
+          .slice(0, 24);
+        const CARD_W = Dimensions.get('window').width - 56; // la suivante dépasse
+        return (
+          <View style={{ paddingTop: 20, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight, backgroundColor: COLORS.white }}>
+            <Text style={[styles.sectionTitle, { paddingHorizontal: 24 }]}>{anyWatched ? 'Continuer le suivi' : 'Démarrer le suivi'}</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={CARD_W + 10}
+              decelerationRate="fast"
+              contentContainerStyle={{ padding: 12, gap: 10 }}
+            >
+              {queue.map((e) => (
+                <Pressable
+                  key={e.id}
+                  style={[styles.eprow, { width: CARD_W, marginBottom: 0 }]}
+                  onPress={() => openSheet(e)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Épisode ${episodeCode(e.seasonNumber, e.episodeNumber)}`}
+                >
+                  <EpThumb stillPath={e.stillPath} fallback={posterPath} />
+                  <View style={{ flex: 1, padding: 12, justifyContent: 'center' }}>
+                    <Text style={styles.epCode}>{episodeCode(e.seasonNumber, e.episodeNumber)}</Text>
+                    <Text style={styles.epRowTitle} numberOfLines={1}>{e.title}</Text>
+                  </View>
+                  <View style={{ justifyContent: 'center', paddingRight: 14 }}>
+                    <CheckCircle checked={e.watched} onPress={() => pressEp(e)} />
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
-        </View>
-      ) : null}
+        );
+      })() : null}
 
       <View style={{ paddingTop: 20 }}>
         <View style={[styles.sectionHeadRow, { marginBottom: 0 }]}>
@@ -1213,7 +1251,15 @@ function EpisodesTab({ showId, posterPath, onChange, onScroll }: { showId: strin
                   ? s.episodes.map((e) => {
                       const upcoming = isUpcoming(e.airDate);
                       return (
-                        <View key={e.id} style={styles.eprow}>
+                        // Taper la carte ouvre la fenêtre épisode (les non
+                        // diffusés restent inertes : rien à y voir/cocher).
+                        <Pressable
+                          key={e.id}
+                          style={styles.eprow}
+                          onPress={upcoming ? undefined : () => openSheet(e)}
+                          accessibilityRole={upcoming ? undefined : 'button'}
+                          accessibilityLabel={`Épisode ${episodeCode(e.seasonNumber, e.episodeNumber)}`}
+                        >
                           <EpThumb stillPath={e.stillPath} fallback={posterPath} />
                           <View style={{ flex: 1, padding: 10, justifyContent: 'center' }}>
                             <Text style={styles.epCode}>{episodeCode(e.seasonNumber, e.episodeNumber)}</Text>
@@ -1231,7 +1277,7 @@ function EpisodesTab({ showId, posterPath, onChange, onScroll }: { showId: strin
                               <CheckCircle size={44} checked={e.watched} onPress={() => pressEp(e)} />
                             )}
                           </View>
-                        </View>
+                        </Pressable>
                       );
                     })
                   : null}
@@ -1255,6 +1301,9 @@ function EpisodesTab({ showId, posterPath, onChange, onScroll }: { showId: strin
         onYes={() => { if (prevAsk) markPrevious.mutate(prevAsk); setPrevAsk(null); }}
         onNo={() => setPrevAsk(null)}
       />
+
+      {/* Fenêtre épisode (la même que dans l'onglet Séries), swipe latéral inclus. */}
+      <EpisodeSheet target={sheet} onClose={() => setSheet(null)} />
     </View>
   );
 }
@@ -1331,7 +1380,8 @@ const styles = StyleSheet.create({
   },
   progressFill: { position: 'absolute', left: 0, bottom: 0, top: 0, borderBottomLeftRadius: 5 },
   // Barre de progression globale de la série, au bas de la bannière (TV Time).
-  heroProgressTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 5, backgroundColor: 'rgba(255,212,0,0.35)' },
+  // Le fond (portion restante) est surchargé inline avec la teinte du statut.
+  heroProgressTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 5 },
   heroProgressFill: { height: '100%' },
   unmarkBar: { position: 'absolute', left: 12, right: 12, bottom: 20, backgroundColor: COLORS.white, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 18, ...SHADOW.card },
   unmarkText: { fontSize: 15, fontFamily: FONTS.semiBold, color: COLORS.black },
