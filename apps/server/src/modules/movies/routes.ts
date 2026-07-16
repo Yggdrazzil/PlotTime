@@ -6,6 +6,7 @@ import { serializeMedia } from '../media/serialize.js';
 import { getUserLang } from '../media/userLang.js';
 import { createWatchEvent } from '../media/actions.js';
 import { scheduleRecompute } from '../gamification/service.js';
+import { isAllowedImageUrl } from '../media/imageUrl.js';
 import { nextFavoriteOrder } from '../media/favorites.js';
 import {
   ensureMediaFromTmdb,
@@ -237,7 +238,7 @@ export async function movieRoutes(app: FastifyInstance): Promise<void> {
   // Personnalisation de l'affiche et de la bannière (même API que les séries).
   app.post('/api/movies/:id/poster', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { posterPath } = z.object({ posterPath: z.string() }).parse(request.body);
+    const { posterPath } = z.object({ posterPath: z.string().refine(isAllowedImageUrl) }).parse(request.body);
     const media = await prisma.media.findFirst({ where: { id, type: 'movie' } });
     if (!media) return reply.code(404).send({ error: 'not_found' });
     await prisma.media.update({ where: { id }, data: { posterPath } });
@@ -246,7 +247,7 @@ export async function movieRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/movies/:id/banner', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { backdropPath } = z.object({ backdropPath: z.string() }).parse(request.body);
+    const { backdropPath } = z.object({ backdropPath: z.string().refine(isAllowedImageUrl) }).parse(request.body);
     const media = await prisma.media.findFirst({ where: { id, type: 'movie' } });
     if (!media) return reply.code(404).send({ error: 'not_found' });
     await prisma.media.update({ where: { id }, data: { backdropPath } });
@@ -282,6 +283,7 @@ export async function movieRoutes(app: FastifyInstance): Promise<void> {
     const media = await prisma.media.findFirst({ where: { id, type: 'movie' } });
     if (!media) return reply.code(404).send({ error: 'not_found' });
     await prisma.userMediaStatus.deleteMany({ where: { userId: request.userId, mediaId: id } });
+    scheduleRecompute(request.userId); // gamification : retrait du suivi (recompute idempotent, parité jeux)
     return { ok: true };
   });
 

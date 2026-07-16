@@ -7,6 +7,8 @@ import { requireAuth } from '../auth/routes.js';
 import { mediaTitle, serializeEpisode, serializeMedia } from '../media/serialize.js';
 import { getUserLang } from '../media/userLang.js';
 import { createWatchEvent, markEpisodeWatched, recalculateShowStatus } from '../media/actions.js';
+import { scheduleRecompute } from '../gamification/service.js';
+import { isAllowedImageUrl } from '../media/imageUrl.js';
 import { nextFavoriteOrder } from '../media/favorites.js';
 import { refreshStaleContinuingShows, resyncAllUserShows, isResyncRunning } from './refresh.js';
 import {
@@ -666,7 +668,7 @@ export async function showRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/shows/:id/poster', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { posterPath } = z.object({ posterPath: z.string() }).parse(request.body);
+    const { posterPath } = z.object({ posterPath: z.string().refine(isAllowedImageUrl) }).parse(request.body);
     const media = await prisma.media.findFirst({ where: { id, type: 'show' } });
     if (!media) return reply.code(404).send({ error: 'not_found' });
     await prisma.media.update({ where: { id }, data: { posterPath } });
@@ -675,7 +677,7 @@ export async function showRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/shows/:id/banner', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { backdropPath } = z.object({ backdropPath: z.string() }).parse(request.body);
+    const { backdropPath } = z.object({ backdropPath: z.string().refine(isAllowedImageUrl) }).parse(request.body);
     const media = await prisma.media.findFirst({ where: { id, type: 'show' } });
     if (!media) return reply.code(404).send({ error: 'not_found' });
     await prisma.media.update({ where: { id }, data: { backdropPath } });
@@ -705,6 +707,7 @@ export async function showRoutes(app: FastifyInstance): Promise<void> {
     }
     await createWatchEvent(request.userId, id, 'watched', { markAll: true, season: body.seasonNumber });
     await recalculateShowStatus(request.userId, media.show.id, now);
+    scheduleRecompute(request.userId); // gamification : coche de masse (upserts directs, hors markEpisodeWatched)
     return { ok: true, count: episodes.length };
   });
 
@@ -728,6 +731,7 @@ export async function showRoutes(app: FastifyInstance): Promise<void> {
     }
     await createWatchEvent(request.userId, id, 'marked_unwatched', { markAll: true, season: body.seasonNumber });
     await recalculateShowStatus(request.userId, media.show.id, null);
+    scheduleRecompute(request.userId); // gamification : dé-coche de masse (recompute idempotent)
     return { ok: true, count: episodes.length };
   });
 
@@ -742,6 +746,7 @@ export async function showRoutes(app: FastifyInstance): Promise<void> {
         where: { userId: request.userId, episode: { showId: media.show.id } },
       });
     }
+    scheduleRecompute(request.userId); // gamification : retrait du suivi (recompute idempotent)
     return { ok: true };
   });
 

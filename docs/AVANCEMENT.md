@@ -19,7 +19,7 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 
 - **Branche de référence : `main`** (à cloner / puller). Le développement passe
   par des branches courtes fusionnées via pull request.
-- Tests : `pnpm test` (77 tests au 2026-07-08 : 25 core + 52 serveur).
+- Tests : `pnpm test` (194 tests au 2026-07-16 : 62 core + 132 serveur).
 - Lancement local : voir `README.md` (serveur `pnpm dev:server`, mobile `npx expo start -c`).
 
 ## État par domaine
@@ -74,6 +74,33 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-16 — Checkup complet : sécurité, correction, perf, infra (invisible)
+Lot de durcissement issu d'un audit à 4 volets, **sans changement visible** pour
+l'utilisateur (mêmes réponses API, même UX).
+- **Sécurité** : vérification de l'audience des jetons OAuth Facebook/Discord
+  (empêche le rejeu d'un token émis pour une autre app → prise de contrôle de
+  compte) ; validation d'hôte des URLs poster/bannière (whitelist TMDb/TheTVDB/
+  IGDB) contre le vandalisme du catalogue partagé ; réglages passés
+  **par-utilisateur** (`UserSetting`, migration des valeurs globales existantes)
+  au lieu d'une ligne partagée par tous les comptes ; rate limit sur
+  `/api/auth/oauth` et `/api/auth/link`.
+- **Bugs** : `completedAt` posé sur les jeux terminés (le classement hebdo les
+  ignorait) ; `scheduleRecompute` ajouté aux actions de masse (tout marquer vu,
+  retrait de suivi) ; recompute gamification réentrant (mutex par utilisateur →
+  plus de notifications en double) ; conteneur en `TZ=Europe/Paris` (fin des
+  bornes « aujourd'hui » divergentes stats/file).
+- **Perf** : formatter `Intl` mis en cache dans la gamification (~30 000
+  créations d'objet en moins par appel de `/me` sur une grosse bibliothèque) ;
+  index SQLite ajoutés (`Media.igdbId`, `UserEpisodeStatus(userId,status,
+  watchedAt)`, `WatchEvent(userId,eventDate)`, `Notification(userId,date)`).
+- **Infra / hygiène** : `.dockerignore` (contexte de build allégé), healthcheck
+  Docker sur `/health`, code mort retiré (`services/tvmaze`, dépendance
+  `csv-parse` côté serveur), `.gitignore` corrigé (chemins morts, `mobile/
+  android|ios`), README aligné sur ONBOARDING. Côté VPS : rotation des backups
+  (5 DB + 3 web) et purge du cache de build Docker (~18 Go récupérés).
+- 11 tests d'intégration ajoutés (URL images, isolation des réglages, OAuth
+  refusant un token étranger, completedAt jeux). **132 tests serveur verts**.
 
 ### 2026-07-16 — Flux Explorer varié et personnalisé (serveur)
 - Problème : `GET /api/explore/feed` et `GET /api/explore/games` proposaient

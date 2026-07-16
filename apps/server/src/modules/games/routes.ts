@@ -4,6 +4,7 @@ import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 import { igdbGame, igdbRelated, igdbSearch, igdbToMedia, igdbImageUrl, isMainGame } from '../../services/igdb/index.js';
 import { nextFavoriteOrder } from '../media/favorites.js';
+import { isAllowedImageUrl } from '../media/imageUrl.js';
 import { scheduleRecompute } from '../gamification/service.js';
 import { filterSeenWithFallback, loadRecentImpressions, recordImpressions } from '../explore/impressions.js';
 import { genreProfile, igdbGenreWeights, pickWeighted } from '../explore/taste.js';
@@ -91,10 +92,11 @@ export async function gamesRoutes(app: FastifyInstance): Promise<void> {
     const media = await ensureGameFromIgdb(igdbId);
     if (!media) return { mediaId: null };
     if (status) {
+      const completedAt = status === 'completed' ? new Date() : null;
       await prisma.userMediaStatus.upsert({
         where: { userId_mediaId: { userId: request.userId, mediaId: media.id } },
-        create: { userId: request.userId, mediaId: media.id, status },
-        update: { status },
+        create: { userId: request.userId, mediaId: media.id, status, completedAt },
+        update: { status, completedAt },
       });
     }
     return { mediaId: media.id };
@@ -119,10 +121,14 @@ export async function gamesRoutes(app: FastifyInstance): Promise<void> {
     const { status } = z.object({ status: z.enum(GAME_STATUSES) }).parse(request.body);
     const media = await prisma.media.findFirst({ where: { id, type: 'game' } });
     if (!media) return reply.code(404).send({ error: 'not_found' });
+    // Horodate la fin du jeu (comme les films) : sans `completedAt`, le
+    // classement hebdo (gamification, filtre `completedAt >= lundi`) ne compte
+    // jamais les jeux terminés.
+    const completedAt = status === 'completed' ? new Date() : null;
     await prisma.userMediaStatus.upsert({
       where: { userId_mediaId: { userId: request.userId, mediaId: id } },
-      create: { userId: request.userId, mediaId: id, status },
-      update: { status },
+      create: { userId: request.userId, mediaId: id, status, completedAt },
+      update: { status, completedAt },
     });
     scheduleRecompute(request.userId); // gamification : jeu terminé (ou plus terminé)
     return { ok: true };
@@ -175,7 +181,7 @@ export async function gamesRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/games/:id/poster', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { posterPath } = z.object({ posterPath: z.string() }).parse(request.body);
+    const { posterPath } = z.object({ posterPath: z.string().refine(isAllowedImageUrl) }).parse(request.body);
     const media = await prisma.media.findFirst({ where: { id, type: 'game' } });
     if (!media) return reply.code(404).send({ error: 'not_found' });
     await prisma.media.update({ where: { id }, data: { posterPath } });
@@ -184,7 +190,7 @@ export async function gamesRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/games/:id/banner', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { backdropPath } = z.object({ backdropPath: z.string() }).parse(request.body);
+    const { backdropPath } = z.object({ backdropPath: z.string().refine(isAllowedImageUrl) }).parse(request.body);
     const media = await prisma.media.findFirst({ where: { id, type: 'game' } });
     if (!media) return reply.code(404).send({ error: 'not_found' });
     await prisma.media.update({ where: { id }, data: { backdropPath } });

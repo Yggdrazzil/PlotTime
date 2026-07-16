@@ -63,6 +63,9 @@ model User {
   // Mémoire du flux Explorer (items déjà servis, exclus du tirage 3 jours).
   exploreImpressions ExploreImpression[]
 
+  // Réglages applicatifs PAR UTILISATEUR (notifs, thème, abonnements…).
+  setting            UserSetting?
+
   // Un compte SSO est identifié de façon unique par (provider, providerId).
   // Les comptes "password" ont providerId = null (SQLite autorise plusieurs NULL).
   @@unique([provider, providerId])
@@ -153,6 +156,7 @@ model Media {
   @@index([tmdbId])
   @@index([tvdbId])
   @@index([imdbId])
+  @@index([igdbId])
 }
 
 model Show {
@@ -328,7 +332,9 @@ model UserEpisodeStatus {
   @@unique([userId, episodeId])
   @@index([userId])
   @@index([episodeId])
-  @@index([status])
+  // Couvre les agrégats gamification (comptes/dates d'épisodes vus par user).
+  // L'ancien @@index([status]) seul (faible sélectivité) est retiré.
+  @@index([userId, status, watchedAt])
 }
 
 model WatchEvent {
@@ -349,7 +355,8 @@ model WatchEvent {
 
   createdAt    DateTime @default(now())
 
-  @@index([userId])
+  // Feed social & stats : événements d'un user triés par date.
+  @@index([userId, eventDate])
   @@index([eventDate])
 }
 
@@ -522,7 +529,8 @@ model Notification {
 
   createdAt    DateTime @default(now())
 
-  @@index([userId])
+  // Liste des notifications d'un user, triées par date (écran notifications).
+  @@index([userId, date])
   @@index([date])
 }
 
@@ -546,6 +554,16 @@ model AppSetting {
   key       String   @unique
   valueJson String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Réglages applicatifs PAR UTILISATEUR. Remplace l'AppSetting global key='app'
+// (jadis partagé par tous les comptes : un user changeait les notifs de tout le
+// monde). `dataJson` porte l'objet de réglages sérialisé (mêmes clés qu'avant).
+model UserSetting {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dataJson  String?
   updatedAt DateTime @updatedAt
 }
 
