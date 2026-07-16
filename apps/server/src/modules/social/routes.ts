@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
-import { serializeMedia } from '../media/serialize.js';
+import { mediaTitle, serializeMedia } from '../media/serialize.js';
+import { getUserLang } from '../media/userLang.js';
 import { notifyFollowers, notifyUser } from './notify.js';
 import { BADGES } from '@serietime/core';
 import { scheduleRecompute } from '../gamification/service.js';
@@ -128,6 +129,8 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
   // --- Profil public -------------------------------------------------------
   app.get('/api/users/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
+    // Langue du VISITEUR (request.userId), pas celle du profil consulté.
+    const lang = await getUserLang(request.userId);
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return reply.code(404).send({ error: 'not_found' });
     const isSelf = id === request.userId;
@@ -161,12 +164,13 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
       ...base,
       restricted: false,
       stats: { showsCount, moviesCount, episodesWatched },
-      recentShows: recent.map((s) => serializeMedia(s.media, s)),
+      recentShows: recent.map((s) => serializeMedia(s.media, s, lang)),
     };
   });
 
   // --- Fil d'activité des abonnements --------------------------------------
   app.get('/api/social/feed', async (request) => {
+    const lang = await getUserLang(request.userId);
     const ids = [...(await followingIdSet(request.userId))];
     if (ids.length === 0) return { items: [] as FeedItem[] };
 
@@ -205,7 +209,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         user: withLevel(e.user),
         media: {
           id: e.mediaId,
-          title: e.media.localizedTitle ?? e.media.title,
+          title: mediaTitle(e.media, lang),
           posterPath: e.media.posterPath,
           type: e.media.type,
         },
@@ -221,7 +225,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         user: withLevel(c.user),
         media: {
           id: c.mediaId,
-          title: c.media.localizedTitle ?? c.media.title,
+          title: mediaTitle(c.media, lang),
           posterPath: c.media.posterPath,
           type: c.media.type,
         },

@@ -2,8 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
-import { serializeMedia } from '../media/serialize.js';
-import { tmdbEnabled, tmdbSearch, tmdbSearchPerson, tmdbTrending } from '../../services/tmdb/index.js';
+import { mediaTitle, serializeMedia } from '../media/serialize.js';
+import { getUserLang } from '../media/userLang.js';
+import { parseTranslations, tmdbEnabled, tmdbSearch, tmdbSearchPerson, tmdbTrending } from '../../services/tmdb/index.js';
 import { tvdbEnabled, tvdbLanguage, tvdbSearch } from '../../services/tvdb/index.js';
 import { attachSocialStats } from './socialStats.js';
 
@@ -46,6 +47,7 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
       .object({ q: z.string().default(''), type: z.enum(['media', 'lists', 'people']).default('media') })
       .parse(request.query ?? {});
     const q = query.q.trim();
+    const lang = await getUserLang(request.userId);
     // L'app affiche un message clair si aucune source externe n'est configurée.
     const sources = { tmdb: tmdbEnabled(), tvdb: tvdbEnabled() };
     if (!q) return { results: [], sources };
@@ -120,17 +122,17 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
         tmdbId: m.tmdbId,
         tvdbId: m.tvdbId,
         type: m.type as 'show' | 'movie',
-        title: m.localizedTitle ?? m.title,
+        title: mediaTitle(m, lang),
         year: m.year,
         posterPath: m.posterPath,
         backdropPath: m.backdropPath,
-        overview: m.overview,
+        overview: parseTranslations(m.translationsJson)[lang]?.overview ?? m.overview,
         inLibrary: m.statuses.length > 0,
       });
     }
 
     if (tmdbEnabled()) {
-      const remote = await tmdbSearch(q, 'multi');
+      const remote = await tmdbSearch(q, 'multi', undefined, lang);
       for (const r of remote.slice(0, 20)) {
         add({
           id: null,
@@ -175,6 +177,9 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
 
   // Spec §20.3 : flux personnel de recommandations, affiné selon les goûts.
   app.get('/api/explore/feed', async (request) => {
+    // Langue de contenu : les titres/résumés des cartes viennent de TMDb, qui
+    // les renvoie directement dans la langue demandée (cache par langue).
+    const lang = await getUserLang(request.userId);
     // Graines de goût : ce que l'utilisateur a AIMÉ. Les favoris comptent le plus,
     // puis « à voir »/en cours/déjà vu (les swipes du mode Découvrir alimentent ça :
     // ♥ à voir = watchlist, ↓ déjà vu = completed). Plus il y en a, plus le flux
@@ -225,7 +230,7 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
       const { tmdbRecommendations } = await import('../../services/tmdb/index.js');
       for (const status of tasteSeeds) {
         if (!status.media.tmdbId) continue;
-        const recs = await tmdbRecommendations(status.media.type === 'show' ? 'tv' : 'movie', status.media.tmdbId);
+        const recs = await tmdbRecommendations(status.media.type === 'show' ? 'tv' : 'movie', status.media.tmdbId, lang);
         // Échantillon aléatoire (le tirage change à chaque rafraîchissement) ; les
         // favoris pèsent plus lourd (plus de suggestions issues d'eux).
         const picks = [...recs].sort(() => Math.random() - 0.5).slice(0, status.isFavorite ? 5 : 3);
@@ -264,17 +269,17 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
       const { tmdbDiscover } = await import('../../services/tmdb/index.js');
       const [tv, movies, discTv, discMovies, classicTv, classicMovies, oldTv, oldMovies, animeTv, animeMovies, animeOld] =
         await Promise.all([
-          tmdbTrending('tv', page),
-          tmdbTrending('movie', page),
-          tmdbDiscover('tv', { page }),
-          tmdbDiscover('movie', { page }),
-          tmdbDiscover('tv', { page, sort: 'vote_count.desc' }),
-          tmdbDiscover('movie', { page, sort: 'vote_count.desc' }),
-          tmdbDiscover('tv', { page, yearGte: yGte, yearLte: yLte, sort: 'vote_count.desc' }),
-          tmdbDiscover('movie', { page, yearGte: yGte, yearLte: yLte, sort: 'vote_count.desc' }),
-          tmdbDiscover('tv', { genres: [16], language: 'ja', page }),
-          tmdbDiscover('movie', { genres: [16], language: 'ja', page }),
-          tmdbDiscover('tv', { genres: [16], language: 'ja', page, sort: 'vote_count.desc' }),
+          tmdbTrending('tv', page, lang),
+          tmdbTrending('movie', page, lang),
+          tmdbDiscover('tv', { page, lang }),
+          tmdbDiscover('movie', { page, lang }),
+          tmdbDiscover('tv', { page, sort: 'vote_count.desc', lang }),
+          tmdbDiscover('movie', { page, sort: 'vote_count.desc', lang }),
+          tmdbDiscover('tv', { page, yearGte: yGte, yearLte: yLte, sort: 'vote_count.desc', lang }),
+          tmdbDiscover('movie', { page, yearGte: yGte, yearLte: yLte, sort: 'vote_count.desc', lang }),
+          tmdbDiscover('tv', { genres: [16], language: 'ja', page, lang }),
+          tmdbDiscover('movie', { genres: [16], language: 'ja', page, lang }),
+          tmdbDiscover('tv', { genres: [16], language: 'ja', page, sort: 'vote_count.desc', lang }),
         ]);
       const pool = [
         ...tv,
@@ -360,11 +365,12 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
 
   // Médias non appréciés (settings > recommandations).
   app.get('/api/disliked', async (request) => {
+    const lang = await getUserLang(request.userId);
     const statuses = await prisma.userMediaStatus.findMany({
       where: { userId: request.userId, isHidden: true },
       include: { media: true },
     });
-    return { items: statuses.map((s) => serializeMedia(s.media, s)) };
+    return { items: statuses.map((s) => serializeMedia(s.media, s, lang)) };
   });
 
   app.post('/api/disliked/:mediaId', async (request) => {

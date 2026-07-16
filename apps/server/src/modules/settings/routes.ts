@@ -3,6 +3,11 @@ import { z } from 'zod';
 import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 import { fromJson, toJson } from '../../utils/json.js';
+import { getUserLang, invalidateUserLang } from '../media/userLang.js';
+import { backfillUserTranslations } from '../../services/tmdb/index.js';
+
+// Langues de contenu proposées (titres/résumés des séries et films).
+const CONTENT_LANGUAGES = ['fr', 'en', 'es', 'de', 'it', 'pt'] as const;
 
 const DEFAULT_SETTINGS = {
   titlesInUserLanguage: true,
@@ -25,20 +30,44 @@ export async function getSettings(): Promise<AppSettings> {
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
 
-  app.get('/api/settings', async () => {
-    return { settings: await getSettings() };
+  app.get('/api/settings', async (request) => {
+    // `language` est PAR UTILISATEUR (User.language), contrairement au reste
+    // des réglages (globaux) : on l'ajoute à la réponse pour l'UI.
+    const language = await getUserLang(request.userId);
+    return { settings: { ...(await getSettings()), language } };
   });
 
   app.post('/api/settings', async (request) => {
     const patch = z.record(z.unknown()).parse(request.body);
+
+    // Langue de contenu : mise à jour de User.language + backfill EN FOND des
+    // traductions de la bibliothèque (réponse immédiate, `started: true`).
+    let translationsStarted = false;
+    let language: string | undefined;
+    if (patch.language !== undefined) {
+      language = z.enum(CONTENT_LANGUAGES).parse(patch.language);
+      delete patch.language; // par utilisateur — ne va pas dans AppSetting
+      await prisma.user.update({ where: { id: request.userId }, data: { language } });
+      invalidateUserLang(request.userId);
+      if (language !== 'fr') {
+        translationsStarted = true;
+        void backfillUserTranslations(request.userId, language).catch(() => undefined);
+      }
+    }
+
     const current = await getSettings();
     const next = { ...current, ...patch };
-    await prisma.appSetting.upsert({
-      where: { key: 'app' },
-      create: { key: 'app', valueJson: toJson(next) },
-      update: { valueJson: toJson(next) },
-    });
-    return { settings: next };
+    if (Object.keys(patch).length > 0) {
+      await prisma.appSetting.upsert({
+        where: { key: 'app' },
+        create: { key: 'app', valueJson: toJson(next) },
+        update: { valueJson: toJson(next) },
+      });
+    }
+    return {
+      settings: { ...next, language: language ?? (await getUserLang(request.userId)) },
+      ...(translationsStarted ? { started: true } : {}),
+    };
   });
 
   app.post('/api/cache/clear', async () => {

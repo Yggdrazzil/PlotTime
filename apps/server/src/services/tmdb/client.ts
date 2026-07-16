@@ -47,6 +47,25 @@ async function cachedFetch<T>(path: string, params: Record<string, string>, ttlM
 
 const DAY = 86_400_000;
 
+// Langues de contenu proposées dans les Paramètres (hors fr, langue par défaut
+// du serveur : env.DEFAULT_LANGUAGE). Clé = code app, valeur = code TMDb.
+export const CONTENT_LANGS = ['en', 'es', 'de', 'it', 'pt'] as const;
+export type ContentLang = (typeof CONTENT_LANGS)[number];
+const TMDB_LANGUAGE: Record<string, string> = {
+  en: 'en-US',
+  es: 'es-ES',
+  de: 'de-DE',
+  it: 'it-IT',
+  pt: 'pt-PT',
+};
+
+// Paramètre `language` TMDb pour une langue de contenu utilisateur.
+// fr (ou langue inconnue) → {} : cachedFetch garde env.DEFAULT_LANGUAGE.
+export function tmdbLangParam(lang?: string | null): Record<string, string> {
+  const code = lang ? TMDB_LANGUAGE[lang] : undefined;
+  return code ? { language: code } : {};
+}
+
 export type TmdbSearchResult = {
   id: number;
   media_type?: string;
@@ -70,8 +89,9 @@ export async function tmdbSearch(
   query: string,
   type: 'tv' | 'movie' | 'multi',
   year?: number,
+  lang?: string,
 ): Promise<TmdbSearchResult[]> {
-  const params: Record<string, string> = { query };
+  const params: Record<string, string> = { query, ...tmdbLangParam(lang) };
   if (year && type === 'movie') params['year'] = String(year);
   if (year && type === 'tv') params['first_air_date_year'] = String(year);
   const data = await cachedFetch<{ results: TmdbSearchResult[] }>(`/search/${type}`, params, 7 * DAY);
@@ -229,18 +249,41 @@ export async function tmdbWatchProviders(type: 'tv' | 'movie', tmdbId: string): 
   return cachedFetch(`/${type}/${tmdbId}/watch/providers`, {}, 7 * DAY);
 }
 
-export async function tmdbRecommendations(type: 'tv' | 'movie', tmdbId: string): Promise<TmdbSearchResult[]> {
-  const data = await cachedFetch<{ results: TmdbSearchResult[] }>(`/${type}/${tmdbId}/recommendations`, {}, 7 * DAY);
+export async function tmdbRecommendations(
+  type: 'tv' | 'movie',
+  tmdbId: string,
+  lang?: string,
+): Promise<TmdbSearchResult[]> {
+  const data = await cachedFetch<{ results: TmdbSearchResult[] }>(
+    `/${type}/${tmdbId}/recommendations`,
+    tmdbLangParam(lang),
+    7 * DAY,
+  );
   return data?.results ?? [];
 }
 
-export async function tmdbTrending(type: 'tv' | 'movie', page = 1): Promise<TmdbSearchResult[]> {
+export async function tmdbTrending(type: 'tv' | 'movie', page = 1, lang?: string): Promise<TmdbSearchResult[]> {
   const data = await cachedFetch<{ results: TmdbSearchResult[] }>(
     `/trending/${type}/week`,
-    page > 1 ? { page: String(page) } : {},
+    { ...(page > 1 ? { page: String(page) } : {}), ...tmdbLangParam(lang) },
     1 * DAY,
   );
   return data?.results ?? [];
+}
+
+// Traductions d'une fiche (une seule requête TMDb pour TOUTES les langues).
+export type TmdbTranslationsResponse = {
+  translations?: {
+    iso_639_1?: string;
+    data?: { name?: string; title?: string; overview?: string };
+  }[];
+};
+
+export async function tmdbTranslations(
+  type: 'tv' | 'movie',
+  tmdbId: string,
+): Promise<TmdbTranslationsResponse | null> {
+  return cachedFetch(`/${type}/${tmdbId}/translations`, {}, 7 * DAY);
 }
 
 // Découverte ciblée : sert à remplir chaque catégorie du flux Explorer (ex. les
@@ -256,12 +299,15 @@ export async function tmdbDiscover(
     // Fenêtre d'années (incluse) pour varier les époques du flux Explorer.
     yearGte?: number;
     yearLte?: number;
+    // Langue de contenu de l'utilisateur (titres/résumés des résultats).
+    lang?: string;
   } = {},
 ): Promise<TmdbSearchResult[]> {
   const params: Record<string, string> = {
     sort_by: opts.sort ?? 'popularity.desc',
     page: String(opts.page ?? 1),
     'vote_count.gte': '20',
+    ...tmdbLangParam(opts.lang),
   };
   if (opts.genres?.length) params.with_genres = opts.genres.join(',');
   if (opts.language) params.with_original_language = opts.language;

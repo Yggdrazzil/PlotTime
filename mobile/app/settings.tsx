@@ -472,6 +472,17 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
+// Langues de contenu : les titres (et résumés quand disponibles) des séries et
+// films s'affichent dans cette langue partout. Même liste que le serveur.
+const CONTENT_LANGS: [string, string][] = [
+  ['fr', 'Français'],
+  ['en', 'English'],
+  ['es', 'Español'],
+  ['de', 'Deutsch'],
+  ['it', 'Italiano'],
+  ['pt', 'Português'],
+];
+
 function AppTab() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ['settings'], queryFn: () => api.get<{ settings: any }>('/api/settings') });
@@ -480,6 +491,26 @@ function AppTab() {
     onSettled: () => qc.invalidateQueries({ queryKey: ['settings'] }),
   });
   const s = data?.settings ?? {};
+  // Langue de contenu : la valeur courante vient du serveur (User.language) ;
+  // sélection optimiste le temps de l'aller-retour.
+  const [langSel, setLangSel] = useState<string | null>(null);
+  const [langMsg, setLangMsg] = useState<string | null>(null);
+  const lang = langSel ?? s.language ?? 'fr';
+  const pickLang = async (v: string) => {
+    if (v === lang) return;
+    setLangSel(v);
+    setLangMsg(null);
+    try {
+      await api.post('/api/settings', { language: v });
+      if (v !== 'fr') setLangMsg('Bibliothèque en cours de traduction…');
+      // Les titres changent PARTOUT (À voir, À venir, bibliothèque, fiches,
+      // recherche, explorer…) : tout le cache est re-fetché.
+      qc.invalidateQueries();
+    } catch {
+      setLangSel(null);
+      setLangMsg('Impossible de changer la langue. Réessaie.');
+    }
+  };
   // Thème : la préférence EFFECTIVE vient du stockage local (c'est elle qui a
   // servi à peindre cette session) ; le serveur n'en garde qu'une copie.
   const [themePref, setThemePref] = useState<ThemePreference>(getThemePreference());
@@ -514,6 +545,12 @@ function AppTab() {
           Sur l'app native, le thème suit l'appareil ; le choix explicite s'applique sur la web app.
         </Text>
       ) : null}
+      <Divider />
+      <SectionTitle>Langue</SectionTitle>
+      {CONTENT_LANGS.map(([v, l]) => (
+        <RadioRow key={v} label={l} on={lang === v} onPress={() => pickLang(v)} />
+      ))}
+      {langMsg ? <Text style={styles.themeNote}>{langMsg}</Text> : null}
       <Divider />
       <SectionTitle>Cache</SectionTitle>
       <View style={{ padding: 16 }}>

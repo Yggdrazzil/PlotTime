@@ -33,6 +33,8 @@ model User {
   discordId    String?  @unique
   // Social : un profil privé n'est visible que de ses abonnés (et de lui-même).
   isPrivate    Boolean  @default(false)
+  // Langue de contenu (titres/résumés des séries et films) : fr par défaut.
+  language     String   @default("fr")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -97,6 +99,10 @@ model Media {
   localizedTitle    String?
   overview          String?
   localizedOverview String?
+  // Traductions TMDb par langue de contenu (en/es/de/it/pt) :
+  // JSON { "en": { "title": "...", "overview": "..." }, ... }. Le français
+  // reste porté par localizedTitle/localizedOverview (jamais dupliqué ici).
+  translationsJson  String?
 
   posterPath        String?
   backdropPath      String?

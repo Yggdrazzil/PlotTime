@@ -35,6 +35,8 @@ function serializeUser(user: {
   birthYear: number | null;
   gender: string | null;
   countryCode: string;
+  // Langue de contenu (titres/résumés) choisie dans les Paramètres.
+  language?: string;
   provider: string;
   passwordHash?: string | null;
   googleId?: string | null;
@@ -51,6 +53,7 @@ function serializeUser(user: {
     birthYear: user.birthYear,
     gender: user.gender,
     countryCode: user.countryCode,
+    language: user.language ?? 'fr',
     provider: user.provider,
     // Méthodes de connexion liées à ce compte (pour l'écran « comptes liés »).
     linkedProviders: {

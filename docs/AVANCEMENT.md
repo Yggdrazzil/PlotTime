@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-16** (Claude) — Gamification complète (XP, badges, streaks, défis, classement) + jeux : recherche limitée aux jeux de base, section « Éditions et extensions »
+Dernière mise à jour : **2026-07-16** (Claude) — Langue de contenu par utilisateur (fr/en/es/de/it/pt) : titres et résumés traduits partout via TMDb
 
 ---
 
@@ -54,6 +54,7 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Jeux vidéo — notifications de sortie | ✅ Fait | Passe du worker de fond (`apps/server/src/services/sync-worker.ts`) : `Notification` de type `game_release` quand `Media.releaseDate` d'un jeu suivi (non masqué) tombe aujourd'hui, dédupliquée par `(userId, mediaId, type)` |
 | Gamification — serveur (XP, badges, streaks, défis, classement) | ✅ Fait | Modèles `UserProgress`/`UserBadge`/`UserChallenge`, `modules/gamification/` (recompute idempotent débouncé + backfill au boot), `GET /api/gamification/me` + `/leaderboard`, items `badge` dans le fil social, XP rétroactif à l'import |
 | Gamification — mobile (page Trophées, toasts, pastille niveau) | ✅ Fait | Page `/trophies` (niveau + XP, streak, défis du mois, grille de badges à paliers, classement hebdo), pastille niveau + rangée Trophées sur le profil, items badge dans le fil, toasts de déblocage globaux (`GamificationToastHost`) |
+| Langue de contenu par utilisateur | ✅ Fait | Paramètres > Langue (fr/en/es/de/it/pt) : titres/résumés des séries et films traduits partout (À voir, À venir, bibliothèque, profil, fiches, recherche, explorer, fil social, listes) via TMDb `/translations` (`Media.translationsJson`, une requête par média, backfill en fond au changement de langue) ; jeux IGDB hors périmètre (nom international) |
 
 ## Prochaines étapes (par priorité)
 
@@ -72,6 +73,47 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-16 — Langue de contenu par utilisateur (titres/résumés traduits)
+- L'utilisateur choisit sa langue dans Paramètres > APPLICATION > « Langue »
+  (Français par défaut, English, Español, Deutsch, Italiano, Português) : les
+  titres (et résumés quand disponibles) des séries et films s'affichent dans
+  cette langue partout. Les jeux (IGDB) gardent leur nom international.
+- **Prisma** : `User.language` (défaut `fr`) + `Media.translationsJson`
+  (JSON `{ en: { title, overview }, … }` — le fr reste porté par
+  `localizedTitle`/`localizedOverview`) — migration
+  `user_language_media_translations`.
+- **Serveur** :
+  - `services/tmdb` : `tmdbTranslations()` (endpoint `/translations`, cache
+    7 j) + `syncTranslationsFromTmdb(media)` (une requête TMDb récupère les 5
+    langues cibles en/es/de/it/pt, upsert `translationsJson`, skip silencieux
+    sans tmdbId) + `backfillUserTranslations(userId, lang)` (bibliothèque
+    complète en série, throttle 150 ms, un seul backfill par utilisateur).
+  - `serializeMedia(media, status, lang?)` : 3e paramètre optionnel — titre et
+    overview traduits si présents, fallback silencieux sinon ; helper
+    `mediaTitle(media, lang)` pour les titres construits à la main
+    (`showTitle` des épisodes, fil social, recherche locale).
+  - `modules/media/userLang.ts` : `getUserLang(userId)` (cache mémoire 60 s) +
+    `invalidateUserLang(userId)` ; langue threadée dans TOUTES les routes qui
+    renvoient des médias (shows queue/upcoming/history/profile/library/:id/
+    episodes, movies liste/profile/:id, profile + favoris, lists/:id, search,
+    disliked, explore feed, social feed + profil public).
+  - Flux Explorer / recherche TMDb / recommandations : paramètre `language`
+    TMDb par langue utilisateur (cache `ApiCache` par langue).
+  - Fiche (`GET /api/shows/:id`, `GET /api/movies/:id`) : traduction manquante
+    récupérée à la volée (awaité — une requête cachée 7 j, même pattern que
+    providers/credits).
+  - `POST /api/settings { language }` : met à jour `User.language`, invalide le
+    cache, lance le backfill en fond (réponse immédiate `started: true`) ;
+    `GET /api/settings` et `GET /api/auth/me` exposent `language`.
+- **Mobile** (`mobile/app/settings.tsx`) : section « Langue » sous « Thème »
+  (mêmes `RadioRow` que le thème), sélection → POST + message « Bibliothèque en
+  cours de traduction… » + invalidation GLOBALE du cache React Query (les
+  titres changent partout).
+- Tests : `apps/server/src/__tests__/language.test.ts` (7 tests : serializeMedia
+  en/fallbacks, POST/GET settings + /me, titre traduit dans `GET /api/shows`,
+  `syncTranslationsFromTmdb` avec fetch mocké, skip sans tmdbId) — 106 tests
+  serveur verts, typecheck serveur + mobile OK.
 
 ### 2026-07-16 — Mot de passe oublié : réinitialisation par ré-authentification SSO (Google/Discord)
 - Cas d'usage : « Modifier le mot de passe » exigeait l'ancien mot de passe —
