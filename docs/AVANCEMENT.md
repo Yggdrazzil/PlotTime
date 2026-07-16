@@ -88,6 +88,9 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
   arrêté (épisodes vus / diffusés). Rien pour « Pas commencé ».
 - La bibliothèque Séries gagne une section « Regarder plus tard » dédiée
   (avant, ces séries étaient mélangées à « Pas commencé »).
+- **Fiche série : la barre de progression sous la bannière** suit les mêmes
+  couleurs de statut (elle n'existait qu'en jaune/vert) — vérifié au banc
+  (5/5 : couleur ET niveau de remplissage exacts pour chaque statut).
 - Vérifié au banc Playwright (16/16) : 5 couleurs et largeurs de barres
   exactes (pleine / partielle / 2 épisodes sur 4), sections dans l'ordre,
   pastille flottante en défilement sur Séries + Jeux, pastille en mode filtré,

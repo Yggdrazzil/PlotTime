@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import type { EpisodeDto, MediaDto } from '@/lib/types';
 import { episodeCode } from '@/lib/format';
-import { COLORS, RADIUS, SHADOW, FONTS } from '@/lib/theme';
+import { COLORS, RADIUS, SHADOW, FONTS, STATUS_BAR } from '@/lib/theme';
 import { TopTabs, CheckCircle, Loading, LoadError, EmptyState } from '@/components/ui';
 import { AnimatedFill, Pop, SlideUpBar, FadeSwitch, PressableScale } from '@/components/anim';
 import { Stars } from '@/components/Stars';
@@ -169,7 +169,10 @@ export default function ShowDetail() {
   const smallOpacity = scrollY.interpolate({ inputRange: [90, 150], outputRange: [0, 1], extrapolate: 'clamp' });
   const onScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false });
 
-  // Barre de progression globale : épisodes diffusés vus / diffusés (hors spéciaux).
+  // Barre de progression globale : épisodes diffusés vus / diffusés (hors
+  // spéciaux), colorée par STATUT comme dans les bibliothèques du profil :
+  // jaune En cours, vert À jour, bleu Terminé (pleine), orange Regarder plus
+  // tard, rouge Arrêté (la barre montre où on s'est arrêté).
   const heroProg = (() => {
     if (isMovie) return null;
     let aired = 0;
@@ -182,7 +185,14 @@ export default function ShowDetail() {
         if (e.watched) watched += 1;
       }
     }
-    return aired > 0 ? { pct: Math.min(100, (watched / aired) * 100), complete: watched >= aired } : null;
+    if (aired === 0) return null;
+    const complete = watched >= aired;
+    const kind: keyof typeof STATUS_BAR =
+      media.userStatus === 'abandoned' ? 'stopped'
+      : media.userStatus === 'completed' ? 'completed'
+      : media.userStatus === 'watchlist' ? 'watchlist'
+      : complete ? 'upToDate' : 'watching';
+    return { pct: kind === 'completed' ? 100 : Math.min(100, (watched / aired) * 100), ...STATUS_BAR[kind] };
   })();
 
   return (
@@ -224,14 +234,10 @@ export default function ShowDetail() {
                 ].filter(Boolean).join(' • ')}
           </Text>
         </Animated.View>
-        {/* Progression globale au bas de la bannière : jaune en cours, verte à jour. */}
+        {/* Progression globale au bas de la bannière, colorée par statut. */}
         {heroProg ? (
-          <View style={styles.heroProgressTrack}>
-            <AnimatedFill
-              pct={heroProg.pct}
-              color={heroProg.complete ? COLORS.green : COLORS.yellow}
-              style={styles.heroProgressFill}
-            />
+          <View style={[styles.heroProgressTrack, { backgroundColor: heroProg.track }]}>
+            <AnimatedFill pct={heroProg.pct} color={heroProg.fill} style={styles.heroProgressFill} />
           </View>
         ) : null}
       </Animated.View>
@@ -1332,7 +1338,8 @@ const styles = StyleSheet.create({
   },
   progressFill: { position: 'absolute', left: 0, bottom: 0, top: 0, borderBottomLeftRadius: 5 },
   // Barre de progression globale de la série, au bas de la bannière (TV Time).
-  heroProgressTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 5, backgroundColor: 'rgba(255,212,0,0.35)' },
+  // Le fond (portion restante) est surchargé inline avec la teinte du statut.
+  heroProgressTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 5 },
   heroProgressFill: { height: '100%' },
   unmarkBar: { position: 'absolute', left: 12, right: 12, bottom: 20, backgroundColor: COLORS.white, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 18, ...SHADOW.card },
   unmarkText: { fontSize: 15, fontFamily: FONTS.semiBold, color: COLORS.black },
