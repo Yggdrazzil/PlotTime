@@ -55,9 +55,26 @@ model User {
   badges          UserBadge[]
   challenges      UserChallenge[]
 
+  // Réinitialisation du mot de passe via ré-authentification SSO.
+  passwordResetTokens PasswordResetToken[]
+
   // Un compte SSO est identifié de façon unique par (provider, providerId).
   // Les comptes "password" ont providerId = null (SQLite autorise plusieurs NULL).
   @@unique([provider, providerId])
+}
+
+// Jeton de réinitialisation de mot de passe, délivré après une
+// ré-authentification SSO réussie (Google/Discord). Usage unique, 10 minutes.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model Session {

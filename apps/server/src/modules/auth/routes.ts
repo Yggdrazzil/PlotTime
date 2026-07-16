@@ -318,6 +318,63 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     return { user: serializeUser(user), token: session.token, expiresAt: session.expiresAt };
   });
 
+  // ---------------------------------------------------------------------------
+  // Mot de passe oublié — réinitialisation par ré-authentification SSO.
+  // Le flux OAuth est le MÊME que le login (le client obtient un jeton
+  // Google/Discord côté web puis le poste ici) : le « mode reset » est porté
+  // par cet endpoint dédié. Le compte est identifié UNIQUEMENT par
+  // (provider, providerId) — jamais par e-mail — puis on délivre un jeton de
+  // réinitialisation à usage unique valable 10 minutes (stocké en DB pour
+  // survivre à un restart).
+  app.post('/api/auth/reset-password/init', { config: { rateLimit: { max: 10, timeWindow: '5 minutes' } } }, async (request, reply) => {
+    const body = z
+      .object({ provider: z.enum(['google', 'facebook', 'discord']), token: z.string().min(1) })
+      .parse(request.body);
+    let profile: OAuthProfile;
+    try {
+      profile = await verifyOAuth(body.provider, body.token);
+    } catch {
+      return reply.code(401).send({ error: 'invalid_oauth_token' });
+    }
+    const field = ID_FIELD[body.provider];
+    const user = await prisma.user.findFirst({ where: { [field]: profile.providerId } });
+    if (!user) return reply.code(404).send({ error: 'no_account_for_identity' });
+    // Un seul jeton actif à la fois : purge les précédents (et les expirés).
+    await prisma.passwordResetToken.deleteMany({
+      where: { OR: [{ userId: user.id }, { expiresAt: { lt: new Date() } }] },
+    });
+    const resetToken = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 10 * 60_000);
+    await prisma.passwordResetToken.create({ data: { token: resetToken, userId: user.id, expiresAt } });
+    return { resetToken, expiresAt };
+  });
+
+  // Pose le nouveau mot de passe avec le jeton délivré ci-dessus. Le jeton est
+  // à usage unique : marqué consommé dans la même transaction que le hash.
+  app.post('/api/auth/reset-password', { config: { rateLimit: { max: 10, timeWindow: '5 minutes' } } }, async (request, reply) => {
+    const body = z
+      .object({ resetToken: z.string().min(1), newPassword: z.string().min(8).max(200) })
+      .parse(request.body);
+    const stored = await prisma.passwordResetToken.findUnique({ where: { token: body.resetToken } });
+    if (!stored) return reply.code(401).send({ error: 'invalid_reset_token' });
+    if (stored.usedAt || stored.expiresAt < new Date()) {
+      return reply.code(400).send({ error: 'reset_token_expired' });
+    }
+    // Si l'appelant est connecté (reset depuis les Paramètres), on préserve SA
+    // session ; toutes les autres sont invalidées, comme au changement classique.
+    const header = request.headers.authorization;
+    const currentToken = header?.startsWith('Bearer ') ? header.slice(7) : '';
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: stored.userId },
+        data: { passwordHash: await bcrypt.hash(body.newPassword, 10) },
+      }),
+      prisma.passwordResetToken.update({ where: { id: stored.id }, data: { usedAt: new Date() } }),
+      prisma.session.deleteMany({ where: { userId: stored.userId, token: { not: currentToken } } }),
+    ]);
+    return { ok: true };
+  });
+
   app.post('/api/auth/logout', { preHandler: requireAuth }, async (request) => {
     const header = request.headers.authorization;
     const token = header?.slice(7) ?? '';

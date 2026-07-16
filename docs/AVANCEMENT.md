@@ -26,7 +26,7 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 
 | Domaine | État | Notes |
 |---|---|---|
-| Authentification multi-comptes (e-mail + mot de passe) | ✅ Fait | Inscription/connexion, sessions 30 j, données isolées par compte (testé) |
+| Authentification multi-comptes (e-mail + mot de passe) | ✅ Fait | Inscription/connexion, sessions 30 j, données isolées par compte (testé) ; mot de passe oublié → réinitialisation par ré-auth SSO Google/Discord (testé) |
 | SSO Google / Facebook | ⏸ Préparé, désactivé | Prêt côté serveur (`/api/auth/oauth`) ; nécessite ids OAuth + dev build Expo |
 | Contenu séries via TheTVDB | ✅ Fait | Recherche, fiche, saisons/épisodes, titres/synopsis FR, artworks ; clé dans `apps/server/.env` |
 | Contenu films / tendances via TMDb | ✅ Fait | Clé TMDb (compte Benjamin) configurée sur le serveur de prod ; flux Explorer et images films actifs |
@@ -72,6 +72,29 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-16 — Mot de passe oublié : réinitialisation par ré-authentification SSO (Google/Discord)
+- Cas d'usage : « Modifier le mot de passe » exigeait l'ancien mot de passe —
+  impossible justement quand on l'a oublié. Si un compte Google/Discord est lié,
+  on prouve son identité par le SSO (même mécanique web que le login) et on pose
+  un nouveau mot de passe sans l'ancien.
+- **Prisma** : modèle `PasswordResetToken` (usage unique, 10 min, cascade à la
+  suppression du compte) — migration `20260716120827_password_reset_tokens`.
+- **Serveur** (`apps/server/src/modules/auth/routes.ts`) :
+  `POST /api/auth/reset-password/init` (jeton provider Google/Discord vérifié
+  côté serveur → compte identifié UNIQUEMENT par (provider, providerId), jamais
+  par e-mail → jeton de reset) et `POST /api/auth/reset-password`
+  (`{ resetToken, newPassword ≥ 8 }` → nouveau hash bcrypt, jeton consommé,
+  autres sessions invalidées). Rate-limités comme le login. Le flux OAuth de
+  login et le changement classique avec ancien mot de passe sont inchangés.
+- **Mobile** (`mobile/app/settings.tsx`) : dans la modale « Modifier le mot de
+  passe », lien « Mot de passe oublié ? Réinitialiser via Google ou Discord »
+  (visible uniquement si un compte est lié ET configuré, web seulement comme le
+  SSO existant) → ré-auth Google (bouton officiel) ou Discord (popup) →
+  formulaire nouveau mot de passe + confirmation → succès.
+- Tests : `apps/server/src/__tests__/password-reset.test.ts` (8 tests : flux
+  complet avec login au nouveau mot de passe, jeton expiré/déjà utilisé/inconnu,
+  identité SSO non liée refusée, autres champs intacts) — 99 tests serveur verts.
 
 ### 2026-07-16 — Gamification (serveur) : XP, niveaux, badges, streaks, défis, classement
 - Spec `docs/superpowers/specs/2026-07-16-gamification-design.md` — partie
