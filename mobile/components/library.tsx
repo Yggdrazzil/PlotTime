@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Image, Dimensions } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tmdbImage } from '@/lib/api';
 import type { MediaDto } from '@/lib/types';
@@ -30,7 +31,7 @@ export function LibHeader({ title, right }: { title: string; right?: React.React
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-      <Pressable onPress={() => router.back()} hitSlop={10} style={styles.headerSide} accessibilityRole="button" accessibilityLabel="Retour">
+      <Pressable onPress={() => goBack('/profile')} hitSlop={10} style={styles.headerSide} accessibilityRole="button" accessibilityLabel="Retour">
         <Feather name="chevron-left" size={26} color={COLORS.black} />
       </Pressable>
       <Text style={styles.headerTitle} numberOfLines={1}>

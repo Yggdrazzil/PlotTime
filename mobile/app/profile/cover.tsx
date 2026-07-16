@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Image, TextInput, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
@@ -67,14 +68,14 @@ export default function CoverPicker() {
 
   const choose = (uri: string) => {
     setCoverPick(uri);
-    router.back();
+    goBack('/profile/edit');
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white, paddingTop: insets.top }}>
       <View style={styles.header}>
         <Pressable
-          onPress={() => (picked ? (setPicked(null), setMediaId(null)) : router.back())}
+          onPress={() => (picked ? (setPicked(null), setMediaId(null)) : goBack('/profile/edit'))}
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Retour"

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Image, Platform, Linking } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
@@ -150,7 +151,7 @@ export default function GameDetail() {
           {heroUri ? <Image source={{ uri: heroUri }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
           <View style={styles.heroShade} />
           <View style={[styles.heroBtns, { top: insets.top + 8 }]}>
-            <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retour">
+            <Pressable onPress={() => goBack('/games')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retour">
               <Feather name="chevron-down" size={30} color="#fff" />
             </Pressable>
             <Pressable onPress={() => setMenu(true)} hitSlop={8} accessibilityLabel="Options">

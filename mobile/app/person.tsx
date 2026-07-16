@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Image, Dimensions, Linking, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
@@ -103,7 +104,7 @@ export default function PersonScreen() {
           <Feather name="chevron-right" size={26} color={index < cast.length - 1 ? '#fff' : 'rgba(255,255,255,0.3)'} />
         </Pressable>
         <View style={{ flex: 1 }} />
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.arrow} accessibilityRole="button" accessibilityLabel="Fermer">
+        <Pressable onPress={() => goBack('/')} hitSlop={10} style={styles.arrow} accessibilityRole="button" accessibilityLabel="Fermer">
           <Feather name="x" size={26} color="#fff" />
         </Pressable>
       </View>

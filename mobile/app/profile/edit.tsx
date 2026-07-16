@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Image, TextInput, ActivityIndicator, Alert, Modal } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
@@ -111,7 +112,7 @@ export default function EditProfile() {
       if (newName) {
         useAppStore.setState((st) => ({ user: st.user ? { ...st.user, displayName: newName } : st.user }));
       }
-      router.back();
+      goBack('/profile');
     } catch (e) {
       // Jamais d'échec silencieux : l'utilisateur doit savoir que rien n'est enregistré.
       Alert.alert(
@@ -130,7 +131,7 @@ export default function EditProfile() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white, paddingTop: insets.top }}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Fermer">
+        <Pressable onPress={() => goBack('/profile')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Fermer">
           <Feather name="x" size={26} color={COLORS.black} />
         </Pressable>
         <Text style={styles.title}>Modifier le profil</Text>

@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, Activi
 import { Feather, Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
@@ -197,7 +198,7 @@ export default function ShowDetail() {
           ) : null;
         })()}
         <View style={[styles.heroBtns, { top: insets.top + 4 }]}>
-          <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retour">
+          <Pressable onPress={() => goBack('/')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retour">
             <Feather name="chevron-down" size={30} color="#fff" />
           </Pressable>
           <Pressable onPress={() => setMenu(true)} hitSlop={8} accessibilityLabel="Options">

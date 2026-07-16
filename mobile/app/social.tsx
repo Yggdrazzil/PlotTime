@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, ScrollView, StyleSheet, Pressable, Image } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
@@ -42,7 +43,7 @@ export default function Social() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.white, paddingTop: insets.top }}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Retour">
+        <Pressable onPress={() => goBack('/profile')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Retour">
           <Feather name="chevron-left" size={28} color={COLORS.black} />
         </Pressable>
         <Text style={styles.title}>Amis</Text>

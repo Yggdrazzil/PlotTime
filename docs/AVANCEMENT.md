@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-16** (Claude) — Gamification complète (XP, badges, streaks, défis, classement) + jeux : recherche limitée aux jeux de base, section « Éditions et extensions »
+Dernière mise à jour : **2026-07-16** (Claude) — Correctif navigation : le bouton « Retour » fonctionne après un changement de thème (et sur tout écran ouvert par lien direct / rechargement) via un repli `goBack(fallback)` généralisé
 
 ---
 
@@ -73,6 +73,25 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 
 ## Journal des modifications
 
+### 2026-07-16 — Claude (4)
+- **Correctif : bouton « Retour » muet après un changement de thème.** Le
+  changement de thème recharge la page web (nécessaire pour ré-appliquer les
+  StyleSheet) ; la pile de navigation expo-router repart alors de zéro et
+  `router.back()` ne faisait plus rien. Même symptôme pour tout écran ouvert
+  par lien direct ou après un rechargement du navigateur.
+- Nouveau helper `mobile/lib/nav.ts` → `goBack(fallback)` : `router.back()`
+  si la pile contient un écran précédent (`router.canGoBack()`), sinon
+  `router.replace(fallback)` avec un repli logique par écran (Paramètres,
+  Notifications, Amis, bibliothèques et favoris → Profil ; fiche série/film,
+  personne, commentaires → Accueil ; fiche jeu → onglet Jeux ; profil
+  public → Amis ; couverture → Édition du profil).
+- Balayage complet : les 17 `router.back()` de l'app (14 fichiers) passent
+  par `goBack` ; plus aucun appel direct. Les nouveaux écrans gamification
+  (Trophées, stats, classement) passent déjà par `PageHeader`, donc couverts.
+- Vérifié au banc Playwright (15/15) : scénario exact du bug (thème sombre →
+  reload → retour → Profil), navigations directes sur 9 écrans, et priorité
+  conservée à l'historique réel quand la pile n'est pas vide.
+
 ### 2026-07-16 — Gamification (serveur) : XP, niveaux, badges, streaks, défis, classement
 - Spec `docs/superpowers/specs/2026-07-16-gamification-design.md` — partie
   serveur (le moteur pur vit déjà dans `packages/core/src/gamification/`).
@@ -106,6 +125,7 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
   l'historique de visionnage de « À voir ». Une sortie manquée reste visible
   14 jours.
 - `pastGroupLabel` ajouté à `packages/core` (testé).
+
 ### 2026-07-16 — Claude (3)
 - **Recherche jeux : jeux de base uniquement** — les éditions (Deluxe,
   collector, GOTY… = `version_parent` IGDB) et extensions/DLC/updates sont
