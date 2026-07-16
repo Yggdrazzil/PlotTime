@@ -78,6 +78,24 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 
 ## Journal des modifications
 
+### 2026-07-16 — Nouvelle identité : icône/logo SerieTime partout + thème « Nuit »
+- **Pack d'icônes intégré** (`mobile/assets/branding/`, source : pack fourni par
+  Étienne) : icône universelle iOS/générale 1024, icône adaptative Android
+  (calques avant + monochrome, fond `#0B075A`), icône Google Play, favicon web,
+  icônes PWA 192/512 + apple-touch-icon (remplacées dans `public/`).
+- **Écrans de démarrage au nouveau logo** : splash natif (`app.json` : logo sur
+  fond bleu nuit `#0B075A`), écran de lancement PWA (`manifest.json`
+  `background_color`), écran de chargement des polices (`_layout.tsx` : logo sur
+  bleu nuit à la place du spinner blanc) et **logo sur l'écran de connexion**
+  (`setup.tsx`). Anciens `assets/icon.png`/`adaptive-icon.png` supprimés.
+- **4ᵉ thème « Nuit — les couleurs SerieTime »** (`midnight`) : fond bleu nuit
+  du logo `#0B075A`, cartes indigo `#160F73`, accent **jaune `#FBAE00`** (texte
+  bleu nuit posé dessus, comme l'icône), liens **violet `#B39DFF`**, favoris et
+  alertes **rose `#FF4D9E`**, bouton « où regarder » violet logo. Ajouté à
+  `theme.ts` (+ `IS_DARK` inclut `midnight`), à la pré-peinture `+html.tsx`
+  (barres système avant premier rendu) et aux Paramètres. Vérifié au
+  navigateur : file À voir, fiche série, Paramètres, connexion — 286 tests verts.
+
 ### 2026-07-16 — Profil public enrichi : niveau, trophées, streak et favoris
 Le profil public d'un utilisateur (`/user/[id]`) ne montrait que 3 compteurs et
 une rangée de séries récentes. Il expose désormais la **gamification** (niveau,
