@@ -29,6 +29,8 @@ export type IgdbGame = {
   parent_game?: number;
   // Note presse agrégée (0-100) — le plus proche d'un Metacritic via IGDB.
   aggregated_rating?: number;
+  // Nombre de « follows » avant sortie : proxy IGDB des jeux les plus attendus.
+  hypes?: number;
 };
 
 // Champs demandés à IGDB (Apicalypse). Réutilisé par search/game/popular/upcoming.
@@ -36,7 +38,7 @@ const FIELDS =
   'fields name,summary,first_release_date,cover.image_id,artworks.image_id,genres.name,' +
   'platforms.name,involved_companies.developer,involved_companies.publisher,involved_companies.company.name,' +
   'game_modes.name,total_rating,total_rating_count,release_dates.date,release_dates.human,release_dates.platform.name,' +
-  'dlcs.name,expansions.name,videos.video_id,videos.name,screenshots.image_id,game_type,version_parent,parent_game,aggregated_rating';
+  'dlcs.name,expansions.name,videos.video_id,videos.name,screenshots.image_id,game_type,version_parent,parent_game,aggregated_rating,hypes';
 
 // « Vrai jeu » pour la recherche/découverte : exclut les rééditions (Deluxe,
 // GOTY… = version_parent), les DLC/extensions/bundles/updates (game_type 1, 2,
@@ -71,24 +73,41 @@ export async function igdbGame(id: number): Promise<IgdbGame | null> {
   return r && r.length ? r[0]! : null;
 }
 
+// « Populaires » du MOMENT : gros succès sortis dans les 18 derniers mois
+// (la fenêtre glissante suit d'elle-même la saisonnalité des sorties),
+// classés par nombre de notes (proxy de popularité, pas la note elle-même
+// qui figeait le carrousel sur le top all-time : Zelda/Metroid éternels).
+// NB : le timestamp est arrondi au JOUR pour que la clé de cache ApiCache
+// (adressée par le corps exact) reste stable 24 h.
+export function popularQueryBody(): string {
+  const today = Math.floor(Date.now() / 86_400_000) * 86_400; // minuit UTC, en secondes
+  const window = today - 548 * 86_400; // ~18 mois
+  return `${FIELDS}; where first_release_date > ${window} & first_release_date < ${today} & total_rating_count > 5; sort total_rating_count desc; limit 60;`;
+}
+
 export async function igdbPopular(): Promise<IgdbGame[]> {
-  const body = `${FIELDS}; where total_rating_count > 200; sort total_rating desc; limit 50;`;
-  return ((await igdbQuery<IgdbGame[]>('games', body, DAY)) ?? []).filter(isMainGame);
+  return ((await igdbQuery<IgdbGame[]>('games', popularQueryBody(), DAY)) ?? []).filter(isMainGame);
 }
 
 // Sorties récentes bien notées (2 dernières années) : élargit le vivier du
 // flux Explorer au-delà du top all-time, pour que chaque tirage varie.
 export async function igdbRecent(): Promise<IgdbGame[]> {
-  const now = Math.floor(Date.now() / 1000);
-  const twoYearsAgo = now - 2 * 365 * 86_400;
-  const body = `${FIELDS}; where first_release_date > ${twoYearsAgo} & first_release_date < ${now} & total_rating_count > 20; sort total_rating desc; limit 50;`;
+  const today = Math.floor(Date.now() / 86_400_000) * 86_400;
+  const twoYearsAgo = today - 2 * 365 * 86_400;
+  const body = `${FIELDS}; where first_release_date > ${twoYearsAgo} & first_release_date < ${today} & total_rating_count > 20; sort total_rating desc; limit 50;`;
   return ((await igdbQuery<IgdbGame[]>('games', body, DAY)) ?? []).filter(isMainGame);
 }
 
+// « À venir » : les jeux LES PLUS ATTENDUS (hypes = follows IGDB avant
+// sortie), pas les prochaines dates du fond du store — trier par date seule
+// remontait du shovelware obscur (« Slime Slider »…).
+export function upcomingQueryBody(): string {
+  const today = Math.floor(Date.now() / 86_400_000) * 86_400;
+  return `${FIELDS}; where first_release_date > ${today} & hypes > 4; sort hypes desc; limit 60;`;
+}
+
 export async function igdbUpcoming(): Promise<IgdbGame[]> {
-  const now = Math.floor(Date.now() / 1000);
-  const body = `${FIELDS}; where first_release_date > ${now}; sort first_release_date asc; limit 30;`;
-  return ((await igdbQuery<IgdbGame[]>('games', body, DAY)) ?? []).filter(isMainGame);
+  return ((await igdbQuery<IgdbGame[]>('games', upcomingQueryBody(), DAY)) ?? []).filter(isMainGame);
 }
 
 export function igdbToMedia(g: IgdbGame) {

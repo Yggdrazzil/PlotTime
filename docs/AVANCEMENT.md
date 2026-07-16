@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-16** (Claude) — Fenêtre épisode : tailles harmonisées, ouverte aussi depuis l'onglet ÉPISODES de la fiche, et « Continuer le suivi » devient un carrousel latéral d'épisodes cochables
+Dernière mise à jour : **2026-07-16** (Claude) — Onglet Séries sans flash au chargement ; onglet Jeux : pull-to-refresh façon Instagram + découverte vivante (populaires récents, jeux les plus attendus, tirage à chaque refresh) ; profil : stats agrégées en SQL (refresh quasi instantané)
 
 ---
 
@@ -72,6 +72,38 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-16 — Claude (8)
+- **Onglet Séries : plus de flash au chargement.** L'historique de visionnage
+  (rendu AU-DESSUS de « À voir », scroll calé en dessous après mesure) restait
+  visible une fraction de seconde. La liste reste masquée (opacité 0) jusqu'au
+  calage du scroll initial — garde-fou 700 ms pour ne jamais rester masqué.
+  Même correctif sur « À VENIR » (historique des sorties passées) — seuls
+  écrans à scroll initial différé de l'app.
+- **Onglet Jeux : tirer-pour-actualiser façon Instagram** (le même composant
+  que le Profil, web + natif) ; `PullToRefresh` relaie désormais `onScroll`
+  (pastille de section flottante conservée).
+- **Profil : rafraîchissement quasi instantané.** `computeStats` chargeait
+  TOUTES les lignes d'épisodes vus (jointure à 3 niveaux, 20 000+ lignes sur
+  une vraie bibliothèque) pour sommer des durées → agrégats SQL (`SUM CASE`,
+  mêmes règles que `packages/core` : runtime épisode > 0 sinon série sinon
+  40 min ; films 110 min). `/api/profile` mesuré à ~20 ms sur le banc.
+- **Découverte jeux vivante** (`/api/games/discover`) :
+  - « Populaires » = gros succès des **18 derniers mois** (tri par nombre de
+    notes, fenêtre glissante = saisonnalité) — fini le top all-time figé
+    (Zelda/Metroid éternels) ;
+  - « À venir » = **jeux les plus attendus** (champ IGDB `hypes` = follows
+    avant sortie, tri décroissant) — fini le shovelware trié par simple date ;
+  - **échantillon aléatoire à chaque requête** (15 jeux tirés d'un vivier de
+    60 mis en cache 24 h) : les carrousels changent à chaque pull-to-refresh
+    sans appel IGDB supplémentaire. Corps Apicalypse stables sur la journée
+    (timestamp arrondi au jour) pour rester adressables par l'ApiCache ;
+    `popularQueryBody`/`upcomingQueryBody` exportés pour les bancs.
+- Vérifié au banc Playwright (5/5) : échantillonnage du rendu pendant tout le
+  chargement de l'onglet Séries (aucune frame fautive, scroll calé), carrousel
+  Jeux alimenté puis RE-TIRÉ différemment après un geste de pull-to-refresh ;
+  + 2 appels `/discover` successifs différents et stats profil exactes via
+  curl. 91 tests serveur verts (les tests stats valident le SQL brut).
 
 ### 2026-07-16 — Claude (7)
 - **Fenêtre épisode : tailles harmonisées** (retour récurrent « textes trop
