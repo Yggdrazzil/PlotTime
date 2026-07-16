@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-16** (Claude) — Onglet Séries sans flash au chargement ; onglet Jeux : pull-to-refresh façon Instagram + découverte vivante (populaires récents, jeux les plus attendus, tirage à chaque refresh) ; profil : stats agrégées en SQL (refresh quasi instantané)
+Dernière mise à jour : **2026-07-16** (Claude) — Fiches série/film à l'échelle harmonisée (titres 16, corps 13,5) + barre de gestes Android enfin assortie au thème en PWA (metas theme-color à variantes `media` + `color-scheme`)
 
 ---
 
@@ -72,6 +72,31 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-16 — Claude (9)
+- **Fiches série ET film : sections à l'échelle harmonisée** (les cotes lues
+  sur les captures TV Time brutes rendaient « énormes » — retour récurrent) :
+  titres de section 20→16, synopsis 16/23→13,5/20, méta 17→14, pastilles
+  plateformes/icônes/étoiles réduites, rangée « Vu » film 16→14 + coche 44,
+  « Similaire à » 20/16→16/13,5. Le menu « … » (validé pixel-perfect) est
+  inchangé. Styles partagés `AboutTab`/`MovieBody` → les deux fiches d'un coup.
+- **Barre de gestes Android (liseré blanc en bas) — cause racine trouvée** :
+  en PWA installée, Chrome choisit la couleur des barres système via le meta
+  `theme-color` dont l'attribut `media` correspond au thème SYSTÈME du
+  téléphone (supporté depuis Chrome 93, PWA uniquement) et via le
+  `color-scheme` de la page — app sombre sur téléphone en clair ⇒ barre
+  blanche. Correctif : TROIS metas `theme-color` (sans media + variantes
+  clair/sombre) tous mis à la couleur du thème choisi par le script
+  pré-peinture de `+html.tsx`, + `color-scheme` posé sur `<html>` ;
+  helper `setThemeColorMeta()` (lib/theme) utilisé par le layout et les
+  en-têtes sombres (Profil, profil public — les 3 metas suivent puis sont
+  restaurés). Natif : rien à faire (edge-to-edge + `userInterfaceStyle`
+  automatic déjà en place, la barre est transparente sur le contenu thémé).
+- Vérifié au banc Playwright (12/12) : 3 metas à `#121217` et
+  `color-scheme: dark` AVANT l'exécution du bundle (thème sombre forcé,
+  émulation système clair — le cas exact du bug), persistance après
+  chargement, bascule `#20202a` du Profil sur les 3 metas, et tailles
+  16px/14px mesurées au DOM sur fiche série + fiche film.
 
 ### 2026-07-16 — Claude (8)
 - **Onglet Séries : plus de flash au chargement.** L'historique de visionnage
