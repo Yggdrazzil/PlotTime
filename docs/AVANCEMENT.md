@@ -80,6 +80,16 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 
 ## Journal des modifications
 
+### 2026-07-17 — Doc de publication stores : conformité + mode opératoire
+- **`docs/STORES.md`** : audit de conformité Play Store / App Store sur le code
+  réel (acquis ✅, manques priorisés 🔴🟠🟡) + mode opératoire EAS pas à pas.
+- Bloquant identifié : **l'auth native n'existe pas** (SSO web-only + inscription
+  e-mail fermée en prod → un build store ne permettrait aucune création de
+  compte). Sign in with Apple obligatoire (guideline 4.8). Autres manques :
+  politique de confidentialité/CGU, attributions TMDb/TVDB/IGDB, signalement de
+  commentaires + blocage d'utilisateurs (UGC), lien web de suppression (Google),
+  décision package name (`com.serietime.app` → définitif au 1er upload Play).
+
 ### 2026-07-17 — Claude : thème Nuit dynamisé (jaune nav) + recherche à jour en temps réel
 - **Thème Nuit moins monochrome (suite)** : en plus des pastilles/notifs/« +N »
   roses déjà en place, la **navigation active passe au JAUNE du logo**
