@@ -64,7 +64,7 @@ Statuts : `Inventorié`, `En migration`, `Implémenté`, `Vérifié`, `Bloqué`.
 | Réglages — préférences | `/settings` | Langue, thème, contenu 18+, notifications et préférences exposées, cache | `settings.tsx`, `lib/theme.ts` | `/api/settings`, localStorage thème, `/api/cache/clear` | Optimiste/rollback, iOS 18+, serveur indisponible | Sections Apparence/Contenu/Notifications | Inventorié |
 | Réglages — légal | `/settings` + `/legal/*` | Confidentialité, CGU, suppression de compte, attributions TMDb/TVDb/IGDB | `settings.tsx`, serveur `modules/legal` | Pages publiques HTML | Ouverture externe, hors connexion | À propos Prisme | Inventorié |
 | Gamification globale | Toutes routes privées | Toast niveau/badge et invalidation après actions de suivi | `_layout.tsx`, `useGamificationToasts.ts` | `/api/gamification/me`, QueryClient | Réduction des animations, doublons | Toast/undo Prisme | Inventorié |
-| PWA et deep links | Export web et routes Expo | Manifest, icônes, même origine API, routes rechargeables, safe areas | `+html.tsx`, `public/manifest.json`, Expo Router | localStorage/AsyncStorage, URL serveur | Pas de service worker/offline actuellement; session expirée | Shell responsive 320–desktop | Inventorié |
+| PWA et deep links | Export web et routes Expo | Manifest, icônes, même origine API, routes rechargeables, safe areas | `+html.tsx`, `public/manifest.json`, Expo Router | localStorage/AsyncStorage, URL serveur | Zoom, text scaling et focus clavier implémentés ; pas de service worker/offline actuellement | Shell responsive 320–desktop | En migration |
 
 ## Dette préexistante observée pendant l'audit
 
@@ -108,8 +108,8 @@ des lots séparés quand cela ne change pas le produit attendu.
   utilisés et les durées effectives de conservation.
 - Le thème choisi explicitement est réellement persisté sur le Web seulement ; le
   natif suit le système.
-- Le Web désactive actuellement le zoom/text scaling, en contradiction avec la
-  cible d'accessibilité.
+- Le Web désactivait le zoom/text scaling ; ce point est corrigé dans le socle
+  Prisme, avec focus clavier visible.
 - Il n'existe ni tests de composants/front, ni lint front, ni E2E versionné ; le
   mobile est hors du workspace `pnpm` racine.
 - La PWA n'a ni service worker, ni cache hors-ligne, ni file de mutations différées.

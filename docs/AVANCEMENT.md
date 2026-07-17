@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-17** (Codex) — audit de la refonte front Prisme, matrice de parité fonctionnelle et plan de migration
+Dernière mise à jour : **2026-07-17** (Codex) — lot 1 Prisme : tokens, primitives et accessibilité globale
 
 ---
 
@@ -28,7 +28,7 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 
 | Domaine | État | Notes |
 |---|---|---|
-| Refonte front Prisme | 🧭 Audit terminé, migration à lancer | Matrice de parité : [`docs/feature-parity-matrix.md`](feature-parity-matrix.md) ; plan détaillé : [`docs/REFONTE_FRONT_PRISME.md`](REFONTE_FRONT_PRISME.md) |
+| Refonte front Prisme | 🛠 Lot 1 implémenté | Palette et tokens Prisme, primitives accessibles, zoom/text scaling/focus clavier et mouvement réduit ; navigation cible en préparation. Matrice : [`docs/feature-parity-matrix.md`](feature-parity-matrix.md) |
 | Authentification multi-comptes (e-mail + mot de passe) | ✅ Fait | Inscription/connexion, sessions 30 j, données isolées par compte (testé) ; mot de passe oublié → réinitialisation par ré-auth SSO Google/Discord (testé) |
 | SSO Google / Facebook | ⏸ Préparé, désactivé | Prêt côté serveur (`/api/auth/oauth`) ; nécessite ids OAuth + dev build Expo |
 | Auth native stores (Apple / Google / Discord) | ⏸ Codé, en attente credentials | Serveur : vérif Sign in with Apple (JWT RS256, testée) + `/providers` enrichi. Mobile : `NativeSsoButtons` (bouton Apple officiel, Google expo-auth-session, Discord PKCE), config-gated — s'active dès que les vars env seront posées (voir STORES.md « A1 — état d'avancement ») |
@@ -90,6 +90,20 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-17 — Codex : socle visuel et accessibilité Prisme
+- **Identité** : palette claire Prisme violet/rose/jaune, rôles sémantiques
+  compatibles avec les quatre thèmes, espacements, rayons, ombres, tailles
+  tactiles et durées de mouvement partagés.
+- **Primitives** : ajout de ScreenShell, ScreenHeader, IconAction,
+  SectionHeader, SegmentedFilter, PrismeCard, ProgressBar accessible et
+  MediaTypeChip, sans nouvelle dépendance.
+- **Accessibilité** : zoom et text scaling Web réactivés, override global
+  allowFontScaling supprimé, focus clavier visible et mode couleurs forcées.
+- **Performance** : l'écoute de la réduction des mouvements est mutualisée entre
+  les composants au lieu de créer un abonnement par carte.
+- **Parité** : aucune route, requête API, mutation ou logique métier modifiée ;
+  le typecheck mobile passe.
 
 ### 2026-07-17 — Codex : audit refonte front Prisme, matrice de parité et plan de migration
 - **Audit fonctionnel et technique** : cartographie d'environ **30 routes front**,
