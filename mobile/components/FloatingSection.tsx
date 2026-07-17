@@ -1,11 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { COLORS, FONTS } from '@/lib/theme';
+import { COLORS, FONTS, RADIUS, SHADOW, SPACE } from '@/lib/theme';
 import { PopIn } from '@/components/anim';
 
-// Pastille de section FLOTTANTE (façon TV Time) : suit le défilement et change
-// de libellé au passage d'une section. Extraite de l'onglet Séries pour servir
-// aussi aux pages bibliothèque du profil (Séries / Films) et à l'onglet Jeux.
+// Repère de section flottant : suit le défilement et change de libellé au
+// passage d'une section. Extrait de l'onglet Séries pour servir aussi aux pages
+// bibliothèque du profil (Séries / Films) et à l'onglet Jeux.
 //
 // Usage :
 //   const { registerSection, onListScroll, floatLabel } = useFloatingSection();
@@ -57,13 +57,22 @@ export function FloatingSectionPill({ label }: { label: string | null }) {
   );
 }
 
-// Mêmes cotes que la pastille en dur (police 11, hauteur ~19dp), légère ombre
-// pour se détacher des cartes.
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', top: 8, left: 0, right: 0, alignItems: 'center' },
+  wrap: { position: 'absolute', top: SPACE.xs, left: 0, right: 0, zIndex: 12, alignItems: 'center' },
   pill: {
-    backgroundColor: COLORS.pillBg, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 4,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 5, elevation: 4,
+    minHeight: 32,
+    justifyContent: 'center',
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.xxs,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
+    ...SHADOW.card,
   },
-  text: { color: COLORS.pillFg, fontSize: 11, fontFamily: FONTS.bold, letterSpacing: 0.8 },
+  text: {
+    color: COLORS.onPrimary,
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: FONTS.extraBold,
+    letterSpacing: 0.7,
+  },
 });

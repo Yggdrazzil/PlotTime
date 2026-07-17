@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-18** (Codex) — lot 2 Prisme : navigation cible, Agenda et hub Bibliothèque
+Dernière mise à jour : **2026-07-18** (Codex) — lot 3 Prisme : cartes d’épisodes et états partagés
 
 ---
 
@@ -28,7 +28,7 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 
 | Domaine | État | Notes |
 |---|---|---|
-| Refonte front Prisme | 🛠 Lots 1–2 implémentés | Socle accessible, navigation Accueil/Agenda/Explorer/Bibliothèque/Profil, anciennes routes Films/Jeux conservées. Matrice : [`docs/feature-parity-matrix.md`](feature-parity-matrix.md) |
+| Refonte front Prisme | 🛠 Lots 1–3 implémentés | Socle accessible, navigation cible, cartes d’épisodes et états partagés modernisés ; anciennes routes Films/Jeux conservées. Matrice : [`docs/feature-parity-matrix.md`](feature-parity-matrix.md) |
 | Authentification multi-comptes (e-mail + mot de passe) | ✅ Fait | Inscription/connexion, sessions 30 j, données isolées par compte (testé) ; mot de passe oublié → réinitialisation par ré-auth SSO Google/Discord (testé) |
 | SSO Google / Facebook | ⏸ Préparé, désactivé | Prêt côté serveur (`/api/auth/oauth`) ; nécessite ids OAuth + dev build Expo |
 | Auth native stores (Apple / Google / Discord) | ⏸ Codé, en attente credentials | Serveur : vérif Sign in with Apple (JWT RS256, testée) + `/providers` enrichi. Mobile : `NativeSsoButtons` (bouton Apple officiel, Google expo-auth-session, Discord PKCE), config-gated — s'active dès que les vars env seront posées (voir STORES.md « A1 — état d'avancement ») |
@@ -90,6 +90,20 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-18 — Codex : cartes d’épisodes et états partagés Prisme
+- **File de visionnage** : les cartes d’épisodes adoptent la hiérarchie Prisme,
+  une miniature de repli, un état vu lisible et des libellés accessibles sans
+  modifier l’ouverture de la série, de l’épisode ni la mutation vu/non-vu.
+- **Interactions imbriquées** : les actions titre et coche arrêtent explicitement
+  la propagation vers la carte ; la cible de la coche reste d’au moins 44 px.
+- **États transverses** : chargement, vide, erreur récupérable, badges et repères
+  de section utilisent désormais les tokens partagés et restent responsifs
+  jusqu’à la largeur desktop.
+- **Animation** : le retour visuel conserve le mode de réduction des mouvements
+  et n’ajoute aucun abonnement par carte.
+- **Validation** : typecheck mobile, contrôle de diff et export Expo Web validés
+  avec **41 routes statiques** ; aucun endpoint, modèle ou contrat modifié.
 
 ### 2026-07-18 — Codex : navigation Prisme, Agenda et Bibliothèque
 - **Navigation cible** : la barre principale expose désormais Accueil, Agenda,
