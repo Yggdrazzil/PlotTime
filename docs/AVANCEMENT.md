@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-18** (Claude) — lot 12 Prisme : statistiques, badges, trophées, classements
+Dernière mise à jour : **2026-07-18** (Claude) — lot 13 Prisme : réglages, compte, édition profil, imports
 
 ---
 
@@ -90,6 +90,30 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-18 — Claude : réglages, compte, profil, imports Prisme (lot 13)
+- **Paramètres** (`/settings`) : onglets Compte/Application sur `TopTabs` Prisme,
+  sections regroupées en **cartes surface** (lignes 44px, séparateurs fins,
+  pastilles d'icône), zone sensible (déconnexion/suppression) **isolée** dans sa
+  propre carte, feuilles modales sur surface avec largeur bornée. Aucune
+  préférence retirée : mot de passe + réinitialisation SSO, comptes liés, import
+  TV Time, export, resync bibliothèque, Steam, profil privé, thème (4 thèmes),
+  langue de contenu, contenu 18+ (masqué iOS), vider le cache, liens légaux et
+  attributions TMDb/TheTVDB/IGDB — toutes les mutations et gardes conservées.
+- **Édition du profil** (`/profile/edit`) : en-tête surface avec bouton
+  Sauvegarder plein, champs regroupés en cartes, entrées et sélecteurs Prisme,
+  modales Sexe/Pays sur surface. Sélection d'avatar (resize 512px), couverture,
+  année/sexe/pays et sauvegarde optimiste inchangées.
+- **Couverture** (`/profile/cover`) : barre de recherche pilule surface, résultats
+  et bannières en tokens Prisme, apparition en cascade. Résolution TMDb/TVDb et
+  choix de bannière inchangés.
+- **Comptes liés** (`/linked-accounts`) : rangées liées en carte surface avec
+  pastille d'état, boutons SSO Prisme. Liaison/déliaison Google/Discord/Facebook
+  inchangée.
+- **Import TV Time** (`/import`) : parcours Source → fichier → analyse →
+  confirmation → progression → bilan en cartes surface, barre de progression
+  animée, bilan de fin illustré. Upload, analyse, reprise et polling inchangés.
+- **Validation** : `tsc --noEmit` mobile vert.
 
 ### 2026-07-18 — Claude : statistiques, badges, trophées Prisme (lot 12)
 - **Reprise du chantier Prisme là où Codex s'était arrêté** (lots 1–11 déjà sur
