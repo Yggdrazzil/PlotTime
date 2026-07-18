@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-18** (Codex) — correctifs de parité fonctionnelle critiques
+Dernière mise à jour : **2026-07-18** (Codex) — correctif cache Profil après mutation d’un jeu
 
 ---
 
@@ -55,7 +55,7 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 | Jeux vidéo — module API | ✅ Fait | `apps/server/src/modules/games/routes.ts` : `GET /api/games/search`, `POST /api/games/add-from-igdb`, `GET /api/games` (groupes par statut wishlist/playing/completed/abandoned + groupe `owned` = vue collection `isOwned`, recoupement possible), `POST /api/games/:id/status`, `POST /api/games/:id/owned` (interrupteur « Je possède », booléen `isOwned` indépendant du statut, sans XP), `GET /api/games/:id` (enrichissement paresseux), `GET /api/games/discover`, `GET /api/games/upcoming`, `POST /api/games/steam/import`, `DELETE /api/games/:id/tracking` |
 | Jeux vidéo — onglet Jeux (mobile) | ✅ Fait | `mobile/app/(tabs)/games.tsx` : bibliothèque par statut (VOULUS / EN COURS / TERMINÉS / ABANDONNÉS) + section POSSÉDÉS = vue collection `isOwned` (peut recouper les autres groupes), carrousels « Populaires »/« À venir » (découverte, tap = ajoute + ouvre la fiche), « Sorties à venir » (jeux suivis, groupés par mois) ; recherche déplacée dans l'onglet Explorer |
 | Jeux vidéo — connexion Steam (mobile) | ✅ Fait | Bloc « Jeux — Steam » dans `mobile/app/settings.tsx` (onglet Compte) : SteamID/URL de profil → import bibliothèque possédée |
-| Jeux vidéo — fiche jeu (mobile) | ✅ Fait | `mobile/app/game/[id].tsx` : parité avec la fiche série/film — menu « … » (Personnaliser affiche/bannière via `GET/POST /api/games/:id/images|poster|banner`, Favoris `POST /api/games/:id/favorite`, Ajouter à une liste, Partager, Retirer), ordre : jaquette + infos compactes (Genre/Sortie/Note presse) → statuts + interrupteur « Je possède » → bande-annonce 16:9 → fiche d'identité (Plateformes/Développeur/Éditeur/Modes/Temps de jeu) → résumé → éditions/extensions → commentaires ; suivi optimiste avec rollback |
+| Jeux vidéo — fiche jeu (mobile) | ✅ Fait | `mobile/app/game/[id].tsx` : parité avec la fiche série/film — personnalisation, favoris, listes, partage, retrait, statuts, possession, bande-annonce, fiche d’identité, résumé, éditions/extensions et commentaires ; suivi optimiste avec rollback et invalidation cohérente de la fiche, bibliothèque, recherche, gamification et du Profil. |
 | Jeux vidéo — notifications de sortie | ✅ Fait | Passe du worker de fond (`apps/server/src/services/sync-worker.ts`) : `Notification` de type `game_release` quand `Media.releaseDate` d'un jeu suivi (non masqué) tombe aujourd'hui, dédupliquée par `(userId, mediaId, type)` |
 | Gamification — serveur (XP, badges, streaks, défis, classement) | ✅ Fait | Modèles `UserProgress`/`UserBadge`/`UserChallenge`, `modules/gamification/` (recompute idempotent débouncé + backfill au boot), `GET /api/gamification/me` + `/leaderboard`, items `badge` dans le fil social, XP rétroactif à l'import |
 | Gamification — mobile (page Trophées, toasts, pastille niveau) | ✅ Fait | Page `/trophies` (niveau + XP, streak, défis du mois, grille de badges à paliers, classement hebdo), pastille niveau + rangée Trophées sur le profil, items badge dans le fil, toasts de déblocage globaux (`GamificationToastHost`) |
@@ -90,6 +90,11 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-18 — Codex : synchronisation Profil après mutation jeu
+- **Cache cohérent** : statut, possession, favori ou retrait d’un jeu invalident
+  désormais le Profil, comme le font déjà les fiches séries et films.
+- **Validation** : contrôle de diff ciblé validé ; contrat API inchangé.
 
 ### 2026-07-18 — Codex : garde-fous de parité fonctionnelle
 - **Saisons spéciales** : les actions « tout vu / tout non vu » transmettent
