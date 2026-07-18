@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-18** (Claude) — lot 13 Prisme : réglages, compte, édition profil, imports
+Dernière mise à jour : **2026-07-18** (Claude) — lot 14 Prisme : convergence Jeux/Home, QA globale (refonte terminée)
 
 ---
 
@@ -28,7 +28,7 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 
 | Domaine | État | Notes |
 |---|---|---|
-| Refonte front Prisme | 🛠 Lots 1–11 implémentés | Socle accessible, navigation cible, cartes d’épisodes, Agenda, aperçu Films, onboarding, profils personnel/public, primitives de fiches, Explorer, bibliothèques, favoris, fiches détaillées, Communauté, relations, commentaires personnels et notifications. Matrice : [parité fonctionnelle](feature-parity-matrix.md) |
+| Refonte front Prisme | ✅ Lots 1–14 implémentés | Socle accessible, navigation cible, cartes d’épisodes, Agenda, Films, onboarding, profils personnel/public, primitives de fiches, Explorer, bibliothèques, favoris, fiches détaillées, Communauté, relations, commentaires, notifications, **statistiques/badges/trophées/classements, réglages/compte/édition profil/couverture/comptes liés/imports, et convergence Jeux/Home** (tous les écrans migrés). Matrice : [parité fonctionnelle](feature-parity-matrix.md) |
 | Authentification multi-comptes (e-mail + mot de passe) | ✅ Fait | Inscription/connexion, sessions 30 j, données isolées par compte (testé) ; mot de passe oublié → réinitialisation par ré-auth SSO Google/Discord (testé) |
 | SSO Google / Facebook | ⏸ Préparé, désactivé | Prêt côté serveur (`/api/auth/oauth`) ; nécessite ids OAuth + dev build Expo |
 | Auth native stores (Apple / Google / Discord) | ⏸ Codé, en attente credentials | Serveur : vérif Sign in with Apple (JWT RS256, testée) + `/providers` enrichi. Mobile : `NativeSsoButtons` (bouton Apple officiel, Google expo-auth-session, Discord PKCE), config-gated — s'active dès que les vars env seront posées (voir STORES.md « A1 — état d'avancement ») |
@@ -70,11 +70,11 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 
 ## Prochaines étapes (par priorité)
 
-0. **Migration front Prisme** : suivre le plan
-   [`docs/REFONTE_FRONT_PRISME.md`](REFONTE_FRONT_PRISME.md), maintenir à jour la
-   [`matrice de parité fonctionnelle`](feature-parity-matrix.md), puis migrer les
-   tokens, primitives, shell/navigation et écrans un par un avec validation de
-   non-régression.
+0. ~~**Migration front Prisme**~~ ✅ **Terminée** (lots 1–14) : tokens,
+   primitives, shell/navigation et **tous les écrans** migrés en Prisme sans
+   régression fonctionnelle (plan [`docs/REFONTE_FRONT_PRISME.md`](REFONTE_FRONT_PRISME.md),
+   matrice [`de parité fonctionnelle`](feature-parity-matrix.md)). Reste à faire
+   côté prod : redéployer l'export Web après fusion (géré par Benjamin).
 1. **Retours Benjamin (08/07 aprem)** :
    - **Barre de progression** sur les séries/animés (façon TV Time : mince barre
      épisodes vus / total sous les cartes « À voir » et sur le profil). Données
@@ -90,6 +90,25 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-18 — Claude : convergence Jeux/Home + QA globale (lot 14 — refonte terminée)
+- **Onglet Jeux** (`/(tabs)/games`) : en-tête d'écran cohérent avec l'onglet
+  Séries (eyebrow BIBLIOTHÈQUE + titre + sous-titre), fond `pageMuted`, **grille
+  responsive** (3/4/5 colonnes, contenu centré à `contentMax`), carrousels
+  découverte/sorties en tokens Prisme. Bibliothèque par statut (VOULUS/POSSÉDÉS/
+  EN COURS/TERMINÉS/ABANDONNÉS), pastille de statut flottante, pull-to-refresh,
+  découverte IGDB (tap = ajoute + ouvre la fiche), sorties à venir groupées par
+  mois : logique, requêtes et routes strictement inchangées.
+- **Convergence** : Home (`index`) et Agenda déjà Prisme (lots précédents) ;
+  Jeux aligné sur la même identité ; l'écran hub Bibliothèque et les pages
+  favoris restent cohérents. Toutes les routes historiques (`movies`, `games`,
+  `/library/*`, deep links média/personne/épisode/commentaires) restent
+  enregistrées et ouvrent la vue équivalente.
+- **QA globale** : `tsc --noEmit` mobile vert sur l'ensemble ; **export Expo Web
+  réussi (42 fichiers, toutes les routes générées, aucune erreur ni avertissement)**.
+- **Bilan** : la migration visuelle Prisme couvre désormais **tous les écrans**
+  de l'application (lots 1–14). Aucune fonctionnalité retirée ; aucune
+  modification de schéma, d'endpoint ni d'authentification.
 
 ### 2026-07-18 — Claude : réglages, compte, profil, imports Prisme (lot 13)
 - **Paramètres** (`/settings`) : onglets Compte/Application sur `TopTabs` Prisme,

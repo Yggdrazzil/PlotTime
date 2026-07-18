@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
-import { COLORS, FONTS, RADIUS } from '@/lib/theme';
+import { COLORS, FONTS, RADIUS, SPACE, SIZES } from '@/lib/theme';
 import { PillHeader, EmptyState, Loading, LoadError, Poster } from '@/components/ui';
 import { AppearItem } from '@/components/anim';
 import { PullToRefresh } from '@/components/PullToRefresh';
@@ -63,6 +63,7 @@ function GamesScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const qc = useQueryClient();
+  const { width } = useWindowDimensions();
   const library = useQuery({
     queryKey: ['games', 'library'],
     queryFn: () => api.get<GamesLibraryResponse>('/api/games'),
@@ -91,6 +92,12 @@ function GamesScreenInner() {
   // comme l'onglet Séries et les bibliothèques du profil.
   const { registerSection, onListScroll, floatLabel } = useFloatingSection();
 
+  // Grille responsive (comme l'onglet Films) : 3 colonnes sur téléphone,
+  // 4/5 sur tablette et desktop, contenu centré à `contentMax`.
+  const availableWidth = Math.min(width, SIZES.contentMax) - SPACE.md * 2;
+  const columns = availableWidth >= 640 ? 5 : availableWidth >= 480 ? 4 : 3;
+  const posterWidth = Math.max(76, (availableWidth - SPACE.sm * (columns - 1)) / columns);
+
   // Ajout depuis la découverte : ajoute (statut « Voulus ») puis ouvre la
   // fiche (recherche déplacée dans l'Explorer, cf. app/(tabs)/explore.tsx).
   const [addingDiscoverId, setAddingDiscoverId] = useState<string | null>(null);
@@ -112,24 +119,23 @@ function GamesScreenInner() {
   const grid = (items: GameDto[], startIndex = 0) => (
     <View style={styles.grid}>
       {items.map((g, i) => (
-        <AppearItem key={g.id} index={startIndex + i} style={styles.cell}>
-          {/* Route détail jeu créée en tâche 8 ; référencée ici par avance. */}
-          <Poster title={g.title} uri={tmdbImage(g.posterPath)} onPress={() => router.push(`/game/${g.id}` as Href)} />
+        <AppearItem key={g.id} index={startIndex + i} style={{ width: posterWidth }}>
+          <Poster title={g.title} uri={tmdbImage(g.posterPath)} width={posterWidth} onPress={() => router.push(`/game/${g.id}` as Href)} />
         </AppearItem>
       ))}
     </View>
   );
 
   // Carrousel horizontal de découverte (taper ajoute puis ouvre la fiche) —
-  // même gabarit que PosterRow (profile.tsx) : Poster width={118}.
+  // même gabarit que PosterRow (profile.tsx).
   const discoverRow = (items: DiscoverGameDto[]) => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 6 }}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
       {items.map((g) => (
         <View key={g.igdbId} style={{ width: 118 }}>
           <Poster title={g.title} uri={tmdbImage(g.posterPath)} width={118} onPress={() => addDiscover(g)} />
           {addingDiscoverId === g.igdbId ? (
             <View style={styles.posterBusy}>
-              <ActivityIndicator color={COLORS.white} size="small" />
+              <ActivityIndicator color="#FFFFFF" size="small" />
             </View>
           ) : null}
         </View>
@@ -140,7 +146,7 @@ function GamesScreenInner() {
   // Carrousel horizontal des sorties à venir (jeux déjà suivis) : ouvre
   // directement la fiche, pas d'ajout.
   const upcomingRow = (items: GameUpcomingItemDto[]) => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 6 }}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
       {items.map((it) => (
         <Poster key={it.id} title={it.title} uri={tmdbImage(it.posterPath)} width={118} onPress={() => router.push(`/game/${it.id}` as Href)} />
       ))}
@@ -148,25 +154,34 @@ function GamesScreenInner() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white, paddingTop: insets.top }}>
+    <View style={styles.screen}>
+      {/* En-tête d'écran (même identité que l'onglet Séries). */}
+      <View style={[styles.header, { paddingTop: insets.top + SPACE.sm }]}>
+        <View style={styles.canvas}>
+          <Text style={styles.eyebrow}>BIBLIOTHÈQUE</Text>
+          <Text accessibilityRole="header" style={styles.title}>Jeux</Text>
+          <Text style={styles.subtitle}>Ta collection, les sorties à venir et la découverte.</Text>
+        </View>
+      </View>
+
       {library.isLoading ? (
         <Loading />
       ) : library.isError && !library.data ? (
         <LoadError onRetry={library.refetch} busy={library.isRefetching} />
       ) : (
         // Vue intermédiaire flex:1 : la pastille flottante se positionne par
-        // rapport à elle (sous la barre de statut, pas dessus).
+        // rapport à elle (sous l'en-tête, pas dessus).
         <View style={{ flex: 1 }}>
         {/* Tirer-pour-actualiser façon Instagram (le même que le Profil) —
             fonctionne web + natif, contrairement au RefreshControl RN. */}
         <PullToRefresh
           refreshing={refreshing}
           onRefresh={onRefresh}
-          contentContainerStyle={{ paddingTop: 12, paddingBottom: 20 }}
+          contentContainerStyle={styles.scrollContent}
           onScroll={onListScroll}
         >
           {library.data ? (
-            <>
+            <View style={styles.canvas}>
               {!isEmpty ? (
                 (() => {
                   const data = library.data;
@@ -195,7 +210,7 @@ function GamesScreenInner() {
                 <View onLayout={registerSection('Sorties à venir')}>
                   <PillHeader label="SORTIES À VENIR" />
                   {upcoming.data.groups.map((g) => (
-                    <View key={g.label} style={{ paddingBottom: 8 }}>
+                    <View key={g.label} style={{ paddingBottom: SPACE.xs }}>
                       <Text style={styles.groupLabel}>{g.label.toUpperCase()}</Text>
                       {upcomingRow(g.items)}
                     </View>
@@ -224,7 +239,7 @@ function GamesScreenInner() {
                   ) : null}
                 </>
               ) : null}
-            </>
+            </View>
           ) : null}
         </PullToRefresh>
         {/* Pastille de statut flottante (suit le scroll, comme l'onglet Séries). */}
@@ -236,10 +251,23 @@ function GamesScreenInner() {
 }
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 4, gap: 4 },
-  cell: { width: '32.5%' },
+  screen: { flex: 1, backgroundColor: COLORS.pageMuted },
+  canvas: { width: '100%', maxWidth: SIZES.contentMax, alignSelf: 'center' },
+  header: {
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACE.lg,
+    paddingBottom: SPACE.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.borderLight,
+  },
+  eyebrow: { color: COLORS.primary, fontFamily: FONTS.bold, fontSize: 11, letterSpacing: 1.2 },
+  title: { color: COLORS.text, fontFamily: FONTS.extraBold, fontSize: 30, lineHeight: 36 },
+  subtitle: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13, marginTop: 2 },
+  scrollContent: { paddingTop: SPACE.sm, paddingBottom: SIZES.tabBar + SPACE.lg },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: SPACE.md, gap: SPACE.sm },
+  carousel: { paddingHorizontal: SPACE.md, gap: SPACE.xs },
   // Sous-titre de groupe (mois) au-dessus d'un carrousel « Sorties à venir ».
-  groupLabel: { fontFamily: FONTS.bold, fontSize: 13, color: COLORS.textMuted, marginHorizontal: 16, marginBottom: 6, letterSpacing: 0.4 },
+  groupLabel: { fontFamily: FONTS.bold, fontSize: 13, color: COLORS.textMuted, marginHorizontal: SPACE.md, marginBottom: 6, letterSpacing: 0.4 },
   // Overlay « en cours d'ajout » posé sur une jaquette de découverte.
   posterBusy: {
     position: 'absolute', top: 0, left: 0, right: 0, aspectRatio: 2 / 3,
