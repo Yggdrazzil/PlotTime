@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-18** (Claude) — lot 14 Prisme : convergence Jeux/Home, QA globale (refonte terminée)
+Dernière mise à jour : **2026-07-20** (Claude) — arbitrage Fable/Opus des lots 12-14 + déploiement préversion web `/prisme/`
 
 ---
 
@@ -90,6 +90,22 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-20 — Claude : arbitrage Fable/Opus des lots 12-14 + préversion web
+- **Arbitrage** (commit `60f685c`) : la version `main` (Fable) des lots 12-14 est
+  conservée comme base ; greffes ciblées depuis la branche Opus
+  `claude/finish-prisme` : tint du pull-to-refresh en `COLORS.primary` +
+  centrage `contentMax` de la file « À voir » (`(tabs)/index.tsx`), toast de
+  gamification restylé Prisme (`lib/useGamificationToasts.ts`), a11y du profil
+  (roles radio/état coché, label « Fermer »), gris en dur → `COLORS.textSoft`
+  (trophées). Typecheck mobile : 0 erreur.
+- **Bouton retour** : vérifié en préversion (clic avec historique ET arrivée
+  directe pile vide → fallback `goBack`) — le bug rapporté venait de l'ancien
+  build Opus déployé, le build `main` est sain.
+- **Préversion web déployée** : `https://serietime.studio-vives.fr/prisme/`
+  (export Expo web avec `experiments.baseUrl=/prisme`, nginx `root`+`try_files`).
+  La prod (`/`) et le site photo restent inchangés. Reste : clic-tour connecté
+  (Benjamin/Étienne) avant bascule de la prod.
 
 ### 2026-07-18 — Claude : convergence Jeux/Home + QA globale (lot 14 — refonte terminée)
 - **Onglet Jeux** (`/(tabs)/games`) : en-tête d'écran cohérent avec l'onglet
