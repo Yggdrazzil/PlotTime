@@ -91,6 +91,19 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 
 ## Journal des modifications
 
+### 2026-07-20 (nuit) — Claude : onglet Communauté remplace Bibliothèque
+- **Décision équipe (Benjamin)** : Bibliothèque doublonnait le Profil (mêmes
+  liens `/library/*`). L'onglet devient **Communauté** (`81670af`, icône
+  users) : **Fil** (activité des abonnements — épisodes vus, notes, badges
+  débloqués), **Classement** (temps séries/films entre amis, tableau partagé
+  avec l'écran Stats) et **Amis** (recherche + abonnements). Réutilise
+  `FeedTab`/`FriendsTab` (social.tsx) et `LeaderboardBoard` (leaderboard.tsx),
+  désormais exportés. Films/Jeux (onglets masqués) se rattachent au Profil.
+- **Pistes communautaires/gamifiées à discuter** (non implémentées) :
+  réactions sur le fil, recommandations « tes amis ont adoré », défis
+  hebdo entre amis (qui regarde le plus), streaks visibles sur le fil,
+  vitrine de badges sur le profil public, clubs/watch-parties par série.
+
 ### 2026-07-20 (nuit) — Claude : agenda en 3 segments + en-têtes compacts (retours Étienne)
 - **Agenda coupé en trois** (`200f793`) : segments Séries / Films / Jeux.
   Séries = épisodes à venir (existant) ; Films = sorties des films de la liste
