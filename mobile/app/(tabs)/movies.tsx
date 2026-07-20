@@ -6,7 +6,7 @@ import { api, tmdbImage } from '@/lib/api';
 import type { MediaDto } from '@/lib/types';
 import { RADIUS, SPACE, SIZES } from '@/lib/theme';
 import { EmptyState, LoadError, Poster } from '@/components/ui';
-import { ScreenHeader, ScreenShell, SectionHeader, SegmentedFilter } from '@/components/prisme';
+import { ScreenShell, SectionHeader, SegmentedFilter, TabHeader } from '@/components/prisme';
 import { AppearItem, FadeSwitch, Skeleton } from '@/components/anim';
 import { useTabResetSeq } from '@/lib/tabReset';
 
@@ -61,11 +61,7 @@ function MoviesScreenInner() {
 
   return (
     <ScreenShell contentContainerStyle={styles.content}>
-      <ScreenHeader
-        eyebrow="Bibliothèque"
-        title="Films"
-        subtitle="Retrouve ta sélection et les prochaines sorties."
-      />
+      <TabHeader title="Films" />
       <SegmentedFilter
         options={TAB_OPTIONS}
         value={tab}

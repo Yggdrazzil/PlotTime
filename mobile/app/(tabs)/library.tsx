@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { ProfileStatsDto } from '@/lib/types';
+import { TabHeader } from '@/components/prisme';
 import { COLORS, FONTS, RADIUS, SHADOW, SIZES } from '@/lib/theme';
 import { useTabResetSeq } from '@/lib/tabReset';
 
@@ -65,9 +66,7 @@ export default function LibraryScreen() {
           />
         }
       >
-        <Text style={styles.eyebrow}>TOUT CE QUE VOUS SUIVEZ</Text>
-        <Text accessibilityRole="header" style={styles.title}>Bibliothèque</Text>
-        <Text style={styles.subtitle}>Retrouvez vos séries, films et jeux sans changer vos habitudes.</Text>
+        <TabHeader title="Bibliothèque" />
 
         {summary.isError ? (
           <Pressable
@@ -153,9 +152,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 28,
   },
-  eyebrow: { color: COLORS.primary, fontFamily: FONTS.bold, fontSize: 11, letterSpacing: 1.2 },
-  title: { color: COLORS.text, fontFamily: FONTS.extraBold, fontSize: 30, lineHeight: 36 },
-  subtitle: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13, lineHeight: 19, marginTop: 2, marginBottom: 20 },
   error: {
     minHeight: SIZES.touch, flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: COLORS.surface, borderRadius: RADIUS.control, paddingHorizontal: 12, marginBottom: 14,

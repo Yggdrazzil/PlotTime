@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import { COLORS, FONTS, RADIUS, SPACE, SIZES } from '@/lib/theme';
 import { EmptyState, LoadError, Poster } from '@/components/ui';
-import { ScreenHeader, ScreenShell, SectionHeader, PrismeCard } from '@/components/prisme';
+import { ScreenShell, SectionHeader, PrismeCard, TabHeader } from '@/components/prisme';
 import { AppearItem } from '@/components/anim';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { useFloatingSection, FloatingSectionPill } from '@/components/FloatingSection';
@@ -155,11 +155,7 @@ function GamesScreenInner() {
   return (
     <ScreenShell contentContainerStyle={styles.content}>
       {/* En-tête d'écran (même identité que l'onglet Films). */}
-      <ScreenHeader
-        eyebrow="Bibliothèque"
-        title="Jeux"
-        subtitle="Ta collection, les sorties à venir et la découverte."
-      />
+      <TabHeader title="Jeux" />
 
       {library.isLoading ? (
         <GridSkeleton />

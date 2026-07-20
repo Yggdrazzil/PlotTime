@@ -21,6 +21,7 @@ import { api, tmdbImage } from '@/lib/api';
 import { useDebounced } from '@/lib/useDebounced';
 import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
 import { EmptyState, LoadError } from '@/components/ui';
+import { TabHeader } from '@/components/prisme';
 import { AppearItem, FadeSwitch, PopIn, Skeleton } from '@/components/anim';
 import { useTabResetSeq } from '@/lib/tabReset';
 import { TikTokFeed } from '@/components/explore/TikTokFeed';
@@ -79,18 +80,7 @@ function ExploreScreenInner() {
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + SPACE.sm }]}>
         <View style={styles.headerContent}>
-          <View style={styles.headingRow}>
-            <View style={styles.headingCopy}>
-              <View style={styles.eyebrowRow}>
-                <Feather name="aperture" size={13} color={COLORS.primary} />
-                <Text style={styles.eyebrow}>INSPIRATIONS</Text>
-              </View>
-              <Text accessibilityRole="header" style={[styles.heading, compact && styles.headingCompact]}>
-                Explorer
-              </Text>
-            </View>
-            {!compact ? <Text style={styles.headerHint}>Trouvez votre prochaine histoire.</Text> : null}
-          </View>
+          <TabHeader title="Explorer" />
 
           <View style={[styles.searchbar, focused && styles.searchbarFocused]}>
             <View style={[styles.searchIcon, focused && styles.searchIconFocused]} accessible={false}>
@@ -598,36 +588,6 @@ const styles = StyleSheet.create({
     maxWidth: SIZES.contentMax,
     alignSelf: 'center',
     gap: SPACE.sm,
-  },
-  headingRow: {
-    minHeight: 38,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: SPACE.md,
-  },
-  headingCopy: { flexShrink: 0 },
-  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  eyebrow: {
-    color: COLORS.primary,
-    fontFamily: FONTS.extraBold,
-    fontSize: 10.5,
-    letterSpacing: 1.15,
-  },
-  heading: {
-    color: COLORS.text,
-    fontFamily: FONTS.extraBold,
-    fontSize: 28,
-    lineHeight: 32,
-  },
-  headingCompact: { fontSize: 26, lineHeight: 30 },
-  headerHint: {
-    flexShrink: 1,
-    paddingBottom: 3,
-    color: COLORS.textMuted,
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    textAlign: 'right',
   },
   searchbar: {
     minHeight: 52,

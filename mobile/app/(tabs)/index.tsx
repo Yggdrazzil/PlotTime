@@ -14,6 +14,7 @@ import { EpisodeSheet, type EpisodeSheetTarget } from '@/components/EpisodeSheet
 import { useTabResetSeq } from '@/lib/tabReset';
 import { AppearItem } from '@/components/anim';
 import { useFloatingSection, FloatingSectionPill } from '@/components/FloatingSection';
+import { TabHeader } from '@/components/prisme';
 import { QueueSkeleton } from '@/components/skeletons';
 import { usePullRefresh } from '@/lib/usePullRefresh';
 
@@ -23,10 +24,8 @@ export default function ShowsScreen() {
   const resetSeq = useTabResetSeq('index');
   return (
     <View key={resetSeq} style={{ flex: 1, backgroundColor: COLORS.pageMuted }}>
-      <View style={[styles.homeHeader, { paddingTop: insets.top + 12 }]}>
-        <Text style={styles.homeEyebrow}>AUJOURD'HUI</Text>
-        <Text accessibilityRole="header" style={styles.homeTitle}>À voir</Text>
-        <Text style={styles.homeSubtitle}>Reprenez exactement là où vous en étiez.</Text>
+      <View style={[styles.homeHeader, { paddingTop: insets.top }]}>
+        <TabHeader title="À voir" />
       </View>
       <QueueView />
     </View>
@@ -389,14 +388,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.borderLight,
   },
-  homeEyebrow: {
-    color: COLORS.primary,
-    fontFamily: FONTS.bold,
-    fontSize: 11,
-    letterSpacing: 1.2,
-  },
-  homeTitle: { color: COLORS.text, fontFamily: FONTS.extraBold, fontSize: 30, lineHeight: 36 },
-  homeSubtitle: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13, marginTop: 2 },
   // File « À voir » : contenu centré et borné à contentMax comme l'agenda et la
   // bibliothèque (les cartes ne s'étirent plus bord à bord sur web/tablette).
   queueContent: { alignItems: 'center', paddingBottom: 16 },
