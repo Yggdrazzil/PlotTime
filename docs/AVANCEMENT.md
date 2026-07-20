@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-21** — bibliothèque intégrale d'un ami (endpoint paginé + écran Séries/Films/Jeux) (Claude/Benjamin) ; ligne de suivi compacte sur toutes les fiches + tab bar mini (Claude/Benjamin) ; Accueil scindé en sous-onglets Séries / Films (à voir) / Jeux (voulus) et Glass affiné — menus flottants opaques, pilule plus transparente (Claude/Étienne)
+Dernière mise à jour : **2026-07-21** (Claude/Étienne) — Explorer : barre de recherche flottante, fond du feed remontant en haut de l'écran, barre de progression supprimée
 
 ---
 
@@ -90,6 +90,24 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-21 — Claude/Étienne : Explorer — barre de recherche flottante + feed pleine hauteur
+- **Barre de recherche FLOTTANTE** (`mobile/app/(tabs)/explore.tsx`) : le
+  bandeau opaque (fond `surface` + bordure) derrière le champ est supprimé ;
+  l'en-tête passe en position absolue, fond transparent, posé au-dessus du
+  feed. Le champ garde son style (pilule `surface` + ombre portée pour l'effet
+  flottant) et s'agrandit toujours au focus/saisie.
+- **Fond du feed pleine hauteur** : le feed (et les résultats de recherche)
+  occupe désormais tout l'écran, son fond (`#0D0A14`) remonte derrière la barre
+  flottante. La hauteur de la barre est mesurée (`onLayout`) et passée au
+  `TikTokFeed` (`topInset`) : les chips de catégories se calent juste sous la
+  barre ; les résultats de recherche reçoivent le même décalage haut.
+- **Barre de progression supprimée** (`components/explore/TikTokFeed.tsx`) :
+  la mince jauge « position dans le tirage » est retirée (elle suggérait une
+  fin) — le flux reste infini (re-tirage sur la carte de fin). État
+  `activeIndex` devenu inutile supprimé au passage.
+- Validé en Chromium (thème Glass, feed simulé) : barre flottante, fond
+  remontant, chips repositionnées, aucune jauge ; `tsc --noEmit` + export web OK.
 
 ### 2026-07-21 — Claude/Benjamin : bibliothèque intégrale d'un ami (séries/films/jeux)
 - **Serveur** : `GET /api/users/:id/library` (module social) — liste paginée par
