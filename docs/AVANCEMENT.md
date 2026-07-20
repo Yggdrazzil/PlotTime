@@ -91,6 +91,32 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 
 ## Journal des modifications
 
+### 2026-07-20 — Claude/Étienne : retours UX v2 (barre flottante, Glass réparé, profil peaufiné)
+- **Barre de navigation FLOTTANTE (tous thèmes)** : la pilule est posée en
+  absolu au-dessus des écrans — plus de « deuxième barre » opaque derrière, le
+  contenu défile dessous (et transparaît en Glass). Zones transparentes
+  perméables aux touches (`box-none`) ; paddings bas des onglets rehaussés.
+- **Thème Glass réparé (superposition des écrans)** : cause racine —
+  react-native-screens laisse les scènes inactives visibles dans le DOM web,
+  d'ordinaire masquées par des fonds opaques… que Glass rend translucides.
+  Correctif ciblé : `enableScreens(false)` sur **web + Glass uniquement**
+  (scènes inactives en `display:none`), cartes du Stack transparentes en Glass.
+- **En-têtes Accueil/Profil** : cloche et réglages en **icônes nues 25 px**
+  calées à droite (~16 dp du bord, comme Instagram) — plus de cercle gris.
+- **Modifier le profil — lifting** : grands aperçus (avatar circulaire 128,
+  bannière 16:9 pleine largeur), boutons Changer/Supprimer par section,
+  « Photo de couverture » renommée **« Bannière »** partout, note de renvoi
+  vers les Paramètres supprimée.
+- **Tuiles du profil (liste arrêtée)** : épisodes vus, temps devant les
+  épisodes, films vus, temps devant les films, jeux joués, temps de jeu
+  (déclaré) — contenu **centré** avec pastille d'icône.
+- **Sections du profil** : renommées (**Séries favorites / Films favoris /
+  Jeux favoris**), ordonnées Séries → favorites → Films → favoris → Jeux →
+  favoris, et présentées en **cartes** raccord avec le reste de l'onglet.
+- **Temps de jeu facile à trouver** : bouton dédié « Temps de jeu — Déclarer
+  mes heures / Xh ✎ » directement dans le bloc de suivi de la fiche jeu,
+  visible quel que soit le statut — plus besoin de re-basculer un statut.
+
 ### 2026-07-20 — Claude/Étienne : stats refondues, temps de jeu déclaratif, médailles
 - **Statistiques (`/stats`) — composition PlotTime originale** (rupture avec la
   présentation TV Time) : segments **Séries / Films / Jeux** en pilule Prisme,

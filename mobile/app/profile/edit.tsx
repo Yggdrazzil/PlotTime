@@ -7,13 +7,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import { COLORS, FONTS, RADIUS, SIZES, SPACE } from '@/lib/theme';
 import { Loading } from '@/components/ui';
-import { ScreenShell, ScreenHeader, PrismeCard, IconAction } from '@/components/prisme';
+import { ScreenShell, ScreenHeader, SectionHeader, PrismeCard, IconAction } from '@/components/prisme';
 import { useAppStore } from '@/lib/store';
 import type { ProfileUser } from '@/app/(tabs)/profile';
 
-// « Modifier le profil » = PHOTOS uniquement (avatar + bannière) — demande
-// produit 2026-07-20. Le nom d'affichage et le pays s'éditent désormais dans
-// Paramètres > Compte > Identification.
+// « Modifier le profil » = PHOTOS uniquement (avatar + bannière). Le nom
+// d'affichage et le pays s'éditent dans Paramètres > Compte > Identification.
 export default function EditProfile() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -38,7 +37,7 @@ export default function EditProfile() {
     setInitialized(true);
   }, [profile.data, initialized]);
 
-  // Récupère la couverture choisie dans /profile/cover.
+  // Récupère la bannière choisie dans /profile/cover.
   useEffect(() => {
     if (coverPick) {
       setCoverUrl(coverPick);
@@ -120,50 +119,74 @@ export default function EditProfile() {
         }
       />
 
-      <PrismeCard elevated>
-        {/* Photo de profil */}
-        <View style={styles.mediaRow}>
-          {avatarUrl ? (
-            <Image source={{ uri: tmdbImage(avatarUrl, 'w185') ?? avatarUrl }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.mediaEmpty]}>
-              <Feather name="user" size={26} color={COLORS.textSoft} />
-            </View>
-          )}
-          <Pressable style={{ flex: 1 }} onPress={pickAvatar} accessibilityRole="button" accessibilityLabel="Choisir une photo de profil">
-            <Text style={styles.link}>Choisir une photo de profil</Text>
+      {/* Photo de profil — grand aperçu circulaire, actions dessous. */}
+      <SectionHeader title="Photo de profil" eyebrow="Visible partout dans l'app" />
+      <PrismeCard elevated style={styles.card}>
+        {avatarUrl ? (
+          <Image source={{ uri: tmdbImage(avatarUrl, 'w342') ?? avatarUrl }} style={styles.avatarPreview} resizeMode="cover" />
+        ) : (
+          <View style={[styles.avatarPreview, styles.previewEmpty]}>
+            <Feather name="user" size={44} color={COLORS.textSoft} />
+          </View>
+        )}
+        <View style={styles.actionsRow}>
+          <Pressable
+            style={({ pressed }) => [styles.chooseBtn, pressed && styles.btnPressed]}
+            onPress={pickAvatar}
+            accessibilityRole="button"
+            accessibilityLabel="Choisir une photo de profil"
+          >
+            <Feather name="image" size={15} color={COLORS.onPrimary} />
+            <Text style={styles.chooseText}>{avatarUrl ? 'Changer' : 'Choisir une photo'}</Text>
           </Pressable>
           {avatarUrl ? (
-            <Pressable onPress={() => setAvatarUrl(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Supprimer la photo de profil">
-              <Feather name="x-circle" size={24} color={COLORS.textMuted} />
-            </Pressable>
-          ) : null}
-        </View>
-
-        {/* Photo de couverture (bannière) */}
-        <View style={[styles.mediaRow, styles.mediaRowBorder]}>
-          {coverUrl ? (
-            <Image source={{ uri: tmdbImage(coverUrl, 'w185') ?? coverUrl }} style={styles.cover} resizeMode="cover" />
-          ) : (
-            <View style={[styles.cover, styles.mediaEmpty]}>
-              <Feather name="image" size={24} color={COLORS.textSoft} />
-            </View>
-          )}
-          <Pressable style={{ flex: 1 }} onPress={() => router.push('/profile/cover')} accessibilityRole="button" accessibilityLabel="Choisir une photo de couverture">
-            <Text style={styles.link}>Choisir une photo de couverture</Text>
-          </Pressable>
-          {coverUrl ? (
-            <Pressable onPress={() => setCoverUrl(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Supprimer la photo de couverture">
-              <Feather name="x-circle" size={24} color={COLORS.textMuted} />
+            <Pressable
+              style={({ pressed }) => [styles.removeBtn, pressed && styles.btnPressed]}
+              onPress={() => setAvatarUrl(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Supprimer la photo de profil"
+            >
+              <Feather name="trash-2" size={15} color={COLORS.danger} />
+              <Text style={styles.removeText}>Supprimer</Text>
             </Pressable>
           ) : null}
         </View>
       </PrismeCard>
 
-      {/* Le reste du profil (nom d'affichage, pays) s'édite dans Paramètres. */}
-      <Text style={styles.note}>
-        Nom d’affichage et pays se modifient dans Paramètres → Compte → Identification.
-      </Text>
+      {/* Bannière — grand aperçu 16:9, actions dessous. */}
+      <SectionHeader title="Bannière" eyebrow="L'image en tête de ton profil" />
+      <PrismeCard elevated style={styles.card}>
+        {coverUrl ? (
+          <Image source={{ uri: tmdbImage(coverUrl, 'w500') ?? coverUrl }} style={styles.coverPreview} resizeMode="cover" />
+        ) : (
+          <View style={[styles.coverPreview, styles.previewEmpty]}>
+            <Feather name="image" size={36} color={COLORS.textSoft} />
+            <Text style={styles.previewHint}>Choisis la bannière d'une série ou d'un film</Text>
+          </View>
+        )}
+        <View style={styles.actionsRow}>
+          <Pressable
+            style={({ pressed }) => [styles.chooseBtn, pressed && styles.btnPressed]}
+            onPress={() => router.push('/profile/cover')}
+            accessibilityRole="button"
+            accessibilityLabel="Choisir une bannière"
+          >
+            <Feather name="search" size={15} color={COLORS.onPrimary} />
+            <Text style={styles.chooseText}>{coverUrl ? 'Changer' : 'Choisir une bannière'}</Text>
+          </Pressable>
+          {coverUrl ? (
+            <Pressable
+              style={({ pressed }) => [styles.removeBtn, pressed && styles.btnPressed]}
+              onPress={() => setCoverUrl(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Supprimer la bannière"
+            >
+              <Feather name="trash-2" size={15} color={COLORS.danger} />
+              <Text style={styles.removeText}>Supprimer</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </PrismeCard>
     </ScreenShell>
   );
 }
@@ -180,11 +203,47 @@ const styles = StyleSheet.create({
   saveBtnBusy: { opacity: 0.6 },
   saveText: { color: COLORS.onPrimary, fontSize: 12.5, fontFamily: FONTS.extraBold, letterSpacing: 0.4 },
   btnPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
-  mediaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.md, paddingVertical: SPACE.xs, minHeight: SIZES.touch },
-  mediaRowBorder: { borderTopWidth: 1, borderTopColor: COLORS.borderLight, marginTop: SPACE.xs, paddingTop: SPACE.sm },
-  avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.imagePlaceholder },
-  mediaEmpty: { alignItems: 'center', justifyContent: 'center' },
-  cover: { width: 92, height: 60, borderRadius: RADIUS.poster, backgroundColor: COLORS.imagePlaceholder },
-  link: { color: COLORS.primary, fontFamily: FONTS.semiBold, fontSize: 15 },
-  note: { marginTop: SPACE.sm, color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13, lineHeight: 18 },
+  card: { alignItems: 'center', gap: SPACE.md, marginBottom: SPACE.sm },
+  avatarPreview: {
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    backgroundColor: COLORS.imagePlaceholder,
+    borderWidth: 4,
+    borderColor: COLORS.surface,
+    ...{ shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 4 },
+  },
+  coverPreview: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.imagePlaceholder,
+    overflow: 'hidden',
+  },
+  previewEmpty: { alignItems: 'center', justifyContent: 'center', gap: SPACE.xs },
+  previewHint: { color: COLORS.textSoft, fontFamily: FONTS.regular, fontSize: 12.5, textAlign: 'center', paddingHorizontal: SPACE.lg },
+  actionsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACE.sm, flexWrap: 'wrap' },
+  chooseBtn: {
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.xs,
+    paddingHorizontal: SPACE.md,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primary,
+  },
+  chooseText: { color: COLORS.onPrimary, fontSize: 13.5, fontFamily: FONTS.extraBold },
+  removeBtn: {
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.xs,
+    paddingHorizontal: SPACE.md,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1.5,
+    borderColor: COLORS.danger,
+  },
+  removeText: { color: COLORS.danger, fontSize: 13.5, fontFamily: FONTS.bold },
 });

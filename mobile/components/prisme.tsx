@@ -332,7 +332,9 @@ const styles = StyleSheet.create({
   headerCopy: { flex: 1, minWidth: 0 },
   tabHeader: { height: 48, alignItems: 'center', justifyContent: 'center' },
   tabHeaderTitle: { color: COLORS.text, fontFamily: FONTS.extraBold, fontSize: 18 },
-  tabHeaderTrailing: { position: 'absolute', right: SPACE.md, height: '100%', justifyContent: 'center' },
+  // Collé au bord droit du padding de l'écran (l'icône affleure à ~16 dp du
+  // bord physique, comme Instagram) — le bouton gère lui-même sa cible 44 px.
+  tabHeaderTrailing: { position: 'absolute', right: 0, height: '100%', justifyContent: 'center' },
   eyebrow: {
     color: COLORS.primary,
     fontFamily: FONTS.bold,

@@ -51,7 +51,7 @@ function HomeHeaderActions() {
       accessibilityLabel={unread > 0 ? `Notifications, ${unread} non lue${unread > 1 ? 's' : ''}` : 'Notifications'}
       accessibilityHint="Ouvre le centre de notifications"
     >
-      <Feather name="bell" size={19} color={COLORS.text} />
+      <Feather name="bell" size={25} color={COLORS.text} />
       {unread > 0 ? (
         <PopIn style={styles.headerBadge}>
           <Text style={styles.headerBadgeText}>{unread > 9 ? '9+' : unread}</Text>
@@ -569,12 +569,12 @@ const styles = StyleSheet.create({
   },
   // File « À voir » : contenu centré et borné à contentMax comme l'agenda et la
   // bibliothèque (les cartes ne s'étirent plus bord à bord sur web/tablette).
-  queueContent: { alignItems: 'center', paddingBottom: 16 },
+  queueContent: { alignItems: 'center', paddingBottom: SIZES.tabBar + SPACE.xl },
   queueColumn: { width: '100%', maxWidth: SIZES.contentMax },
   agendaContent: {
     alignItems: 'center',
     paddingTop: SPACE.xxs,
-    paddingBottom: SPACE.lg,
+    paddingBottom: SIZES.tabBar + SPACE.xl,
   },
   agendaPastWrap: { width: '100%', maxWidth: SIZES.contentMax },
   agendaGroup: { width: '100%', maxWidth: SIZES.contentMax },
@@ -618,17 +618,15 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: 'row', marginTop: 2 },
   multi: { color: COLORS.secondary, fontFamily: FONTS.bold, fontSize: 12, lineHeight: 16, marginTop: SPACE.xxs },
   // Raccourcis d'en-tête Accueil (cloche + avatar, disposition maquette).
+  // Icône nue, calée à droite (façon Instagram) : cible 44 px conservée, le
+  // glyphe affleure au padding de l'écran.
   headerBtn: {
     width: SIZES.touch,
     height: SIZES.touch,
-    borderRadius: RADIUS.pill,
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'center',
-    backgroundColor: COLORS.surfaceMuted,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
   },
-  headerBtnPressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
+  headerBtnPressed: { opacity: 0.55, transform: [{ scale: 0.94 }] },
   headerBadge: {
     position: 'absolute',
     top: -3,

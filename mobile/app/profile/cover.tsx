@@ -74,7 +74,7 @@ export default function CoverPicker() {
   return (
     <ScreenShell contentContainerStyle={styles.content}>
       <ScreenHeader
-        title={picked ? picked.title : 'Choisir une couverture'}
+        title={picked ? picked.title : 'Choisir une bannière'}
         leading={<IconAction icon="chevron-left" label="Retour" onPress={onHeaderBack} />}
       />
 
@@ -112,7 +112,7 @@ export default function CoverPicker() {
           </View>
           {resolving ? <Loading /> : null}
           {dq.length <= 1 ? (
-            <EmptyState title="Cherchez une œuvre" message="Sa bannière deviendra votre photo de couverture." />
+            <EmptyState title="Cherchez une œuvre" message="Sa bannière deviendra la bannière de votre profil." />
           ) : search.isLoading ? (
             <Loading />
           ) : (search.data?.results.length ?? 0) === 0 ? (

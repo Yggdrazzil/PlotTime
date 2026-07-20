@@ -34,7 +34,9 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
   const visibleRoutes = state.routes.filter((route) => VISIBLE_ROUTES.has(route.name));
 
   return (
-    <View style={[styles.shell, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    // `box-none` : les zones transparentes autour de la pilule laissent passer
+    // les touches vers le contenu qui défile derrière (barre FLOTTANTE).
+    <View pointerEvents="box-none" style={[styles.shell, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       <View style={styles.bar}>
         {visibleRoutes.map((route) => {
           const actuallyFocused = activeRouteName === route.name;
@@ -104,7 +106,19 @@ function TabIcon({ name, focused, showDot }: { name: keyof typeof Feather.glyphM
 }
 
 const styles = StyleSheet.create({
-  shell: { backgroundColor: 'transparent', paddingHorizontal: 12, paddingTop: 6 },
+  // Barre FLOTTANTE (demande produit 2026-07-20, tous thèmes) : posée en
+  // absolu au-dessus des écrans — le contenu défile derrière la pilule (et se
+  // devine à travers en thème Glass). Les onglets réservent l'espace via leur
+  // paddingBottom (SIZES.tabBar + marge).
+  shell: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 12,
+    paddingTop: 6,
+  },
   bar: {
     flexDirection: 'row',
     minHeight: 64,

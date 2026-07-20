@@ -228,10 +228,13 @@ function ProfileScreenInner() {
               <Feather name="chevron-right" size={22} color={COLORS.primary} />
             </Pressable>
 
-            {/* Favoris d'abord (disposition maquette), puis listes et bibliothèques. */}
-            <PosterRow title="Séries préférées" items={sortFavorites(data.favoriteShows, favSort.show)} heart emptyLabel="Aucune série en favori" href="/library/favorite-shows" />
-            <PosterRow title="Films préférés" items={sortFavorites(data.favoriteMovies, favSort.movie)} isMovie heart emptyLabel="Aucun film en favori" href="/library/favorite-movies" />
-            <PosterRow title="Jeux préférés" items={sortFavorites(data.favoriteGames ?? [], favSort.game)} isGame heart emptyLabel="Aucun jeu en favori" href="/library/favorite-games" />
+            {/* Collections (ordre produit 2026-07-20) : chaque média puis ses favoris. */}
+            <PosterRow title="Séries" items={data.shows} emptyLabel="Aucune série suivie" href="/library/shows" />
+            <PosterRow title="Séries favorites" items={sortFavorites(data.favoriteShows, favSort.show)} heart emptyLabel="Aucune série en favori" href="/library/favorite-shows" />
+            <PosterRow title="Films" items={data.movies} isMovie emptyLabel="Aucun film ajouté" href="/library/movies" />
+            <PosterRow title="Films favoris" items={sortFavorites(data.favoriteMovies, favSort.movie)} isMovie heart emptyLabel="Aucun film en favori" href="/library/favorite-movies" />
+            <PosterRow title="Jeux" items={data.games ?? []} isGame emptyLabel="Aucun jeu joué" href="/games" />
+            <PosterRow title="Jeux favoris" items={sortFavorites(data.favoriteGames ?? [], favSort.game)} isGame heart emptyLabel="Aucun jeu en favori" href="/library/favorite-games" />
 
             {data.lists.length > 0 ? (
               <View style={styles.section}>
@@ -264,9 +267,6 @@ function ProfileScreenInner() {
               </View>
             ) : null}
 
-            <PosterRow title="Séries" items={data.shows} emptyLabel="Aucune série suivie" href="/library/shows" />
-            <PosterRow title="Films" items={data.movies} isMovie emptyLabel="Aucun film ajouté" href="/library/movies" />
-            <PosterRow title="Jeux" items={data.games ?? []} isGame emptyLabel="Aucun jeu joué" href="/games" />
           </View>
         </View>
       </PullToRefresh>
@@ -286,7 +286,7 @@ function HeaderActions() {
       accessibilityLabel="Paramètres"
       accessibilityHint={'Ouvre les paramètres du compte et de l’application'}
     >
-      <Feather name="settings" size={19} color={COLORS.text} />
+      <Feather name="settings" size={25} color={COLORS.text} />
     </Pressable>
   );
 }
@@ -301,36 +301,35 @@ function fmtDuration(minutes: number): string {
   return parts.join(' ');
 }
 
-// Tuiles de statistiques all-time. Les deux tuiles « temps » (visionnage et
-// jeu) occupent toute la largeur : mois / jours / heures, comme demandé.
-// Repli : tant que le serveur de prod n'expose pas le détail jeux, une seule
-// tuile « joués » et pas de temps de jeu.
+// Tuiles de statistiques all-time (liste arrêtée par Étienne, 2026-07-20) :
+// épisodes vus, temps épisodes, films vus, temps films, jeux joués, temps de
+// jeu (déclaratif). Contenu CENTRÉ avec pastille d'icône.
 function StatTiles({ stats }: { stats: ProfileStatsDto }) {
-  const tiles: { key: string; value: string; label: string; wide?: boolean }[] = [
-    { key: 'episodes', value: stats.episodesWatched.toLocaleString('fr-FR'), label: 'épisodes vus' },
-    { key: 'movies', value: stats.moviesWatched.toLocaleString('fr-FR'), label: 'films vus' },
-    { key: 'time', value: fmtDuration(stats.showMinutes + stats.movieMinutes), label: 'devant les séries et films', wide: true },
+  const tiles: { key: string; icon?: keyof typeof Feather.glyphMap; ionicon?: keyof typeof Ionicons.glyphMap; value: string; label: string }[] = [
+    { key: 'episodes', icon: 'tv', value: stats.episodesWatched.toLocaleString('fr-FR'), label: 'épisodes vus' },
+    { key: 'showTime', icon: 'clock', value: fmtDuration(stats.showMinutes), label: 'devant les épisodes' },
+    { key: 'movies', icon: 'film', value: stats.moviesWatched.toLocaleString('fr-FR'), label: 'films vus' },
+    { key: 'movieTime', icon: 'clock', value: fmtDuration(stats.movieMinutes), label: 'devant les films' },
+    { key: 'games', ionicon: 'game-controller-outline', value: stats.gamesPlayed.toLocaleString('fr-FR'), label: 'jeux joués' },
+    {
+      key: 'gameTime',
+      icon: 'clock',
+      value: fmtDuration(stats.gamePlaytimeMinutes ?? 0),
+      label: 'de jeu (déclaré)',
+    },
   ];
-  if (typeof stats.gamePlaytimeMinutes === 'number') {
-    tiles.push({
-      key: 'gtime',
-      value: stats.gamePlaytimeMinutes > 0 ? fmtDuration(stats.gamePlaytimeMinutes) : '0 h',
-      label: 'de jeu (temps déclaré sur tes fiches jeux)',
-      wide: true,
-    });
-  }
-  tiles.push({ key: 'shows', value: stats.showsCount.toLocaleString('fr-FR'), label: 'séries suivies' });
-  if (typeof stats.gamesPlaying === 'number' && typeof stats.gamesCompleted === 'number') {
-    tiles.push({ key: 'gplaying', value: stats.gamesPlaying.toLocaleString('fr-FR'), label: 'jeux en cours' });
-    tiles.push({ key: 'gcompleted', value: stats.gamesCompleted.toLocaleString('fr-FR'), label: 'jeux terminés' });
-  } else {
-    tiles.push({ key: 'gplayed', value: stats.gamesPlayed.toLocaleString('fr-FR'), label: 'jeux joués' });
-  }
   return (
     <View style={styles.tilesGrid}>
       {tiles.map((tile, i) => (
-        <AppearItem key={tile.key} index={i} style={[styles.tileWrap, tile.wide && styles.tileWrapWide]}>
+        <AppearItem key={tile.key} index={i} style={styles.tileWrap}>
           <View style={styles.tile} accessible accessibilityLabel={`${tile.value} ${tile.label}`}>
+            <View style={styles.tileIcon}>
+              {tile.ionicon ? (
+                <Ionicons name={tile.ionicon} size={16} color={COLORS.primary} />
+              ) : (
+                <Feather name={tile.icon ?? 'activity'} size={16} color={COLORS.primary} />
+              )}
+            </View>
             <Text style={styles.tileValue} numberOfLines={1} adjustsFontSizeToFit>
               {tile.value}
             </Text>
@@ -397,7 +396,7 @@ function PosterRow({
 }) {
   const router = useRouter();
   return (
-    <View style={styles.posterSection}>
+    <View style={styles.posterCard}>
       {/* Toute la ligne de titre ouvre la page dédiée. */}
       <Pressable
         style={({ pressed }) => [styles.sectHead, pressed && styles.sectHeadPressed]}
@@ -457,18 +456,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.borderLight,
   },
+  // Icône nue, calée à droite (façon Instagram) : cible 44 px conservée.
   headerBtn: {
     width: SIZES.touch,
     height: SIZES.touch,
-    borderRadius: RADIUS.pill,
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'center',
-    backgroundColor: COLORS.surfaceMuted,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
   },
-  headerBtnPressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
-  screenContent: { flexGrow: 1, paddingBottom: SPACE.xl },
+  headerBtnPressed: { opacity: 0.55, transform: [{ scale: 0.94 }] },
+  screenContent: { flexGrow: 1, paddingBottom: SIZES.tabBar + SPACE.xl },
   canvas: { width: '100%', maxWidth: SIZES.contentMax, alignSelf: 'center' },
   body: { paddingHorizontal: SPACE.md, paddingTop: SPACE.xs },
   // Bannière en carte arrondie (maquette) — au-dessus des stats, pas pleine page.
@@ -537,11 +533,11 @@ const styles = StyleSheet.create({
   // Tuiles de statistiques (grille 2 colonnes, maquette).
   tilesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.sm },
   tileWrap: { flexBasis: '47%', flexGrow: 1 },
-  tileWrapWide: { flexBasis: '100%' },
   tile: {
-    minHeight: 84,
+    minHeight: 108,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: SPACE.md,
+    paddingHorizontal: SPACE.sm,
     paddingVertical: SPACE.sm,
     borderRadius: RADIUS.card,
     borderWidth: 1,
@@ -549,8 +545,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     ...SHADOW.card,
   },
-  tileValue: { color: COLORS.text, fontSize: 24, lineHeight: 30, fontFamily: FONTS.extraBold },
-  tileLabel: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18, fontFamily: FONTS.regular, marginTop: 1 },
+  tileIcon: {
+    width: 30, height: 30, borderRadius: RADIUS.pill, backgroundColor: COLORS.primarySoft,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 6,
+  },
+  tileValue: { color: COLORS.text, fontSize: 21, lineHeight: 26, fontFamily: FONTS.extraBold, textAlign: 'center' },
+  tileLabel: { color: COLORS.textMuted, fontSize: 12.5, lineHeight: 17, fontFamily: FONTS.regular, marginTop: 2, textAlign: 'center' },
   // Encart streak → Trophées.
   streakCard: {
     minHeight: 68,
@@ -587,11 +587,20 @@ const styles = StyleSheet.create({
   dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: SPACE.sm },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.border },
   dotActive: { width: 18, backgroundColor: COLORS.primary },
-  posterSection: { paddingVertical: SPACE.sm },
+  // Sections de collection en carte (raccord avec le reste du profil).
+  posterCard: {
+    marginVertical: SPACE.xs,
+    padding: SPACE.sm,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    backgroundColor: COLORS.surface,
+    ...SHADOW.card,
+  },
   posterTitleRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: SPACE.xs },
   heartBadge: { width: 30, height: 30, borderRadius: RADIUS.pill, backgroundColor: COLORS.secondary, alignItems: 'center', justifyContent: 'center' },
   mediaContent: { gap: 10, paddingBottom: SPACE.xxs },
-  emptyRow: { minHeight: 112, flexDirection: 'row', alignItems: 'center', gap: SPACE.md, padding: SPACE.md, borderRadius: RADIUS.card, borderWidth: 1, borderColor: COLORS.borderLight, backgroundColor: COLORS.surface },
+  emptyRow: { minHeight: 104, flexDirection: 'row', alignItems: 'center', gap: SPACE.md, padding: SPACE.sm, borderRadius: RADIUS.control, backgroundColor: COLORS.surfaceMuted },
   emptyPoster: { width: 56, height: 78, flexShrink: 0, borderRadius: RADIUS.poster, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' },
   emptyRowText: { flex: 1, color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 14, lineHeight: 20 },
 });

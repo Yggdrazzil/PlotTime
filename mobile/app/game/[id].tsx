@@ -431,6 +431,32 @@ export default function GameDetail() {
             disabled={trackingBusy}
             onToggle={changeOwned}
           />
+          {/* Temps de jeu : bouton BIEN VISIBLE dès que le jeu est suivi
+              (peu importe le statut) — retour Étienne 2026-07-20 : plus besoin
+              de re-basculer un statut pour rouvrir la feuille. */}
+          {game.userStatus ? (
+            <Pressable
+              style={({ pressed }) => [styles.playtimeBtn, pressed && styles.playtimeBtnPressed]}
+              onPress={() => setPlaytimeOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={
+                game.playtimeMinutes
+                  ? `Temps de jeu : ${formatPlaytime(game.playtimeMinutes)} — modifier`
+                  : 'Déclarer mon temps de jeu'
+              }
+            >
+              <View style={styles.playtimeIcon}>
+                <Feather name="clock" size={16} color={COLORS.onAccent} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.playtimeLabel}>Temps de jeu</Text>
+                <Text style={styles.playtimeValue} numberOfLines={1}>
+                  {game.playtimeMinutes ? formatPlaytime(game.playtimeMinutes) : 'Déclarer mes heures'}
+                </Text>
+              </View>
+              <Feather name="edit-3" size={17} color={COLORS.primary} />
+            </Pressable>
+          ) : null}
         </View>
 
         {game.videoId ? <TrailerPreview videoId={game.videoId} /> : null}
@@ -1753,6 +1779,27 @@ const styles = StyleSheet.create({
   factList: {
     gap: SPACE.xs,
   },
+  // Bouton « Temps de jeu » du bloc suivi (visible dès que le jeu est suivi).
+  playtimeBtn: {
+    minHeight: SIZES.touchComfortable,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    marginTop: SPACE.sm,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: SPACE.xs,
+    borderRadius: RADIUS.control,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  playtimeBtnPressed: { opacity: 0.75 },
+  playtimeIcon: {
+    width: 32, height: 32, borderRadius: RADIUS.pill, backgroundColor: COLORS.yellow,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  playtimeLabel: { color: COLORS.textMuted, fontSize: 11.5, fontFamily: FONTS.bold, letterSpacing: 0.3, textTransform: 'uppercase' },
+  playtimeValue: { color: COLORS.text, fontSize: 15, fontFamily: FONTS.bold, marginTop: 1 },
   factRow: {
     minHeight: 52,
     paddingVertical: SPACE.xs,
