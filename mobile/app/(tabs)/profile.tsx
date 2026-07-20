@@ -10,7 +10,7 @@ import type { GamificationMeDto, MediaDto, ProfileStatsDto } from '@/lib/types';
 import { watchTime } from '@/lib/format';
 import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
 import { Loading, LoadError, Poster } from '@/components/ui';
-import { AppearItem, PopIn } from '@/components/anim';
+import { AppearItem } from '@/components/anim';
 import { TabHeader } from '@/components/prisme';
 import { useTabResetSeq } from '@/lib/tabReset';
 import { usePullRefresh } from '@/lib/usePullRefresh';
@@ -274,41 +274,20 @@ function ProfileScreenInner() {
   );
 }
 
-// Raccourcis d'en-tête : notifications + réglages.
+// Raccourci d'en-tête : les réglages, seuls en haut à droite (la cloche de
+// notifications vit sur l'Accueil).
 function HeaderActions() {
   const router = useRouter();
-  const { data: unreadData } = useQuery({
-    queryKey: ['notifications', 'unread'],
-    queryFn: () => api.get<{ unreadCount: number }>('/api/notifications/unread-count'),
-    refetchInterval: 30_000,
-  });
-  const unread = unreadData?.unreadCount ?? 0;
   return (
-    <View style={styles.headerActions}>
-      <Pressable
-        style={({ pressed }) => [styles.headerBtn, pressed && styles.headerBtnPressed]}
-        onPress={() => router.push('/notifications')}
-        accessibilityRole="button"
-        accessibilityLabel={unread > 0 ? `Notifications, ${unread} non lue${unread > 1 ? 's' : ''}` : 'Notifications'}
-        accessibilityHint="Ouvre le centre de notifications"
-      >
-        <Feather name="bell" size={19} color={COLORS.text} />
-        {unread > 0 ? (
-          <PopIn style={styles.headerBadge}>
-            <Text style={styles.headerBadgeText}>{unread > 9 ? '9+' : unread}</Text>
-          </PopIn>
-        ) : null}
-      </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.headerBtn, pressed && styles.headerBtnPressed]}
-        onPress={() => router.push('/settings')}
-        accessibilityRole="button"
-        accessibilityLabel="Paramètres"
-        accessibilityHint={'Ouvre les paramètres du compte et de l’application'}
-      >
-        <Feather name="settings" size={19} color={COLORS.text} />
-      </Pressable>
-    </View>
+    <Pressable
+      style={({ pressed }) => [styles.headerBtn, pressed && styles.headerBtnPressed]}
+      onPress={() => router.push('/settings')}
+      accessibilityRole="button"
+      accessibilityLabel="Paramètres"
+      accessibilityHint={'Ouvre les paramètres du compte et de l’application'}
+    >
+      <Feather name="settings" size={19} color={COLORS.text} />
+    </Pressable>
   );
 }
 
@@ -461,7 +440,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.borderLight,
   },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: SPACE.xs },
   headerBtn: {
     width: SIZES.touch,
     height: SIZES.touch,
@@ -473,21 +451,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderLight,
   },
   headerBtnPressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
-  headerBadge: {
-    position: 'absolute',
-    top: -3,
-    right: -3,
-    minWidth: 18,
-    height: 18,
-    borderRadius: RADIUS.pill,
-    borderWidth: 2,
-    borderColor: COLORS.white,
-    backgroundColor: COLORS.notif,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  headerBadgeText: { color: '#FFFFFF', fontSize: 9, fontFamily: FONTS.extraBold },
   screenContent: { flexGrow: 1, paddingBottom: SPACE.xl },
   canvas: { width: '100%', maxWidth: SIZES.contentMax, alignSelf: 'center' },
   body: { paddingHorizontal: SPACE.md, paddingTop: SPACE.xs },

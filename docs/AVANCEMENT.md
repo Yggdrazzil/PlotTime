@@ -91,6 +91,29 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 
 ## Journal des modifications
 
+### 2026-07-20 — Claude/Étienne : retours UX (en-têtes, 18+, édition profil scindée, pseudo unique)
+- **Accueil** : le raccourci Profil (avatar) disparaît de l'en-tête ; seule la
+  **cloche de notifications** reste, en haut à droite de « À voir » — et elle
+  n'existe que sur l'onglet Accueil.
+- **Profil** : plus de cloche dans l'en-tête ; le bouton **Réglages** occupe
+  seul le coin droit.
+- **Paramètres** : en-tête allégé (titre « Paramètres » seul, sans eyebrow ni
+  sous-titre) ; la section **Contenu 18+ est masquée sur iOS ET Android**
+  (conformité stores — elle reste disponible sur la web app).
+- **« Modifier le profil » réduit aux photos** : avatar + bannière uniquement.
+  Le **nom d'affichage** et le **pays** s'éditent désormais dans Paramètres →
+  Compte → Identification (année de naissance et sexe retirés de l'interface,
+  demande produit — les champs restent en base et côté API).
+- **Nom d'affichage unique** : `POST /api/profile` refuse (409
+  `display_name_taken`, insensible à la casse) un pseudo déjà porté par un
+  autre compte ; chiffres et caractères spéciaux autorisés (longueur 1–80,
+  espaces de bord retirés). Modale dédiée dans Paramètres avec erreur claire
+  « Ce nom est déjà utilisé » ; sélecteur de pays plein écran conservé.
+  **Nouveau test serveur** `display-name-unique.test.ts` (3 cas : refus 409,
+  caractères spéciaux acceptés, reprise de son propre pseudo).
+- **Validation** : typecheck mobile + serveur verts ; tests ciblés verts
+  (3 nouveaux + 25 api) ; export Expo Web complet.
+
 ### 2026-07-20 — Claude/Étienne : Accueil & Profil rapprochés des maquettes Prisme
 - **Serveur** — `GET /api/shows/queue` expose désormais `progress {watched,total}`
   par série (épisodes diffusés hors spéciaux, même sémantique que la
