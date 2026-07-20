@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Image } from 'react-native';
+import { View, Image, Platform } from 'react-native';
+import { enableScreens } from 'react-native-screens';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, DefaultTheme, DarkTheme } from '@react-navigation/native';
@@ -43,6 +44,14 @@ const navTheme =
     ? { ...baseNavTheme, colors: { ...baseNavTheme.colors, background: 'transparent' } }
     : baseNavTheme;
 
+// Glass (web) — correctif de la SUPERPOSITION des écrans : react-native-screens
+// laisse les scènes inactives montées et VISIBLES dans le DOM ; elles sont
+// d'ordinaire masquées par les fonds opaques des écrans, mais les fonds Glass
+// sont des voiles translucides → tous les onglets/écrans transparaissaient.
+// On repasse ici sur les vues classiques de React Navigation (scènes inactives
+// en display:none). Web + Glass uniquement : aucun impact natif ni autres thèmes.
+if (Platform.OS === 'web' && THEME === 'glass') enableScreens(false);
+
 export default function RootLayout() {
   // Police de l'app (voir FONTS dans lib/theme.ts) — chargée avant tout rendu.
   const [fontsLoaded] = useFonts({
@@ -75,7 +84,9 @@ export default function RootLayout() {
           {/* Transitions natives (iOS/Android) : glissement fluide entre écrans.
               Sur le web, ces options sont ignorées → l'animation « Pop » au montage
               de chaque page prend le relais. */}
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.white }, animation: 'slide_from_right' }}>
+          {/* Glass : cartes transparentes (le dégradé du document transparaît) —
+              la superposition est neutralisée par enableScreens(false) ci-dessus. */}
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: THEME === 'glass' ? 'transparent' : COLORS.white }, animation: 'slide_from_right' }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="setup" />
             <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
