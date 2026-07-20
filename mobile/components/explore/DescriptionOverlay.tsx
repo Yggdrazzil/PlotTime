@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { api } from '@/lib/api';
-import { COLORS, FONTS } from '@/lib/theme';
+import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
 import { SlideUpBar } from '@/components/anim';
 import type { FeedItem } from './types';
 
@@ -82,22 +82,30 @@ export function DescriptionOverlay({
 
   return (
     <SlideUpBar visible={visible} style={styles.sheet} distance={160}>
-      <Pressable style={styles.grip} onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Fermer">
-        <Feather name="chevron-down" size={26} color="#fff" />
+      <View style={styles.sheetAccent} pointerEvents="none" />
+      <Pressable
+        style={({ pressed }) => [styles.grip, pressed && styles.gripPressed]}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Fermer les détails"
+      >
+        <View style={styles.handle} />
+        <Feather name="chevron-down" size={20} color={COLORS.textMuted} />
       </Pressable>
       <ScrollView
-        // Padding bas généreux : la barre « Ajouter un commentaire » du flux reste
-        // affichée par-dessus — sans lui, « VOIR LA FICHE » passait dessous.
-        contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 4, paddingBottom: 110 }}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.meta}>{meta}</Text>
+        <View style={styles.metaPill}>
+          <Feather name={isGame ? 'command' : item.type === 'show' ? 'tv' : 'film'} size={13} color={COLORS.primary} />
+          <Text style={styles.meta}>{meta}</Text>
+        </View>
+        <Text accessibilityRole="header" style={styles.title}>{item.title}</Text>
         <Text style={styles.desc}>{item.overview || 'Pas de description disponible.'}</Text>
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 16, alignSelf: 'flex-start' }} color="#fff" />
+          <ActivityIndicator style={styles.loader} color={COLORS.primary} />
         ) : info ? (
-          <View style={{ marginTop: 14, gap: 8 }}>
+          <View style={styles.infoCard}>
             {isGame ? (
               <>
                 <InfoLine label="Plateformes" value={info.platforms ?? undefined} />
@@ -119,9 +127,15 @@ export function DescriptionOverlay({
             )}
           </View>
         ) : null}
-        <Pressable style={styles.ficheBtn} onPress={() => onOpenFiche(item)}>
-          <Feather name="external-link" size={18} color={COLORS.black} />
+        <Pressable
+          style={({ pressed }) => [styles.ficheBtn, pressed && styles.ficheBtnPressed]}
+          onPress={() => onOpenFiche(item)}
+          accessibilityRole="button"
+          accessibilityLabel={`Voir la fiche complète de ${item.title}`}
+        >
+          <Feather name="external-link" size={18} color={COLORS.onPrimary} />
           <Text style={styles.ficheText}>VOIR LA FICHE</Text>
+          <Feather name="arrow-right" size={17} color={COLORS.onPrimary} />
         </Pressable>
       </ScrollView>
     </SlideUpBar>
@@ -133,29 +147,119 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    top: '32%',
+    top: '26%',
     bottom: 0,
-    backgroundColor: 'rgba(8,8,12,0.98)',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: COLORS.surface,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderTopLeftRadius: RADIUS.sheet,
+    borderTopRightRadius: RADIUS.sheet,
     zIndex: 20,
+    ...SHADOW.season,
   },
-  grip: { alignSelf: 'center', paddingTop: 8, paddingBottom: 6 },
-  title: { color: '#fff', fontSize: 25, fontFamily: FONTS.extraBold },
-  meta: { color: 'rgba(255,255,255,0.8)', fontFamily: FONTS.bold, fontSize: 14, marginTop: 5 },
-  desc: { color: 'rgba(255,255,255,0.92)', fontFamily: FONTS.regular, fontSize: 15, lineHeight: 22, marginTop: 14 },
-  infoLine: { color: 'rgba(255,255,255,0.9)', fontFamily: FONTS.regular, fontSize: 14, lineHeight: 20 },
-  infoLabel: { color: COLORS.yellow, fontFamily: FONTS.bold },
-  ficheBtn: {
+  sheetAccent: {
+    position: 'absolute',
+    top: 0,
+    left: SPACE.xl,
+    right: SPACE.xl,
+    height: 4,
+    backgroundColor: COLORS.secondary,
+    borderBottomLeftRadius: RADIUS.pill,
+    borderBottomRightRadius: RADIUS.pill,
+  },
+  grip: {
+    width: 64,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    gap: 2,
+    borderRadius: RADIUS.control,
+  },
+  gripPressed: { backgroundColor: COLORS.surfaceMuted },
+  handle: {
+    width: 34,
+    height: 4,
+    backgroundColor: COLORS.border,
+    borderRadius: RADIUS.pill,
+  },
+  content: {
+    paddingHorizontal: SPACE.lg,
+    paddingTop: SPACE.xs,
+    paddingBottom: SPACE.xl,
+  },
+  metaPill: {
+    minHeight: 30,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     alignSelf: 'flex-start',
-    backgroundColor: COLORS.yellow,
-    borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 11,
-    marginTop: 22,
+    gap: 6,
+    paddingHorizontal: 10,
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: RADIUS.pill,
   },
-  ficheText: { fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.5, color: COLORS.onAccent },
+  title: {
+    marginTop: SPACE.sm,
+    color: COLORS.text,
+    fontSize: 25,
+    lineHeight: 31,
+    fontFamily: FONTS.extraBold,
+  },
+  meta: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 11.5,
+    letterSpacing: 0.35,
+  },
+  desc: {
+    marginTop: SPACE.sm,
+    color: COLORS.text,
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    lineHeight: 23,
+  },
+  loader: {
+    marginTop: SPACE.md,
+    alignSelf: 'flex-start',
+  },
+  infoCard: {
+    gap: SPACE.xs,
+    marginTop: SPACE.md,
+    padding: SPACE.md,
+    backgroundColor: COLORS.surfaceMuted,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+  },
+  infoLine: {
+    color: COLORS.text,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  infoLabel: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+  },
+  ficheBtn: {
+    minHeight: SIZES.touchComfortable,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.xs,
+    marginTop: SPACE.lg,
+    paddingHorizontal: SPACE.lg,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
+  },
+  ficheBtnPressed: { opacity: 0.8 },
+  ficheText: {
+    color: COLORS.onPrimary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 12.5,
+    letterSpacing: 0.45,
+  },
 });

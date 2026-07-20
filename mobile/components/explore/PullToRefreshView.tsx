@@ -29,6 +29,8 @@ export function PullToRefreshView({
   style?: object;
 }) {
   const reduce = useReduceMotion();
+  const reduceRef = useRef(reduce);
+  reduceRef.current = reduce;
   const pull = useRef(new Animated.Value(0)).current;
   const dist = useRef(0);
   const refreshingRef = useRef(refreshing);
@@ -39,26 +41,35 @@ export function PullToRefreshView({
   // Rotation continue de la pastille pendant l'actualisation.
   const spin = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (!refreshing) return;
+    if (!refreshing || reduce) {
+      spin.setValue(0);
+      return;
+    }
     spin.setValue(0);
     const loop = Animated.loop(
       Animated.timing(spin, { toValue: 1, duration: 800, easing: Easing.linear, useNativeDriver: NATIVE }),
     );
     loop.start();
     return () => loop.stop();
-  }, [refreshing, spin]);
+  }, [reduce, refreshing, spin]);
 
   // Fin d'actualisation : la page remonte en ressort.
   const was = useRef(refreshing);
   useEffect(() => {
     if (was.current && !refreshing) {
-      Animated.spring(pull, { toValue: 0, friction: 6, tension: 60, useNativeDriver: NATIVE }).start();
+      if (reduce) pull.setValue(0);
+      else Animated.spring(pull, { toValue: 0, friction: 6, tension: 60, useNativeDriver: NATIVE }).start();
     }
     was.current = refreshing;
-  }, [refreshing, pull]);
+  }, [reduce, refreshing, pull]);
 
-  const settle = (to: number) =>
+  const settle = (to: number) => {
+    if (reduceRef.current) {
+      pull.setValue(to);
+      return;
+    }
     Animated.spring(pull, { toValue: to, friction: to === 0 ? 5 : 7, tension: 90, useNativeDriver: NATIVE }).start();
+  };
 
   const release = () => {
     if (dist.current >= TRIGGER && !refreshingRef.current) {
@@ -96,11 +107,11 @@ export function PullToRefreshView({
 
   const opacity = pull.interpolate({ inputRange: [0, 24, TRIGGER], outputRange: [0, 0.35, 1], extrapolate: 'clamp' });
   const scale = pull.interpolate({ inputRange: [0, TRIGGER], outputRange: [0.55, 1], extrapolate: 'clamp' });
-  const rotPull = pull.interpolate({ inputRange: [0, MAX], outputRange: ['0deg', '300deg'] });
-  const rotSpin = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const rotPull = pull.interpolate({ inputRange: [0, MAX], outputRange: reduce ? ['0deg', '0deg'] : ['0deg', '300deg'] });
+  const rotSpin = spin.interpolate({ inputRange: [0, 1], outputRange: reduce ? ['0deg', '0deg'] : ['0deg', '360deg'] });
 
   return (
-    <Animated.View style={[{ flex: 1, overflow: 'hidden' }, style]} {...(reduce ? {} : pan.panHandlers)}>
+    <Animated.View style={[{ flex: 1, overflow: 'hidden' }, style]} {...pan.panHandlers}>
       {/* Pastille : cachée au-dessus, elle descend avec la traction. */}
       <Animated.View style={[styles.spinnerWrap, { transform: [{ translateY: pull }] }]} pointerEvents="none">
         <Animated.View style={[styles.spinner, { opacity, transform: [{ scale }, { rotate: rotPull }, { rotate: rotSpin }] }]}>

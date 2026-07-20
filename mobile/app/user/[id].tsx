@@ -1,29 +1,51 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator, Platform, Modal } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { goBack } from '@/lib/nav';
 import { StatusBar } from 'expo-status-bar';
 import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { goBack } from '@/lib/nav';
 import { api, tmdbImage } from '@/lib/api';
 import type { MediaDto } from '@/lib/types';
-import { COLORS, FONTS, setThemeColorMeta, currentThemeColorMeta } from '@/lib/theme';
+import {
+  COLORS,
+  FONTS,
+  RADIUS,
+  SHADOW,
+  SIZES,
+  SPACE,
+  currentThemeColorMeta,
+  setThemeColorMeta,
+} from '@/lib/theme';
 import { Loading, LoadError } from '@/components/ui';
 import { AppearItem, Pop, PressableScale } from '@/components/anim';
 
-// Paliers bronze → argent → or → platine (aligné sur mobile/app/trophies.tsx).
-const TIER_COLORS: Record<number, string> = { 0: '#E3E3E3', 1: '#CD7F32', 2: '#9AA2AA', 3: '#D4A017', 4: '#7FDBFF' };
+const HERO_COLOR = '#201A24';
+const TIER_COLORS: Record<number, string> = {
+  0: COLORS.surfaceMuted,
+  1: '#CD7F32',
+  2: '#9AA2AA',
+  3: '#D4A017',
+  4: '#4EAFCE',
+};
 
-// Le catalogue serveur mélange des noms Feather et Ionicons (« game-controller »,
-// « flame ») — fallback sur « award » quand le nom n'existe pas dans Feather.
 function safeFeatherIcon(icon: string): keyof typeof Feather.glyphMap {
   return icon in Feather.glyphMap ? (icon as keyof typeof Feather.glyphMap) : 'award';
 }
 
 type RecentShow = { id: string; title: string; posterPath: string | null; type: string };
-// Sous-ensemble PUBLIC de la gamification (réputation) renvoyé par le serveur.
 type PublicBadge = { id: string; label: string; icon: string; tier: number; tierCount: number };
 type PublicGamification = {
   level: number;
@@ -39,7 +61,6 @@ type UserProfile = {
   displayName: string;
   avatarUrl: string | null;
   isFollowing: boolean;
-  // Blocage (moi → lui) : SUIVRE laisse place à « Débloquer » (stores, UGC).
   isBlocked: boolean;
   isSelf: boolean;
   isPrivate: boolean;
@@ -54,90 +75,96 @@ type UserProfile = {
   favoriteGames: MediaDto[];
 };
 
+function mediaHref(id: string, kind: string): Href {
+  if (kind === 'game') return ('/game/' + id) as Href;
+  return ('/show/' + id + (kind === 'movie' ? '?type=movie' : '')) as Href;
+}
+
 export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  // Confirmation « Bloquer/Débloquer NomUser ? » ouverte par le menu ⋯.
-  const [blockConfirm, setBlockConfirm] = useState(false);
   const focused = useIsFocused();
+  const [busy, setBusy] = useState(false);
+  const [blockConfirm, setBlockConfirm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  // Comme sur l'onglet Profil : en-tête sombre fondu avec la barre de statut
-  // (icônes claires en natif, zone teintée via theme-color sur la web app).
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined' || !focused) return;
-    const prev = currentThemeColorMeta();
-    setThemeColorMeta('#20202a');
-    return () => setThemeColorMeta(prev);
+    const previous = currentThemeColorMeta();
+    setThemeColorMeta(HERO_COLOR);
+    return () => setThemeColorMeta(previous);
   }, [focused]);
 
-  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['user', id],
-    queryFn: () => api.get<UserProfile>(`/api/users/${id}`),
+    queryFn: () => api.get<UserProfile>('/api/users/' + id),
   });
 
-  // Bascule OPTIMISTE : le bouton et le compteur d'abonnés changent au doigt,
-  // le serveur confirme derrière (rollback si échec).
   const toggleFollow = async () => {
     if (!data || busy) return;
     setBusy(true);
+    setActionError(null);
     const wasFollowing = data.isFollowing;
     await qc.cancelQueries({ queryKey: ['user', id] });
-    const prev = qc.getQueryData<UserProfile>(['user', id]);
-    qc.setQueryData<UserProfile>(['user', id], (d) =>
-      d
+    const previous = qc.getQueryData<UserProfile>(['user', id]);
+    qc.setQueryData<UserProfile>(['user', id], (current) =>
+      current
         ? {
-            ...d,
+            ...current,
             isFollowing: !wasFollowing,
-            followersCount: Math.max(0, d.followersCount + (wasFollowing ? -1 : 1)),
+            followersCount: Math.max(0, current.followersCount + (wasFollowing ? -1 : 1)),
           }
-        : d,
+        : current,
     );
     try {
-      if (wasFollowing) await api.del(`/api/social/follow/${data.id}`);
-      else await api.post(`/api/social/follow/${data.id}`);
-      qc.invalidateQueries({ queryKey: ['user', id] });
-      qc.invalidateQueries({ queryKey: ['social'] });
-      qc.invalidateQueries({ queryKey: ['profile'] });
+      if (wasFollowing) await api.del('/api/social/follow/' + data.id);
+      else await api.post('/api/social/follow/' + data.id);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['user', id] }),
+        qc.invalidateQueries({ queryKey: ['social'] }),
+        qc.invalidateQueries({ queryKey: ['profile'] }),
+      ]);
     } catch {
-      if (prev) qc.setQueryData(['user', id], prev);
+      if (previous) qc.setQueryData(['user', id], previous);
+      setActionError("Le suivi n'a pas pu être synchronisé. Réessaie.");
     } finally {
       setBusy(false);
     }
   };
 
-  // Bloquer/débloquer (modèle « mute » : ses contenus disparaissent de MES
-  // vues). Mutation OPTIMISTE sur isBlocked ; le blocage désabonne aussi dans
-  // les deux sens côté serveur → isFollowing retombe à false localement.
   const toggleBlock = async () => {
     if (!data || busy) return;
     setBusy(true);
+    setActionError(null);
     setBlockConfirm(false);
     const wasBlocked = data.isBlocked;
     await qc.cancelQueries({ queryKey: ['user', id] });
-    const prev = qc.getQueryData<UserProfile>(['user', id]);
-    qc.setQueryData<UserProfile>(['user', id], (d) =>
-      d
+    const previous = qc.getQueryData<UserProfile>(['user', id]);
+    qc.setQueryData<UserProfile>(['user', id], (current) =>
+      current
         ? {
-            ...d,
+            ...current,
             isBlocked: !wasBlocked,
-            isFollowing: wasBlocked ? d.isFollowing : false,
-            followersCount: !wasBlocked && d.isFollowing ? Math.max(0, d.followersCount - 1) : d.followersCount,
+            isFollowing: wasBlocked ? current.isFollowing : false,
+            followersCount:
+              !wasBlocked && current.isFollowing ? Math.max(0, current.followersCount - 1) : current.followersCount,
           }
-        : d,
+        : current,
     );
     try {
-      if (wasBlocked) await api.del(`/api/users/${data.id}/block`);
-      else await api.post(`/api/users/${data.id}/block`);
-      qc.invalidateQueries({ queryKey: ['user', id] });
-      // Ses contenus (fil, classement, commentaires) changent de visibilité.
-      qc.invalidateQueries({ queryKey: ['social'] });
-      qc.invalidateQueries({ queryKey: ['gamification'] });
-      qc.invalidateQueries({ queryKey: ['comments'] });
+      if (wasBlocked) await api.del('/api/users/' + data.id + '/block');
+      else await api.post('/api/users/' + data.id + '/block');
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['user', id] }),
+        qc.invalidateQueries({ queryKey: ['social'] }),
+        qc.invalidateQueries({ queryKey: ['gamification'] }),
+        qc.invalidateQueries({ queryKey: ['comments'] }),
+      ]);
     } catch {
-      if (prev) qc.setQueryData(['user', id], prev);
+      if (previous) qc.setQueryData(['user', id], previous);
+      setActionError("Le blocage n'a pas pu être synchronisé. Réessaie.");
     } finally {
       setBusy(false);
     }
@@ -146,219 +173,326 @@ export default function UserProfileScreen() {
   if (isLoading) return <Loading />;
   if (!data) return <LoadError onRetry={refetch} busy={isRefetching} />;
 
-  const g = data.gamification;
+  const gamification = data.gamification;
+  const avatar = data.avatarUrl ? tmdbImage(data.avatarUrl, 'w342') ?? data.avatarUrl : null;
 
   return (
-    <Pop>
-    <ScrollView style={{ flex: 1, backgroundColor: COLORS.white }} contentContainerStyle={{ paddingBottom: 24 }}>
+    <View style={styles.screen}>
       {focused ? <StatusBar style="light" /> : null}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={() => goBack('/social')} hitSlop={12} style={styles.back} accessibilityRole="button" accessibilityLabel="Retour">
-          <Feather name="chevron-left" size={28} color="#fff" />
-        </Pressable>
-        {/* Menu ⋯ : bloquer/débloquer cet utilisateur (exigence stores UGC). */}
-        {!data.isSelf ? (
-          <Pressable
-            onPress={() => setBlockConfirm(true)}
-            hitSlop={12}
-            style={styles.menuBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Plus d'options"
-          >
-            <Feather name="more-horizontal" size={24} color="#fff" />
-          </Pressable>
-        ) : null}
-        <View>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarInit}>{data.displayName.slice(0, 1).toUpperCase()}</Text>
-          </View>
-          {/* Pastille de niveau (gamification) : coin bas-droit, jaune, bord blanc. */}
-          {g ? (
-            <View style={styles.levelPill}>
-              <Text style={styles.levelPillText}>{g.level}</Text>
-            </View>
-          ) : null}
-        </View>
-        <Text style={styles.name}>{data.displayName}</Text>
-        {g ? (
-          <Text style={styles.levelTitle}>
-            Niveau {g.level} · {g.levelTitle}
-          </Text>
-        ) : null}
-        {g && g.currentStreak > 0 ? (
-          <Text style={styles.streak}>🔥 {g.currentStreak} jour{g.currentStreak > 1 ? 's' : ''}</Text>
-        ) : null}
-        <View style={styles.followRow}>
-          <Text style={styles.followCount}>
-            <Text style={styles.followNum}>{data.followersCount}</Text> abonnés
-          </Text>
-          <Text style={styles.followCount}>
-            <Text style={styles.followNum}>{data.followingCount}</Text> abonnements
-          </Text>
-        </View>
-        {!data.isSelf ? (
-          data.isBlocked ? (
-            // Compte bloqué : SUIVRE laisse place à « Débloquer ».
-            <Pressable
-              style={[styles.followBtn, styles.followingBtn]}
-              onPress={toggleBlock}
-              disabled={busy}
-              accessibilityRole="button"
-              accessibilityLabel={`Débloquer ${data.displayName}`}
-            >
-              {busy ? (
-                <ActivityIndicator color={COLORS.black} />
-              ) : (
-                <Text style={[styles.followText, styles.followingText]}>DÉBLOQUER</Text>
-              )}
-            </Pressable>
-          ) : (
-            <Pressable style={[styles.followBtn, data.isFollowing && styles.followingBtn]} onPress={toggleFollow} disabled={busy}>
-              {busy ? (
-                <ActivityIndicator color={data.isFollowing ? COLORS.black : '#fff'} />
-              ) : (
-                <Text style={[styles.followText, data.isFollowing && styles.followingText]}>
-                  {data.isFollowing ? 'ABONNÉ' : 'SUIVRE'}
-                </Text>
-              )}
-            </Pressable>
-          )
-        ) : null}
-      </View>
+      <Pop>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.canvas}>
+            <View style={[styles.hero, { paddingTop: insets.top + SPACE.md }]}>
+              <Pressable
+                onPress={() => goBack('/social')}
+                hitSlop={8}
+                style={[styles.iconButton, styles.backButton, { top: insets.top + SPACE.xs }]}
+                accessibilityRole="button"
+                accessibilityLabel="Retour"
+              >
+                <Feather name="chevron-left" size={27} color="#FFFFFF" />
+              </Pressable>
+              {!data.isSelf ? (
+                <Pressable
+                  onPress={() => setBlockConfirm(true)}
+                  hitSlop={8}
+                  style={[styles.iconButton, styles.menuButton, { top: insets.top + SPACE.xs }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Options de confidentialité"
+                >
+                  <Feather name="more-horizontal" size={24} color="#FFFFFF" />
+                </Pressable>
+              ) : null}
 
-      {/* Trophées : réputation publique, visible MÊME sur un profil privé. */}
-      {g && g.badges.length > 0 ? (
-        <View style={{ marginTop: 20 }}>
-          <Text style={styles.sectionTitle}>Trophées</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}>
-            {g.badges.map((b, i) => (
-              <AppearItem key={b.id} index={i}>
-                <View style={styles.badgeCell}>
-                  <View style={[styles.badgeCircle, { backgroundColor: TIER_COLORS[b.tier] ?? TIER_COLORS[1] }]}>
-                    <Feather name={safeFeatherIcon(b.icon)} size={24} color="#fff" />
+              <View style={styles.avatarStage}>
+                <View style={styles.avatar}>
+                  {avatar ? (
+                    <Image source={{ uri: avatar }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  ) : (
+                    <Text style={styles.avatarInitial}>{data.displayName.slice(0, 1).toUpperCase()}</Text>
+                  )}
+                </View>
+                {gamification ? (
+                  <View style={styles.levelPill}>
+                    <Text style={styles.levelPillText}>{gamification.level}</Text>
                   </View>
-                  <Text style={styles.badgeLabel} numberOfLines={2}>
-                    {b.label}
+                ) : null}
+              </View>
+
+              <Text style={styles.name} accessibilityRole="header">{data.displayName}</Text>
+              {gamification ? (
+                <View style={styles.levelRow}>
+                  <Feather name="zap" size={14} color="#F3C54F" />
+                  <Text style={styles.levelTitle}>
+                    Niveau {gamification.level} · {gamification.levelTitle}
                   </Text>
                 </View>
-              </AppearItem>
-            ))}
-          </ScrollView>
-        </View>
-      ) : null}
+              ) : null}
+              {gamification && gamification.currentStreak > 0 ? (
+                <View style={styles.streakPill}>
+                  <Feather name="activity" size={13} color="#FFFFFF" />
+                  <Text style={styles.streakText}>
+                    {gamification.currentStreak} jour{gamification.currentStreak > 1 ? 's' : ''} de série
+                  </Text>
+                </View>
+              ) : null}
 
-      {data.restricted ? (
-        <View style={styles.locked}>
-          <Feather name="lock" size={30} color={COLORS.textMuted} />
-          <Text style={styles.lockedText}>Ce profil est privé.</Text>
-          <Text style={styles.lockedSub}>Abonnez-vous pour voir son activité.</Text>
-        </View>
-      ) : (
-        <>
-          {data.stats ? (
-            <View style={styles.counters}>
-              <Counter n={data.stats.showsCount} label="Séries" />
-              <Counter n={data.stats.moviesCount} label="Films" border />
-              <Counter n={data.stats.episodesWatched} label="Épisodes" border />
-              <Counter n={data.stats.gamesCount} label="Jeux" border />
+              <View style={styles.followRow}>
+                <View style={styles.followMetric}>
+                  <Text style={styles.followNumber}>{data.followersCount}</Text>
+                  <Text style={styles.followLabel}>abonné{data.followersCount > 1 ? 's' : ''}</Text>
+                </View>
+                <View style={styles.followDivider} />
+                <View style={styles.followMetric}>
+                  <Text style={styles.followNumber}>{data.followingCount}</Text>
+                  <Text style={styles.followLabel}>abonnement{data.followingCount > 1 ? 's' : ''}</Text>
+                </View>
+              </View>
+
+              {!data.isSelf ? (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.primaryAction,
+                    (data.isFollowing || data.isBlocked) && styles.secondaryAction,
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={data.isBlocked ? toggleBlock : toggleFollow}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    data.isBlocked
+                      ? 'Débloquer ' + data.displayName
+                      : data.isFollowing
+                        ? 'Ne plus suivre ' + data.displayName
+                        : 'Suivre ' + data.displayName
+                  }
+                  accessibilityState={{ disabled: busy, busy }}
+                >
+                  {busy ? (
+                    <ActivityIndicator color={data.isFollowing || data.isBlocked ? HERO_COLOR : COLORS.onAccent} />
+                  ) : (
+                    <>
+                      <Feather
+                        name={data.isBlocked ? 'unlock' : data.isFollowing ? 'check' : 'plus'}
+                        size={17}
+                        color={data.isFollowing || data.isBlocked ? HERO_COLOR : COLORS.onAccent}
+                      />
+                      <Text style={[styles.primaryActionText, (data.isFollowing || data.isBlocked) && styles.secondaryActionText]}>
+                        {data.isBlocked ? 'DÉBLOQUER' : data.isFollowing ? 'ABONNÉ' : 'SUIVRE'}
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+              ) : null}
+
+              {actionError ? (
+                <View style={styles.heroError} accessibilityRole="alert">
+                  <Feather name="alert-circle" size={16} color="#FFFFFF" />
+                  <Text style={styles.heroErrorText}>{actionError}</Text>
+                </View>
+              ) : null}
             </View>
-          ) : null}
 
-          {data.recentShows.length > 0 ? (
-            <View style={{ marginTop: 20 }}>
-              <Text style={styles.sectionTitle}>Séries récentes</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
-                {data.recentShows.map((s, i) => {
-                  const poster = tmdbImage(s.posterPath, 'w342');
-                  return (
-                    <AppearItem key={s.id} index={i}>
-                      <PressableScale onPress={() => router.push(`/show/${s.id}${s.type === 'movie' ? '?type=movie' : ''}`)}>
-                        {poster ? (
-                          <Image source={{ uri: poster }} style={styles.poster} resizeMode="cover" />
-                        ) : (
-                          <View style={[styles.poster, styles.posterEmpty]}>
-                            <Feather name="image" size={22} color="#b4b4b4" />
+            {gamification ? (
+              <View style={styles.sectionCard}>
+                <SectionHeading icon="award" eyebrow="RÉPUTATION" title="Trophées" />
+                <View style={styles.progressSummary}>
+                  <View>
+                    <Text style={styles.progressLabel}>Progression</Text>
+                    <Text style={styles.progressValue}>{gamification.xp} XP</Text>
+                  </View>
+                  <View style={styles.bestStreak}>
+                    <Feather name="activity" size={15} color={COLORS.warning} />
+                    <Text style={styles.bestStreakText}>Record {gamification.bestStreak} j</Text>
+                  </View>
+                </View>
+                {gamification.badges.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.badgesRow}
+                  >
+                    {gamification.badges.map((badge, index) => (
+                      <AppearItem key={badge.id} index={index}>
+                        <View style={styles.badgeCell}>
+                          <View style={[styles.badgeCircle, { backgroundColor: TIER_COLORS[badge.tier] ?? TIER_COLORS[1] }]}>
+                            <Feather name={safeFeatherIcon(badge.icon)} size={23} color="#FFFFFF" />
                           </View>
-                        )}
-                      </PressableScale>
-                    </AppearItem>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          ) : null}
+                          <Text style={styles.badgeLabel} numberOfLines={2}>{badge.label}</Text>
+                          <Text style={styles.badgeTier}>
+                            {badge.tierCount > 1 ? 'Palier ' + badge.tier + '/' + badge.tierCount : 'Débloqué'}
+                          </Text>
+                        </View>
+                      </AppearItem>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.mutedCopy}>Les trophées débloqués apparaîtront ici.</Text>
+                )}
+              </View>
+            ) : null}
 
-          <FavoriteRow title="Séries préférées" items={data.favoriteShows} kind="show" />
-          <FavoriteRow title="Films préférés" items={data.favoriteMovies} kind="movie" />
-          <FavoriteRow title="Jeux préférés" items={data.favoriteGames} kind="game" />
-        </>
-      )}
+            {data.restricted ? (
+              <View style={styles.lockedCard}>
+                <View style={styles.lockedIcon}>
+                  <Feather name="lock" size={25} color={COLORS.primary} />
+                </View>
+                <Text style={styles.lockedTitle}>Ce profil est privé</Text>
+                <Text style={styles.lockedBody}>Abonne-toi pour voir son activité, ses statistiques et ses favoris.</Text>
+              </View>
+            ) : (
+              <>
+                {data.stats ? (
+                  <View style={styles.sectionCard}>
+                    <SectionHeading icon="bar-chart-2" eyebrow="BILAN" title="Activité suivie" />
+                    <View style={styles.statsGrid}>
+                      <Counter icon="tv" value={data.stats.showsCount} label="Séries" />
+                      <Counter icon="film" value={data.stats.moviesCount} label="Films" />
+                      <Counter icon="check-circle" value={data.stats.episodesWatched} label="Épisodes" />
+                      <Counter icon="target" value={data.stats.gamesCount} label="Jeux" />
+                    </View>
+                  </View>
+                ) : null}
 
-      {/* Confirmation bloquer/débloquer (menu ⋯) — même pattern que ReportModal. */}
+                <MediaRail title="Séries récentes" eyebrow="DERNIÈRES ACTIVITÉS" items={data.recentShows} kind="show" />
+                <MediaRail title="Séries préférées" eyebrow="COUPS DE CŒUR" items={data.favoriteShows} kind="show" favorite />
+                <MediaRail title="Films préférés" eyebrow="COUPS DE CŒUR" items={data.favoriteMovies} kind="movie" favorite />
+                <MediaRail title="Jeux préférés" eyebrow="COUPS DE CŒUR" items={data.favoriteGames} kind="game" favorite />
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </Pop>
+
       <Modal visible={blockConfirm} transparent animationType="fade" onRequestClose={() => setBlockConfirm(false)}>
-        <Pressable style={styles.blockOverlay} onPress={() => setBlockConfirm(false)} accessibilityLabel="Fermer" />
-        <View style={[styles.blockCard, { bottom: insets.bottom + 8 }]}>
-          <Text style={styles.blockTitle}>
-            {data.isBlocked ? `Débloquer ${data.displayName} ?` : `Bloquer ${data.displayName} ?`}
-          </Text>
-          <Text style={styles.blockBody}>
-            {data.isBlocked
-              ? 'Ses commentaires et son activité seront de nouveau visibles.'
-              : 'Ses commentaires et son activité seront masqués.'}
-          </Text>
-          <View style={styles.blockActions}>
-            <Pressable
-              style={[styles.blockBtn, styles.blockBtnGhost]}
-              onPress={() => setBlockConfirm(false)}
-              accessibilityRole="button"
-              accessibilityLabel="Annuler"
-            >
-              <Text style={styles.blockBtnGhostText}>Annuler</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.blockBtn, styles.blockBtnPrimary]}
-              onPress={toggleBlock}
-              accessibilityRole="button"
-              accessibilityLabel={data.isBlocked ? `Débloquer ${data.displayName}` : `Bloquer ${data.displayName}`}
-            >
-              <Text style={styles.blockBtnPrimaryText}>{data.isBlocked ? 'Débloquer' : 'Bloquer'}</Text>
-            </Pressable>
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setBlockConfirm(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Fermer"
+          />
+          <View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, SPACE.md) }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalIcon}>
+              <Feather name={data.isBlocked ? 'unlock' : 'slash'} size={23} color={COLORS.danger} />
+            </View>
+            <Text style={styles.modalTitle}>
+              {data.isBlocked ? 'Débloquer ' + data.displayName + ' ?' : 'Bloquer ' + data.displayName + ' ?'}
+            </Text>
+            <Text style={styles.modalBody}>
+              {data.isBlocked
+                ? 'Ses commentaires et son activité seront de nouveau visibles.'
+                : 'Ses commentaires et son activité seront masqués. Les abonnements entre vous seront retirés.'}
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={({ pressed }) => [styles.modalButton, styles.cancelButton, pressed && styles.pressed]}
+                onPress={() => setBlockConfirm(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Annuler"
+              >
+                <Text style={styles.cancelText}>Annuler</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalButton, styles.dangerButton, pressed && styles.pressed]}
+                onPress={toggleBlock}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel={(data.isBlocked ? 'Débloquer ' : 'Bloquer ') + data.displayName}
+                accessibilityState={{ disabled: busy, busy }}
+              >
+                {busy ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.dangerText}>{data.isBlocked ? 'Débloquer' : 'Bloquer'}</Text>
+                )}
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
-    </ScrollView>
-    </Pop>
+    </View>
   );
 }
 
-// Rangée d'affiches « préférés » — masquée si vide (profil d'autrui, non
-// modifiable). Tap → fiche : /show/:id, /show/:id?type=movie, /game/:id.
-function FavoriteRow({ title, items, kind }: { title: string; items: MediaDto[]; kind: 'show' | 'movie' | 'game' }) {
+function SectionHeading({
+  icon,
+  eyebrow,
+  title,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  eyebrow: string;
+  title: string;
+}) {
+  return (
+    <View style={styles.headingRow}>
+      <View style={styles.headingIcon}>
+        <Feather name={icon} size={17} color={COLORS.primary} />
+      </View>
+      <View>
+        <Text style={styles.sectionEyebrow}>{eyebrow}</Text>
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+    </View>
+  );
+}
+
+function Counter({
+  icon,
+  value,
+  label,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  value: number;
+  label: string;
+}) {
+  return (
+    <View style={styles.counter}>
+      <Feather name={icon} size={17} color={COLORS.primary} />
+      <Text style={styles.counterValue}>{value}</Text>
+      <Text style={styles.counterLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function MediaRail({
+  title,
+  eyebrow,
+  items,
+  kind,
+  favorite,
+}: {
+  title: string;
+  eyebrow: string;
+  items: Array<MediaDto | RecentShow>;
+  kind: 'show' | 'movie' | 'game';
+  favorite?: boolean;
+}) {
   const router = useRouter();
   if (items.length === 0) return null;
-  const hrefFor = (id: string) =>
-    (kind === 'game' ? `/game/${id}` : `/show/${id}${kind === 'movie' ? '?type=movie' : ''}`) as Href;
   return (
-    <View style={{ marginTop: 20 }}>
-      <View style={styles.favTitleRow}>
-        <View style={styles.heartBadge}>
-          <Feather name="heart" size={13} color="#fff" />
-        </View>
-        <Text style={styles.favTitle}>{title}</Text>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
-        {items.map((m, i) => {
-          const poster = tmdbImage(m.posterPath, 'w342');
+    <View style={styles.sectionCard}>
+      <SectionHeading icon={favorite ? 'heart' : 'clock'} eyebrow={eyebrow} title={title} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaRow}>
+        {items.map((media, index) => {
+          const poster = tmdbImage(media.posterPath, 'w342');
           return (
-            <AppearItem key={m.id} index={i}>
-              <PressableScale onPress={() => router.push(hrefFor(m.id))}>
-                {poster ? (
-                  <Image source={{ uri: poster }} style={styles.poster} resizeMode="cover" />
-                ) : (
-                  <View style={[styles.poster, styles.posterEmpty]}>
-                    <Feather name="image" size={22} color="#b4b4b4" />
-                  </View>
-                )}
+            <AppearItem key={media.id} index={index}>
+              <PressableScale
+                style={styles.mediaCard}
+                onPress={() => router.push(mediaHref(media.id, kind))}
+                accessibilityRole="button"
+                accessibilityLabel={'Ouvrir ' + media.title}
+              >
+                <View style={styles.poster}>
+                  {poster ? (
+                    <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  ) : (
+                    <Feather name={kind === 'game' ? 'target' : kind === 'movie' ? 'film' : 'tv'} size={24} color={COLORS.textSoft} />
+                  )}
+                </View>
+                <Text style={styles.mediaTitle} numberOfLines={2}>{media.title}</Text>
               </PressableScale>
             </AppearItem>
           );
@@ -368,64 +502,199 @@ function FavoriteRow({ title, items, kind }: { title: string; items: MediaDto[];
   );
 }
 
-function Counter({ n, label, border }: { n: number; label: string; border?: boolean }) {
-  return (
-    <View style={[styles.counter, border && styles.counterBorder]}>
-      <Text style={styles.counterN}>{n}</Text>
-      <Text style={styles.counterL}>{label}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  header: { backgroundColor: '#20202a', alignItems: 'center', paddingBottom: 22, paddingHorizontal: 20 },
-  back: { position: 'absolute', left: 12, top: 0, paddingTop: 8, height: 60, justifyContent: 'center' },
-  menuBtn: { position: 'absolute', right: 16, top: 0, paddingTop: 8, height: 60, justifyContent: 'center' },
-  avatar: { width: 88, height: 88, borderRadius: 44, borderWidth: 2, borderColor: '#fff', backgroundColor: '#555', alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  avatarInit: { color: '#fff', fontSize: 34, fontFamily: FONTS.extraBold },
-  // Pastille de niveau : coin bas-droit de l'avatar, jaune, bord blanc.
-  levelPill: {
-    position: 'absolute', bottom: -2, right: -2, minWidth: 26, height: 26, borderRadius: 13,
-    backgroundColor: COLORS.yellow, borderWidth: 2, borderColor: '#fff',
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
+  screen: { flex: 1, backgroundColor: COLORS.pageMuted },
+  scrollContent: { paddingBottom: SPACE.xl },
+  canvas: { width: '100%', maxWidth: SIZES.contentMax, alignSelf: 'center', gap: SPACE.md },
+  hero: {
+    position: 'relative',
+    alignItems: 'center',
+    overflow: 'hidden',
+    paddingHorizontal: SPACE.lg,
+    paddingBottom: SPACE.lg,
+    backgroundColor: HERO_COLOR,
+    borderBottomLeftRadius: RADIUS.sheet,
+    borderBottomRightRadius: RADIUS.sheet,
+    ...SHADOW.card,
   },
-  levelPillText: { color: COLORS.black, fontSize: 13, fontFamily: FONTS.extraBold },
-  name: { color: '#fff', fontSize: 24, fontFamily: FONTS.extraBold, marginTop: 12 },
-  levelTitle: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontFamily: FONTS.bold, marginTop: 4 },
-  streak: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontFamily: FONTS.bold, marginTop: 4 },
-  followRow: { flexDirection: 'row', gap: 20, marginTop: 8 },
-  followCount: { color: 'rgba(255,255,255,0.85)', fontFamily: FONTS.regular, fontSize: 14 },
-  followNum: { color: '#fff', fontFamily: FONTS.extraBold },
-  followBtn: { marginTop: 16, minWidth: 140, paddingHorizontal: 24, paddingVertical: 11, borderRadius: 999, backgroundColor: COLORS.yellow, alignItems: 'center' },
-  followingBtn: { backgroundColor: '#FFFFFF' },
-  followText: { fontFamily: FONTS.extraBold, fontSize: 14, letterSpacing: 0.5, color: COLORS.onAccent },
-  followingText: { color: '#101014' },
-  badgeCell: { width: 76, alignItems: 'center' },
-  badgeCircle: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
-  badgeLabel: { fontSize: 12, fontFamily: FONTS.bold, textAlign: 'center', marginTop: 6, color: COLORS.text },
-  counters: { flexDirection: 'row', marginTop: 20 },
-  counter: { flex: 1, alignItems: 'center', paddingVertical: 6 },
-  counterBorder: { borderLeftWidth: 1, borderLeftColor: COLORS.borderLight },
-  counterN: { color: COLORS.text, fontSize: 21, fontFamily: FONTS.extraBold },
-  counterL: { fontFamily: FONTS.regular, fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
-  sectionTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold, paddingHorizontal: 20, marginBottom: 12 },
-  favTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginBottom: 12 },
-  favTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold },
-  heartBadge: { width: 24, height: 24, borderRadius: 12, backgroundColor: COLORS.red, alignItems: 'center', justifyContent: 'center' },
-  poster: { width: 108, aspectRatio: 2 / 3, borderRadius: 4, backgroundColor: COLORS.imagePlaceholder },
-  posterEmpty: { alignItems: 'center', justifyContent: 'center' },
-  locked: { alignItems: 'center', padding: 40, gap: 8 },
-  // Confirmation bloquer/débloquer (cotes alignées sur ReportModal).
-  blockOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
-  blockCard: { position: 'absolute', left: 8, right: 8, bottom: 8, backgroundColor: COLORS.white, borderRadius: 14, padding: 22 },
-  blockTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold, marginBottom: 10 },
-  blockBody: { color: COLORS.textMuted, fontSize: 15, fontFamily: FONTS.regular, lineHeight: 21, marginBottom: 20 },
-  blockActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
-  blockBtn: { paddingHorizontal: 20, paddingVertical: 11, borderRadius: 999 },
-  blockBtnGhost: { backgroundColor: COLORS.chipGrey },
-  blockBtnGhostText: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 14 },
-  blockBtnPrimary: { backgroundColor: COLORS.yellow },
-  blockBtnPrimaryText: { color: COLORS.onAccent, fontFamily: FONTS.extraBold, fontSize: 14 },
-  lockedText: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.bold, marginTop: 8 },
-  lockedSub: { fontFamily: FONTS.regular, fontSize: 15, color: COLORS.textMuted },
+  iconButton: {
+    position: 'absolute',
+    zIndex: 2,
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 22,
+  },
+  backButton: { left: SPACE.sm },
+  menuButton: { right: SPACE.sm },
+  avatarStage: { marginTop: SPACE.sm },
+  avatar: {
+    width: 96,
+    height: 96,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#514A57',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    borderRadius: 48,
+  },
+  avatarInitial: { color: '#FFFFFF', fontSize: 36, lineHeight: 44, fontFamily: FONTS.extraBold },
+  levelPill: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    minWidth: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    backgroundColor: '#F3C54F',
+    borderWidth: 3,
+    borderColor: HERO_COLOR,
+    borderRadius: 15,
+  },
+  levelPillText: { color: HERO_COLOR, fontSize: 13, lineHeight: 17, fontFamily: FONTS.extraBold },
+  name: { marginTop: SPACE.sm, color: '#FFFFFF', fontSize: 27, lineHeight: 34, fontFamily: FONTS.extraBold, textAlign: 'center' },
+  levelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
+  levelTitle: { color: 'rgba(255,255,255,0.88)', fontSize: 14, lineHeight: 19, fontFamily: FONTS.bold },
+  streakPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: SPACE.xs,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: RADIUS.pill,
+  },
+  streakText: { color: '#FFFFFF', fontSize: 12, lineHeight: 16, fontFamily: FONTS.bold },
+  followRow: { flexDirection: 'row', alignItems: 'center', marginTop: SPACE.md },
+  followMetric: { minWidth: 104, alignItems: 'center' },
+  followNumber: { color: '#FFFFFF', fontSize: 20, lineHeight: 25, fontFamily: FONTS.extraBold },
+  followLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 12, lineHeight: 16, fontFamily: FONTS.regular },
+  followDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.2)' },
+  primaryAction: {
+    minWidth: 150,
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    marginTop: SPACE.md,
+    paddingHorizontal: SPACE.lg,
+    backgroundColor: '#F3C54F',
+    borderRadius: RADIUS.pill,
+  },
+  secondaryAction: { backgroundColor: '#FFFFFF' },
+  primaryActionText: { color: COLORS.onAccent, fontSize: 13, lineHeight: 17, fontFamily: FONTS.extraBold, letterSpacing: 0.5 },
+  secondaryActionText: { color: HERO_COLOR },
+  heroError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    marginTop: SPACE.sm,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: SPACE.xs,
+    backgroundColor: 'rgba(200,63,96,0.42)',
+    borderRadius: RADIUS.control,
+  },
+  heroErrorText: { flexShrink: 1, color: '#FFFFFF', fontSize: 12, lineHeight: 17, fontFamily: FONTS.bold, textAlign: 'center' },
+  sectionCard: {
+    marginHorizontal: SPACE.md,
+    paddingVertical: SPACE.lg,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    ...SHADOW.card,
+  },
+  headingRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.sm, paddingHorizontal: SPACE.lg },
+  headingIcon: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 19,
+  },
+  sectionEyebrow: { color: COLORS.primary, fontSize: 9, lineHeight: 12, fontFamily: FONTS.extraBold, letterSpacing: 0.8 },
+  sectionTitle: { marginTop: 1, color: COLORS.text, fontSize: 20, lineHeight: 25, fontFamily: FONTS.extraBold },
+  progressSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: SPACE.lg,
+    marginTop: SPACE.md,
+    padding: SPACE.sm,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: RADIUS.control,
+  },
+  progressLabel: { color: COLORS.textMuted, fontSize: 11, lineHeight: 15, fontFamily: FONTS.regular },
+  progressValue: { color: COLORS.text, fontSize: 17, lineHeight: 22, fontFamily: FONTS.extraBold },
+  bestStreak: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  bestStreakText: { color: COLORS.text, fontSize: 12, lineHeight: 16, fontFamily: FONTS.bold },
+  badgesRow: { gap: SPACE.md, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
+  badgeCell: { width: 82, alignItems: 'center' },
+  badgeCircle: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 29 },
+  badgeLabel: { marginTop: 7, color: COLORS.text, fontSize: 11, lineHeight: 15, fontFamily: FONTS.bold, textAlign: 'center' },
+  badgeTier: { marginTop: 2, color: COLORS.textSoft, fontSize: 9, lineHeight: 12, fontFamily: FONTS.regular, textAlign: 'center' },
+  mutedCopy: { marginHorizontal: SPACE.lg, marginTop: SPACE.md, color: COLORS.textMuted, fontSize: 14, lineHeight: 20, fontFamily: FONTS.regular },
+  lockedCard: {
+    alignItems: 'center',
+    marginHorizontal: SPACE.md,
+    padding: SPACE.xl,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    ...SHADOW.card,
+  },
+  lockedIcon: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primarySoft, borderRadius: 29 },
+  lockedTitle: { marginTop: SPACE.md, color: COLORS.text, fontSize: 20, lineHeight: 26, fontFamily: FONTS.extraBold, textAlign: 'center' },
+  lockedBody: { marginTop: SPACE.xs, color: COLORS.textMuted, fontSize: 14, lineHeight: 21, fontFamily: FONTS.regular, textAlign: 'center' },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.xs, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
+  counter: {
+    minWidth: '46%',
+    flexGrow: 1,
+    alignItems: 'center',
+    padding: SPACE.md,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: RADIUS.control,
+  },
+  counterValue: { marginTop: 4, color: COLORS.text, fontSize: 23, lineHeight: 29, fontFamily: FONTS.extraBold },
+  counterLabel: { color: COLORS.textMuted, fontSize: 12, lineHeight: 16, fontFamily: FONTS.regular },
+  mediaRow: { gap: SPACE.sm, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
+  mediaCard: { width: 108 },
+  poster: {
+    width: 108,
+    aspectRatio: 2 / 3,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.imagePlaceholder,
+    borderRadius: RADIUS.poster,
+  },
+  mediaTitle: { marginTop: 7, color: COLORS.text, fontSize: 12, lineHeight: 16, fontFamily: FONTS.bold },
+  pressed: { opacity: 0.82 },
+  modalRoot: { flex: 1, justifyContent: 'flex-end' },
+  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: COLORS.overlay },
+  modalCard: {
+    padding: SPACE.lg,
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: RADIUS.sheet,
+    borderTopRightRadius: RADIUS.sheet,
+  },
+  modalHandle: { width: 42, height: 4, alignSelf: 'center', marginBottom: SPACE.lg, backgroundColor: COLORS.border, borderRadius: 2 },
+  modalIcon: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceMuted, borderRadius: 26 },
+  modalTitle: { marginTop: SPACE.md, color: COLORS.text, fontSize: 22, lineHeight: 28, fontFamily: FONTS.extraBold },
+  modalBody: { marginTop: SPACE.xs, color: COLORS.textMuted, fontSize: 14, lineHeight: 21, fontFamily: FONTS.regular },
+  modalActions: { flexDirection: 'row', gap: SPACE.sm, marginTop: SPACE.lg },
+  modalButton: { minHeight: SIZES.touchComfortable, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACE.md, borderRadius: RADIUS.pill },
+  cancelButton: { backgroundColor: COLORS.surfaceMuted },
+  dangerButton: { backgroundColor: COLORS.danger },
+  cancelText: { color: COLORS.text, fontSize: 14, lineHeight: 19, fontFamily: FONTS.bold },
+  dangerText: { color: '#FFFFFF', fontSize: 14, lineHeight: 19, fontFamily: FONTS.extraBold },
 });

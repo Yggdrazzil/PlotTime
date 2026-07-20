@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 import { mediaTitle, serializeMedia } from '../media/serialize.js';
@@ -8,6 +9,7 @@ import { notifyFollowers, notifyUser } from './notify.js';
 import { blockedIdSet } from './blocks.js';
 import { BADGES, findBlockedTerm } from '@serietime/core';
 import { meView, scheduleRecompute } from '../gamification/service.js';
+import { EP_FALLBACK_MIN, MOVIE_FALLBACK_MIN } from '../stats/routes.js';
 
 // Ordre favoris (drag & drop) partagé avec /api/profile : positionnés d'abord,
 // puis les plus anciennement ajoutés.
@@ -45,10 +47,60 @@ function publicUser(u: PublicUser): PublicUser {
   return { id: u.id, displayName: u.displayName, avatarUrl: u.avatarUrl, isPrivate: u.isPrivate };
 }
 
-async function followingIdSet(userId: string): Promise<Set<string>> {
+export async function followingIdSet(userId: string): Promise<Set<string>> {
   const rows = await prisma.follow.findMany({ where: { followerId: userId }, select: { followingId: true } });
   return new Set(rows.map((r) => r.followingId));
 }
+
+// Niveau + streak d'une liste d'utilisateurs, en UNE requête UserProgress
+// (jamais de lookup unitaire par user — N+1). Défauts : level 1, streak 0.
+async function progressMap(ids: string[]): Promise<Map<string, { level: number; currentStreak: number }>> {
+  if (ids.length === 0) return new Map();
+  const rows = await prisma.userProgress.findMany({
+    where: { userId: { in: ids } },
+    select: { userId: true, level: true, currentStreak: true },
+  });
+  return new Map(rows.map((r) => [r.userId, { level: r.level, currentStreak: r.currentStreak }]));
+}
+
+// Décalage (ms) entre l'heure locale d'un fuseau et l'UTC à un instant donné.
+function tzOffsetMs(date: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(date);
+  const p: Record<string, number> = {};
+  for (const part of parts) p[part.type] = Number(part.value);
+  const asUtc = Date.UTC(p.year ?? 0, (p.month ?? 1) - 1, p.day ?? 1, (p.hour ?? 0) % 24, p.minute ?? 0, p.second ?? 0);
+  return asUtc - date.getTime();
+}
+
+// Lundi 00:00 Europe/Paris (l'instant UTC correspondant), calculé côté JS puis
+// utilisé comme borne SQL — WatchEvent.eventDate est stocké en ms epoch.
+export function mondayStartParis(now = new Date()): Date {
+  const tz = 'Europe/Paris';
+  const dayParts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(now)
+    .split('-')
+    .map(Number);
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(now);
+  const idx = Math.max(0, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(weekday));
+  // Minuit UTC du lundi calendaire parisien, puis correction par l'offset Paris
+  // (les bascules DST ont lieu à 2 h/3 h : l'offset à minuit est le bon).
+  const guess = Date.UTC(dayParts[0] ?? 1970, (dayParts[1] ?? 1) - 1, (dayParts[2] ?? 1) - idx);
+  return new Date(guess - tzOffsetMs(new Date(guess), tz));
+}
+
+type FeedReactions = { total: number; mine: string[]; counts: Record<string, number> };
+
+const REACTION_KINDS = ['watch', 'comment', 'badge'] as const;
+type ReactionKind = (typeof REACTION_KINDS)[number];
 
 function summarizeReactions(reactions: { emoji: string; userId: string }[], me: string) {
   const byEmoji: Record<string, number> = {};
@@ -65,10 +117,12 @@ type FeedItem = {
   id: string;
   date: string;
   eventType: string;
-  // `level` (gamification) n'est ajouté qu'ici et dans le leaderboard, en
-  // batch (une requête UserProgress pour tous les ids) — publicUser() est
-  // appelé unitairement partout ailleurs et y ajouter un lookup ferait un N+1.
-  user: PublicUser & { level?: number };
+  // `level`/`streak` (gamification) ne sont ajoutés qu'ici et dans les listes
+  // d'abonnements, en batch (une requête UserProgress pour tous les ids) —
+  // publicUser() est appelé unitairement ailleurs, un lookup ferait un N+1.
+  user: PublicUser & { level?: number; streak?: number };
+  // Réactions emoji sur l'item (toggle via POST /api/social/feed/react).
+  reactions: FeedReactions;
   // Absents pour kind: 'badge' (déblocage de badge, sans média associé).
   media?: { id: string; title: string; posterPath: string | null; type: string };
   episode?: { seasonNumber: number; episodeNumber: number; title: string } | null;
@@ -106,7 +160,16 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
       include: { following: true },
       orderBy: { createdAt: 'desc' },
     });
-    return { users: rows.map((r) => ({ ...publicUser(r.following), isFollowing: true })) };
+    // Streak + niveau en UNE requête UserProgress pour toute la liste.
+    const progress = await progressMap(rows.map((r) => r.following.id));
+    return {
+      users: rows.map((r) => ({
+        ...publicUser(r.following),
+        isFollowing: true,
+        streak: progress.get(r.following.id)?.currentStreak ?? 0,
+        level: progress.get(r.following.id)?.level ?? 1,
+      })),
+    };
   });
 
   app.get('/api/social/followers', async (request) => {
@@ -115,9 +178,17 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
       include: { follower: true },
       orderBy: { createdAt: 'desc' },
     });
-    const followingIds = await followingIdSet(request.userId);
+    const [followingIds, progress] = await Promise.all([
+      followingIdSet(request.userId),
+      progressMap(rows.map((r) => r.follower.id)),
+    ]);
     return {
-      users: rows.map((r) => ({ ...publicUser(r.follower), isFollowing: followingIds.has(r.follower.id) })),
+      users: rows.map((r) => ({
+        ...publicUser(r.follower),
+        isFollowing: followingIds.has(r.follower.id),
+        streak: progress.get(r.follower.id)?.currentStreak ?? 0,
+        level: progress.get(r.follower.id)?.level ?? 1,
+      })),
     };
   });
 
@@ -306,11 +377,41 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         orderBy: { unlockedAt: 'desc' },
         take: 20,
       }),
-      // Niveau des comptes suivis, en une requête (pas de N+1).
-      prisma.userProgress.findMany({ where: { userId: { in: ids } }, select: { userId: true, level: true } }),
+      // Niveau + streak des comptes suivis, en une requête (pas de N+1).
+      prisma.userProgress.findMany({
+        where: { userId: { in: ids } },
+        select: { userId: true, level: true, currentStreak: true },
+      }),
     ]);
-    const levelById = new Map(progresses.map((p) => [p.userId, p.level]));
-    const withLevel = (u: PublicUser): FeedItem['user'] => ({ ...publicUser(u), level: levelById.get(u.id) ?? 1 });
+    const progressById = new Map(progresses.map((p) => [p.userId, p]));
+    const withLevel = (u: PublicUser): FeedItem['user'] => ({
+      ...publicUser(u),
+      level: progressById.get(u.id)?.level ?? 1,
+      streak: progressById.get(u.id)?.currentStreak ?? 0,
+    });
+
+    // Réactions de TOUS les items en UNE requête ActivityReaction (pas de N+1).
+    const reactionRows = await prisma.activityReaction.findMany({
+      where: {
+        OR: [
+          { kind: 'watch', refId: { in: events.map((e) => e.id) } },
+          { kind: 'comment', refId: { in: comments.map((c) => c.id) } },
+          { kind: 'badge', refId: { in: badges.map((b) => b.id) } },
+        ],
+      },
+      select: { kind: true, refId: true, userId: true, emoji: true },
+    });
+    const reactionsByTarget = new Map<string, FeedReactions>();
+    for (const r of reactionRows) {
+      const key = `${r.kind}:${r.refId}`;
+      const agg = reactionsByTarget.get(key) ?? { total: 0, mine: [], counts: {} };
+      agg.total += 1;
+      agg.counts[r.emoji] = (agg.counts[r.emoji] ?? 0) + 1;
+      if (r.userId === request.userId) agg.mine.push(r.emoji);
+      reactionsByTarget.set(key, agg);
+    }
+    const reactionsFor = (kind: ReactionKind, refId: string): FeedReactions =>
+      reactionsByTarget.get(`${kind}:${refId}`) ?? { total: 0, mine: [], counts: {} };
 
     const items: FeedItem[] = [
       ...events.map((e): FeedItem => ({
@@ -319,6 +420,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         date: e.eventDate.toISOString(),
         eventType: e.eventType,
         user: withLevel(e.user),
+        reactions: reactionsFor('watch', e.id),
         media: {
           id: e.mediaId,
           title: mediaTitle(e.media, lang),
@@ -335,6 +437,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         date: c.createdAt.toISOString(),
         eventType: 'comment',
         user: withLevel(c.user),
+        reactions: reactionsFor('comment', c.id),
         media: {
           id: c.mediaId,
           title: mediaTitle(c.media, lang),
@@ -352,6 +455,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         date: b.unlockedAt.toISOString(),
         eventType: 'badge_unlocked',
         user: withLevel(b.user),
+        reactions: reactionsFor('badge', b.id),
         badge: {
           id: b.badgeId,
           label: BADGES.find((def) => def.id === b.badgeId)?.label ?? b.badgeId,
@@ -363,6 +467,153 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
       .slice(0, 50);
 
     return { items };
+  });
+
+  // Réaction emoji sur un item du fil (toggle, comme les réactions de
+  // commentaires) : chaque emoji est indépendant. La cible est polymorphe.
+  app.post('/api/social/feed/react', async (request, reply) => {
+    const { kind, refId, emoji } = z
+      .object({
+        kind: z.enum(REACTION_KINDS),
+        refId: z.string().min(1),
+        emoji: z.string().min(1).max(8),
+      })
+      .parse(request.body);
+    // La cible doit exister (WatchEvent/Comment/UserBadge selon le kind).
+    const target =
+      kind === 'watch'
+        ? await prisma.watchEvent.findUnique({ where: { id: refId }, select: { id: true } })
+        : kind === 'comment'
+          ? await prisma.comment.findUnique({ where: { id: refId }, select: { id: true } })
+          : await prisma.userBadge.findUnique({ where: { id: refId }, select: { id: true } });
+    if (!target) return reply.code(404).send({ error: 'not_found' });
+    const existing = await prisma.activityReaction.findUnique({
+      where: { kind_refId_userId_emoji: { kind, refId, userId: request.userId, emoji } },
+    });
+    if (existing) await prisma.activityReaction.delete({ where: { id: existing.id } });
+    else await prisma.activityReaction.create({ data: { kind, refId, userId: request.userId, emoji } });
+    // Total toutes emojis confondues sur la cible.
+    const count = await prisma.activityReaction.count({ where: { kind, refId } });
+    return { reacted: !existing, count };
+  });
+
+  // --- « Tes amis ont adoré » ---------------------------------------------
+  // Médias notés ≥ 8 par mes abonnements (Rating de média OU note du statut),
+  // hors médias déjà dans MA bibliothèque et hors utilisateurs bloqués.
+  app.get('/api/social/recommendations', async (request) => {
+    const lang = await getUserLang(request.userId);
+    const [followingIds, blockedIds] = await Promise.all([
+      followingIdSet(request.userId),
+      blockedIdSet(request.userId),
+    ]);
+    const friendIds = [...followingIds].filter((id) => !blockedIds.has(id));
+    if (friendIds.length === 0) return { items: [] };
+
+    const [ratings, statuses, mine] = await Promise.all([
+      prisma.rating.findMany({
+        where: { userId: { in: friendIds }, episodeId: null, value: { gte: 8 } },
+        select: { userId: true, mediaId: true, value: true },
+      }),
+      prisma.userMediaStatus.findMany({
+        where: { userId: { in: friendIds }, rating: { gte: 8 } },
+        select: { userId: true, mediaId: true, rating: true },
+      }),
+      prisma.userMediaStatus.findMany({ where: { userId: request.userId }, select: { mediaId: true } }),
+    ]);
+    const myMediaIds = new Set(mine.map((s) => s.mediaId));
+
+    // Par média : note par fan (si Rating ET note de statut, on garde la max).
+    const byMedia = new Map<string, Map<string, number>>();
+    const add = (mediaId: string, userId: string, value: number) => {
+      if (myMediaIds.has(mediaId)) return;
+      const fans = byMedia.get(mediaId) ?? new Map<string, number>();
+      fans.set(userId, Math.max(fans.get(userId) ?? 0, value));
+      byMedia.set(mediaId, fans);
+    };
+    for (const r of ratings) add(r.mediaId, r.userId, r.value);
+    for (const s of statuses) add(s.mediaId, s.userId, s.rating ?? 0);
+    if (byMedia.size === 0) return { items: [] };
+
+    const fanIds = [...new Set([...byMedia.values()].flatMap((fans) => [...fans.keys()]))];
+    const [medias, fanUsers] = await Promise.all([
+      prisma.media.findMany({ where: { id: { in: [...byMedia.keys()] } } }),
+      prisma.user.findMany({
+        where: { id: { in: fanIds } },
+        select: { id: true, displayName: true, avatarUrl: true },
+      }),
+    ]);
+    const mediaById = new Map(medias.map((m) => [m.id, m]));
+    const fanById = new Map(fanUsers.map((u) => [u.id, u]));
+
+    const items = [...byMedia.entries()]
+      .flatMap(([mediaId, fanRatings]) => {
+        const media = mediaById.get(mediaId);
+        if (!media) return [];
+        const values = [...fanRatings.values()];
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+        const fans = [...fanRatings.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 4)
+          .map(([userId]) => ({
+            userId,
+            displayName: fanById.get(userId)?.displayName ?? '',
+            avatarUrl: fanById.get(userId)?.avatarUrl ?? null,
+          }));
+        return [
+          {
+            media: { id: media.id, title: mediaTitle(media, lang), posterPath: media.posterPath, type: media.type },
+            fans,
+            avgRating: Math.round(avg * 10) / 10,
+            fanCount: fanRatings.size,
+          },
+        ];
+      })
+      .sort((a, b) => b.fanCount - a.fanCount || b.avgRating - a.avgRating)
+      .slice(0, 12);
+    return { items };
+  });
+
+  // --- Défi hebdo ----------------------------------------------------------
+  // Minutes vues depuis lundi 00:00 Europe/Paris, pour moi + mes abonnements.
+  // Agrégation en SQL brut (pattern leaderboard) : épisodes via WatchEvent
+  // 'watched' joints à Episode→Show→Media, films via le runtime du média.
+  app.get('/api/social/challenge/weekly', async (request) => {
+    const weekStart = mondayStartParis();
+    const followingIds = await followingIdSet(request.userId);
+    const ids = [request.userId, ...followingIds];
+    const [rows, users] = await Promise.all([
+      prisma.$queryRaw<{ userId: string; minutes: bigint | number | null }[]>`
+        SELECT we.userId AS userId,
+               SUM(CASE
+                     WHEN we.episodeId IS NOT NULL THEN COALESCE(e.runtime, sm.runtime, ${EP_FALLBACK_MIN})
+                     WHEN med.type = 'movie' THEN COALESCE(med.runtime, ${MOVIE_FALLBACK_MIN})
+                     ELSE 0
+                   END) AS minutes
+        FROM "WatchEvent" we
+        JOIN "Media" med ON med.id = we.mediaId
+        LEFT JOIN "Episode" e ON e.id = we.episodeId
+        LEFT JOIN "Show" s ON s.id = e.showId
+        LEFT JOIN "Media" sm ON sm.id = s.mediaId
+        WHERE we.eventType = 'watched'
+          AND we.userId IN (${Prisma.join(ids)})
+          AND we.eventDate >= ${weekStart.getTime()}
+        GROUP BY we.userId`,
+      prisma.user.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, displayName: true, avatarUrl: true },
+      }),
+    ]);
+    const minutesById = new Map(rows.map((r) => [r.userId, Number(r.minutes ?? 0)]));
+    const entries = users
+      .map((u) => ({
+        userId: u.id,
+        displayName: u.displayName,
+        avatarUrl: u.avatarUrl,
+        minutes: minutesById.get(u.id) ?? 0, // les 0 restent visibles
+        isMe: u.id === request.userId,
+      }))
+      .sort((a, b) => b.minutes - a.minutes);
+    return { weekStart: weekStart.toISOString(), entries };
   });
 
   // --- Confidentialité -----------------------------------------------------

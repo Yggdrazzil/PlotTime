@@ -4,20 +4,29 @@ import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import { watchTime } from '@/lib/format';
-import { COLORS, FONTS } from '@/lib/theme';
-import { PageHeader } from '@/components/PageHeader';
-import { TopTabs, Loading, LoadError, EmptyState } from '@/components/ui';
+import { goBack } from '@/lib/nav';
+import { COLORS, FONTS, RADIUS, SPACE } from '@/lib/theme';
+import { ScreenShell, ScreenHeader, SegmentedFilter, PrismeCard, IconAction } from '@/components/prisme';
+import { Loading, LoadError, EmptyState } from '@/components/ui';
+import { AppearItem } from '@/components/anim';
 
-type Entry = {
+export type LeaderboardEntry = {
   userId: string;
   displayName: string;
   avatarUrl: string | null;
   minutes: number;
   isMe: boolean;
 };
-type Leaderboard = { series: Entry[]; movies: Entry[] };
+type Entry = LeaderboardEntry;
+export type Leaderboard = { series: Entry[]; movies: Entry[] };
+type Tab = 'series' | 'movies';
 
-// « 15 mois 10 j 21 h » façon TV Time (les zéros de tête sont omis).
+const TAB_OPTIONS = [
+  { value: 'series', label: 'SÉRIES' },
+  { value: 'movies', label: 'FILMS' },
+] as const;
+
+// « 15 mois 10 j 21 h » (les zéros de tête sont omis).
 function fmt(minutes: number): string {
   const t = watchTime(minutes);
   const parts: string[] = [];
@@ -27,40 +36,27 @@ function fmt(minutes: number): string {
   return parts.join(' ');
 }
 
-// Classement entre amis (moi + mes abonnements) par temps de visionnage.
-export default function LeaderboardScreen() {
-  const { type } = useLocalSearchParams<{ type?: string }>();
-  const [tab, setTab] = useState(type === 'movies' ? 'FILMS' : 'SÉRIES');
-  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
-    queryKey: ['stats', 'leaderboard'],
-    queryFn: () => api.get<Leaderboard>('/api/stats/leaderboard'),
-    staleTime: 5 * 60_000,
-  });
+// Médaille des trois premiers rangs (or / argent / bronze).
+const MEDAL: Record<number, string> = { 1: '#D4A017', 2: '#9AA2AA', 3: '#CD7F32' };
 
-  const entries = tab === 'FILMS' ? data?.movies : data?.series;
-
+// Tableau de classement seul (carte + rangées) : partagé entre cet écran et
+// l'onglet Communauté ((tabs)/community.tsx).
+export function LeaderboardBoard({ entries }: { entries: LeaderboardEntry[] }) {
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
-      <PageHeader title={tab === 'FILMS' ? 'Temps passé devant des films' : 'Temps passé devant des séries'} />
-      <TopTabs tabs={['SÉRIES', 'FILMS']} active={tab} onChange={setTab} />
-      {isLoading ? (
-        <Loading />
-      ) : isError || !entries ? (
-        <LoadError onRetry={refetch} busy={isRefetching} />
-      ) : entries.length <= 1 ? (
-        <EmptyState
-          title="Personne à comparer"
-          message="Abonne-toi à des amis depuis Explorer pour voir le classement."
-        />
-      ) : (
-        <ScrollView>
-          <View style={styles.head}>
-            <Text style={styles.headText}>CLASSEMENT</Text>
-            <Text style={styles.headText}>TEMPS PASSÉ</Text>
-          </View>
-          {entries.map((e, i) => (
-            <View key={e.userId} style={[styles.row, e.isMe && styles.rowMe]}>
-              <Text style={styles.rank}>{i + 1}.</Text>
+    <PrismeCard elevated>
+      <View style={styles.head}>
+        <Text style={styles.headText}>CLASSEMENT</Text>
+        <Text style={styles.headText}>TEMPS PASSÉ</Text>
+      </View>
+      {entries.map((e, i) => {
+        const rank = i + 1;
+        const medal = MEDAL[rank];
+        return (
+          <AppearItem key={e.userId} index={i}>
+            <View style={[styles.row, e.isMe && styles.rowMe]}>
+              <View style={[styles.rankWrap, medal ? { backgroundColor: medal } : null]}>
+                <Text style={[styles.rank, medal ? styles.rankMedal : null]}>{rank}</Text>
+              </View>
               {e.avatarUrl ? (
                 <Image source={{ uri: tmdbImage(e.avatarUrl, 'w185') ?? e.avatarUrl }} style={styles.avatar} />
               ) : (
@@ -74,23 +70,76 @@ export default function LeaderboardScreen() {
               </View>
               <Text style={styles.time}>{fmt(e.minutes)}</Text>
             </View>
-          ))}
+          </AppearItem>
+        );
+      })}
+    </PrismeCard>
+  );
+}
+
+// Classement entre amis (moi + mes abonnements) par temps de visionnage.
+export default function LeaderboardScreen() {
+  const { type } = useLocalSearchParams<{ type?: string }>();
+  const [tab, setTab] = useState<Tab>(type === 'movies' ? 'movies' : 'series');
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
+    queryKey: ['stats', 'leaderboard'],
+    queryFn: () => api.get<Leaderboard>('/api/stats/leaderboard'),
+    staleTime: 5 * 60_000,
+  });
+
+  const entries = tab === 'movies' ? data?.movies : data?.series;
+
+  return (
+    <ScreenShell contentContainerStyle={styles.shellContent}>
+      <ScreenHeader
+        title={tab === 'movies' ? 'Temps passé devant des films' : 'Temps passé devant des séries'}
+        leading={<IconAction icon="chevron-left" label="Retour" onPress={() => goBack('/stats')} />}
+      />
+      <SegmentedFilter
+        options={TAB_OPTIONS}
+        value={tab}
+        onChange={setTab}
+        accessibilityLabel="Filtrer le classement"
+      />
+      {isLoading ? (
+        <Loading />
+      ) : isError || !entries ? (
+        <LoadError onRetry={refetch} busy={isRefetching} />
+      ) : entries.length <= 1 ? (
+        <EmptyState
+          title="Personne à comparer"
+          message="Abonne-toi à des amis depuis Explorer pour voir le classement."
+        />
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <LeaderboardBoard entries={entries} />
         </ScrollView>
       )}
-    </View>
+    </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  headText: { fontSize: 12, fontFamily: FONTS.bold, letterSpacing: 0.6, color: COLORS.textMuted },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 14 },
-  rowMe: { backgroundColor: COLORS.chipGrey },
-  rank: { color: COLORS.text, width: 28, fontSize: 17, fontFamily: FONTS.bold },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#20202a' },
+  shellContent: { paddingBottom: 0 },
+  scrollContent: { paddingTop: SPACE.xs, paddingBottom: SPACE.xl },
+  head: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACE.xs },
+  headText: { fontSize: 11, fontFamily: FONTS.bold, letterSpacing: 0.6, color: COLORS.textMuted },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACE.sm,
+    paddingVertical: SPACE.sm, paddingHorizontal: SPACE.xs,
+    borderTopWidth: 1, borderTopColor: COLORS.borderLight, borderRadius: RADIUS.control,
+  },
+  rowMe: { backgroundColor: COLORS.primarySoft, borderTopColor: 'transparent' },
+  rankWrap: {
+    width: 30, height: 30, borderRadius: RADIUS.pill, flexShrink: 0,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceMuted,
+  },
+  rank: { color: COLORS.textMuted, fontSize: 15, fontFamily: FONTS.extraBold },
+  rankMedal: { color: '#FFFFFF' },
+  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.primary },
   avatarEmpty: { alignItems: 'center', justifyContent: 'center' },
-  avatarInit: { color: '#fff', fontSize: 20, fontFamily: FONTS.extraBold },
-  name: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.bold },
-  me: { fontSize: 14, fontFamily: FONTS.regular, color: COLORS.textMuted },
-  time: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.extraBold },
+  avatarInit: { color: '#fff', fontSize: 19, fontFamily: FONTS.extraBold },
+  name: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.bold },
+  me: { fontSize: 13, fontFamily: FONTS.regular, color: COLORS.primary, marginTop: 1 },
+  time: { color: COLORS.text, fontSize: 15, fontFamily: FONTS.extraBold },
 });

@@ -73,6 +73,12 @@ model User {
   blocking           Block[]  @relation("blocking")
   blockedBy          Block[]  @relation("blockedBy")
 
+  // Réactions emoji posées sur les items du fil social (visionnage/commentaire/badge).
+  activityReactions  ActivityReaction[]
+
+  // Clubs par série : adhésions de cet utilisateur.
+  clubMemberships    ClubMember[]
+
   // Un compte SSO est identifié de façon unique par (provider, providerId).
   // Les comptes "password" ont providerId = null (SQLite autorise plusieurs NULL).
   @@unique([provider, providerId])
@@ -157,6 +163,7 @@ model Media {
   credits           Credit[]
   importMappings    ImportMapping[]
   comments          Comment[]
+  club              Club?
 
   @@index([type])
   @@index([title])
@@ -684,6 +691,47 @@ model CommentReaction {
   // Un utilisateur peut poser plusieurs emojis différents sur un même commentaire.
   @@unique([commentId, userId, emoji])
   @@index([commentId])
+}
+
+// Réaction emoji à un item du fil social. La cible est polymorphe :
+// kind 'watch' → WatchEvent.id, 'comment' → Comment.id, 'badge' → UserBadge.id
+// (refId, pas de FK : les cibles vivent dans trois tables différentes).
+model ActivityReaction {
+  id        String   @id @default(cuid())
+  kind      String   // 'watch' | 'comment' | 'badge'
+  refId     String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  // Toggle par emoji : un utilisateur ne pose chaque emoji qu'une fois par cible.
+  @@unique([kind, refId, userId, emoji])
+  @@index([kind, refId])
+}
+
+// --- Clubs par série (v1) -----------------------------------------------------
+
+// Un club par média (série/film/jeu), créé à la volée par le premier membre.
+model Club {
+  id          String       @id @default(cuid())
+  mediaId     String       @unique
+  media       Media        @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  createdById String
+  createdAt   DateTime     @default(now())
+  members     ClubMember[]
+}
+
+model ClubMember {
+  id       String   @id @default(cuid())
+  clubId   String
+  club     Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+
+  @@unique([clubId, userId])
+  @@index([userId])
 }
 
 // Signalement d'une œuvre inappropriée (ex. hentai passé à travers le filtre)

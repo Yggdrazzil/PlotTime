@@ -9,12 +9,12 @@ export default function Root({ children }: PropsWithChildren) {
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-        {/* App-like : on bloque le zoom navigateur (double-tap / pincement) qui
-            « décadrait » le flux et rendait les boutons peu réactifs (délai de
-            300 ms). initial-scale figé + user-scalable=no = comportement natif. */}
+        {/* Le viewport conserve le cadrage plein écran tout en laissant le
+            navigateur zoomer : le pincement reste indispensable pour les
+            personnes malvoyantes et n'empêche pas le rendu PWA. */}
         <meta
           name="viewport"
-          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
         />
         <title>PlotTime</title>
         <meta name="mobile-web-app-capable" content="yes" />
@@ -77,23 +77,27 @@ export default function Root({ children }: PropsWithChildren) {
                 -moz-osx-font-smoothing: grayscale;
                 text-rendering: optimizeLegibility;
               }
-              /* Tailles identiques pour tous : neutralise le « text scaling »
-                 du navigateur Android (Brave/Chrome) qui gonflait nos textes
-                 par rapport à TV Time. Le zoom page reste possible. */
+              /* Respecte l'agrandissement de texte configuré dans le navigateur
+                 tout en gardant une base cohérente entre les moteurs web. */
               html, body {
                 -webkit-text-size-adjust: 100%;
-                text-size-adjust: none;
+                text-size-adjust: 100%;
               }
               /* Supprime le double-tap-zoom + le délai de clic de ~300 ms sur
                  mobile : boutons plus réactifs, plus de « mini-zoom » accidentel. */
               html, body, #root {
                 touch-action: manipulation;
               }
-              /* Champs de saisie : pas d'anneau de focus navigateur (encadré
-                 orange/bleu incohérent avec le style « soulignement » de l'app).
-                 Le focus reste signalé par le caret + les styles de l'app. */
-              input:focus, textarea:focus {
-                outline: none;
+              /* Le focus clavier doit rester visible, y compris sur les
+                 composants React Native Web qui exposent un rôle interactif. */
+              :where(a, button, input, textarea, select, [role="button"], [role="link"], [role="tab"], [tabindex]):focus-visible {
+                outline: 3px solid #6D4ED1;
+                outline-offset: 3px;
+              }
+              @media (forced-colors: active) {
+                :where(a, button, input, textarea, select, [role="button"], [role="link"], [role="tab"], [tabindex]):focus-visible {
+                  outline-color: CanvasText;
+                }
               }
             `,
           }}

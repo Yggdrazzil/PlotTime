@@ -6,26 +6,29 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-17** (Claude) — Auth NATIVE pour les builds stores (STORES.md A1) : Sign in with Apple côté serveur + boutons natifs Apple/Google/Discord (config-gated, en attente des credentials)
+Dernière mise à jour : **2026-07-20** (Claude) — fonctionnalités communautaires côté mobile : réactions ❤️ sur le fil, carrousel « Tes amis ont adoré », défi hebdo, streaks visibles, clubs par média (onglet Communauté)
 
 ---
 
 ## Vue d'ensemble
 
-Application de suivi de séries / animés / films destinée à remplacer TV Time :
-app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma + SQLite**
-(`apps/server/`, workspace pnpm). Design et parcours calqués sur TV Time
-(références visuelles : `docs/screenshots/reference/`).
+Application de suivi de séries / animés / films / jeux vidéo : app mobile
+**React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma + SQLite**
+(`apps/server/`, workspace pnpm). L'interface historique proche de TV Time est
+désormais remplacée comme direction produit par l'identité originale **Prisme** ;
+la migration visuelle doit encore être exécutée sans modifier la logique métier.
 
-- **Branche de référence : `main`** (à cloner / puller). Le développement passe
-  par des branches courtes fusionnées via pull request.
-- Tests : `pnpm test` (327 tests au 2026-07-17 : 158 core + 169 serveur).
+- **Branche de référence : `main`** (à cloner / puller). Pour le chantier Prisme,
+  chaque lot vérifié est commité puis poussé directement sur `main`, conformément
+  au cadre demandé.
+- Tests : `pnpm test` (336 tests au 2026-07-17 : 158 core + 178 serveur).
 - Lancement local : voir `README.md` (serveur `pnpm dev:server`, mobile `npx expo start -c`).
 
 ## État par domaine
 
 | Domaine | État | Notes |
 |---|---|---|
+| Refonte front Prisme | ✅ Lots 1–14 implémentés | Socle accessible, navigation cible, cartes d’épisodes, Agenda, Films, onboarding, profils personnel/public, primitives de fiches, Explorer, bibliothèques, favoris, fiches détaillées, Communauté, relations, commentaires, notifications, **statistiques/badges/trophées/classements, réglages/compte/édition profil/couverture/comptes liés/imports, et convergence Jeux/Home** (tous les écrans migrés). Matrice : [parité fonctionnelle](feature-parity-matrix.md) |
 | Authentification multi-comptes (e-mail + mot de passe) | ✅ Fait | Inscription/connexion, sessions 30 j, données isolées par compte (testé) ; mot de passe oublié → réinitialisation par ré-auth SSO Google/Discord (testé) |
 | SSO Google / Facebook | ⏸ Préparé, désactivé | Prêt côté serveur (`/api/auth/oauth`) ; nécessite ids OAuth + dev build Expo |
 | Auth native stores (Apple / Google / Discord) | ⏸ Codé, en attente credentials | Serveur : vérif Sign in with Apple (JWT RS256, testée) + `/providers` enrichi. Mobile : `NativeSsoButtons` (bouton Apple officiel, Google expo-auth-session, Discord PKCE), config-gated — s'active dès que les vars env seront posées (voir STORES.md « A1 — état d'avancement ») |
@@ -43,7 +46,7 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Notifications in-app | ✅ Fait | Cloche + badge ; ami qui commente/favorise, réponse ou réaction à un commentaire |
 | Notifications push (OS) | ⏸ Non commencé | Nécessite dev build Expo + tokens Expo Push (la génération d'événements existe déjà) |
 | Import ZIP TV Time | ✅ Fait (v. initiale) | Analyse, matching, résolution manuelle, application |
-| Sauvegarde / restauration JSON | ✅ Fait (v. initiale) | Par compte |
+| Sauvegarde / restauration JSON | 🛠 Export réparé | Client aligné sur le `POST` serveur ; téléchargement JSON web, partage natif et erreur visible. L’interface de restauration reste à ajouter. |
 | Hébergement VPS | ✅ Fait | Prod sur le VPS Hostinger de Benjamin : `https://serietime.studio-vives.fr` (Docker isolé, HTTPS Let's Encrypt, backup DB nocturne) |
 | Web app (navigateur / écran d'accueil) | ✅ Fait | Export Expo web servi par Nginx à la racine du domaine (`/api` proxifié) ; utilisable iPhone + Android sans store |
 | Distribution native (APK / stores) | ⏳ Optionnel | EAS Build documenté dans le README ; la web app couvre déjà l'usage quotidien |
@@ -52,7 +55,7 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Jeux vidéo — module API | ✅ Fait | `apps/server/src/modules/games/routes.ts` : `GET /api/games/search`, `POST /api/games/add-from-igdb`, `GET /api/games` (groupes par statut wishlist/playing/completed/abandoned + groupe `owned` = vue collection `isOwned`, recoupement possible), `POST /api/games/:id/status`, `POST /api/games/:id/owned` (interrupteur « Je possède », booléen `isOwned` indépendant du statut, sans XP), `GET /api/games/:id` (enrichissement paresseux), `GET /api/games/discover`, `GET /api/games/upcoming`, `POST /api/games/steam/import`, `DELETE /api/games/:id/tracking` |
 | Jeux vidéo — onglet Jeux (mobile) | ✅ Fait | `mobile/app/(tabs)/games.tsx` : bibliothèque par statut (VOULUS / EN COURS / TERMINÉS / ABANDONNÉS) + section POSSÉDÉS = vue collection `isOwned` (peut recouper les autres groupes), carrousels « Populaires »/« À venir » (découverte, tap = ajoute + ouvre la fiche), « Sorties à venir » (jeux suivis, groupés par mois) ; recherche déplacée dans l'onglet Explorer |
 | Jeux vidéo — connexion Steam (mobile) | ✅ Fait | Bloc « Jeux — Steam » dans `mobile/app/settings.tsx` (onglet Compte) : SteamID/URL de profil → import bibliothèque possédée |
-| Jeux vidéo — fiche jeu (mobile) | ✅ Fait | `mobile/app/game/[id].tsx` : parité avec la fiche série/film — menu « … » (Personnaliser affiche/bannière via `GET/POST /api/games/:id/images|poster|banner`, Favoris `POST /api/games/:id/favorite`, Ajouter à une liste, Partager, Retirer), ordre : jaquette + infos compactes (Genre/Sortie/Note presse) → statuts + interrupteur « Je possède » → bande-annonce 16:9 → fiche d'identité (Plateformes/Développeur/Éditeur/Modes/Temps de jeu) → résumé → éditions/extensions → commentaires ; suivi optimiste avec rollback |
+| Jeux vidéo — fiche jeu (mobile) | ✅ Fait | `mobile/app/game/[id].tsx` : parité avec la fiche série/film — personnalisation, favoris, listes, partage, retrait, statuts, possession, bande-annonce, fiche d’identité, résumé, éditions/extensions et commentaires ; suivi optimiste avec rollback et invalidation cohérente de la fiche, bibliothèque, recherche, gamification et du Profil. |
 | Jeux vidéo — notifications de sortie | ✅ Fait | Passe du worker de fond (`apps/server/src/services/sync-worker.ts`) : `Notification` de type `game_release` quand `Media.releaseDate` d'un jeu suivi (non masqué) tombe aujourd'hui, dédupliquée par `(userId, mediaId, type)` |
 | Gamification — serveur (XP, badges, streaks, défis, classement) | ✅ Fait | Modèles `UserProgress`/`UserBadge`/`UserChallenge`, `modules/gamification/` (recompute idempotent débouncé + backfill au boot), `GET /api/gamification/me` + `/leaderboard`, items `badge` dans le fil social, XP rétroactif à l'import |
 | Gamification — mobile (page Trophées, toasts, pastille niveau) | ✅ Fait | Page `/trophies` (niveau + XP, streak, défis du mois, grille de badges à paliers, classement hebdo), pastille niveau + rangée Trophées sur le profil, items badge dans le fil, toasts de déblocage globaux (`GamificationToastHost`) |
@@ -60,14 +63,19 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
 | Modération — commentaires (haine/insultes graves) | ✅ Fait | Module pur `packages/core/src/moderation/` (blocklist curée multilingue fr/en/es/de/it/pt × racisme/antisémitisme/homophobie/sexisme/injures sexuelles/violence + filtre tolérant leetspeak/répétitions/séparateurs/accents, frontière de mot pour termes courts) ; `POST /api/media/:id/comments` rejette (400 `comment_blocked`) commentaires **et** réponses ; mobile affiche le message renvoyé (testé, 0 faux positif sur la batterie légitime) |
 | Modération — suggestions (contenu adulte / porno) | ✅ Fait | Détection **porno ciblée** (sans bloquer la violence 18+) : module pur `packages/core/src/moderation/adultContent.ts` (`containsAdultContent` + `ADULT_MARKERS` multilingues fr/en/es/de/it/pt + japonais romanisé, tolérant leet/répétitions/séparateurs). TMDb : `include_adult=false` + `adult === true` + `containsAdultContent(titre/résumé)` sur flux/recherche/recos, **et** `without_keywords` (ids mots-clés porno via `/search/keyword`, désormais **nom exact** — plus de sur-blocage sentai/senpai/porco) sur `/discover`ᐧ **Hentai** détecté par item via `tmdbKeywordNames` (mot-clé `erotic`, animés uniquement) + mot-clé `erotic` ajouté au `without_keywords` des viviers animés. IGDB : thème « Erotic » (id 42) + `containsAdultContent(name, summary)` dans `isSafeGame` (testé) |
 | Contenu 18+ — interrupteur par utilisateur | ✅ Fait | Paramètres > Suggestions > « Contenu 18+ » (défaut **désactivé**) : `allowAdultContent` (`UserSetting`, helper caché `modules/settings/adultContent.ts`). Activé = débraye tout le filtrage adulte pour ce compte (`include_adult=true`, pas de `without_keywords`, pas de `containsAdultContent`, pas de thème IGDB 42, pas de vérif mots-clés) sur `/api/explore/feed`, `/explore/discover`, `/api/search`, `/api/explore/games` ; `include_adult`/clause IGDB font partie de la **clé de cache** → aucune contamination entre comptes (testé). Bibliothèque jamais filtrée |
-| Signalement d'œuvre inappropriée | ✅ Fait | Modèle `Report` (migration `reports`) + module `apps/server/src/modules/reports/routes.ts` (`POST /api/report`, anti-doublon par œuvre/statut pending). Action « Signaler » (icône `flag`) dans le menu ⋯ des fiches série/film (`show/[id].tsx`) et jeu (`game/[id].tsx`) → `ReportModal` de confirmation partagé, `reason: 'adult'`, toast neutre. Tri manuel ultérieur (pas d'écran admin) |
-| Signalement de commentaires + blocage d'utilisateurs (stores A4, Apple 1.2) | ✅ Fait | Migration `report_comments_and_blocks` : `Report.commentId` (cascade) + modèle `Block`. `POST /api/report` étendu (`mediaType 'comment'`, anti-doublon, 404) ; `POST/DELETE /api/users/:id/block` (idempotents, unfollow **bilatéral**, `isBlocked` sur `GET /api/users/:id`) ; filtrage « mute » **unidirectionnel** (Set chargé une fois, pas de N+1) : fil social, commentaires + réponses, recherche d'utilisateurs, classement hebdo. Mobile : drapeau « Signaler » sur les commentaires d'autrui (`CommentCard` + `ReportModal`, état « Signalé ✓ ») ; profil public : menu ⋯ → Bloquer/Débloquer avec confirmation, bouton SUIVRE → « DÉBLOQUER » (testé) |
+| Signalement d'œuvre inappropriée | ✅ Fait | Modèle `Report` (migration `reports`) + module `apps/server/src/modules/reports/routes.ts` (`POST /api/report`, anti-doublon par œuvre/statut pending). Action « Signaler » dans les fiches série/film/jeu via `ReportModal` ; succès affiché seulement après confirmation serveur, erreur visible et nouvelle tentative possible. Tri manuel ultérieur (pas d'écran admin) |
+| Signalement de commentaires + blocage d'utilisateurs (stores A4, Apple 1.2) | ✅ Fait | Migration `report_comments_and_blocks` : `Report.commentId` (cascade) + modèle `Block`. `POST /api/report` étendu (`mediaType 'comment'`, anti-doublon, 404) ; blocage bilatéral et filtrage « mute » unidirectionnel. Mobile : drapeau « Signaler » sur les contenus d’autrui ; l’état « Signalé ✓ » n’apparaît qu’après succès serveur et une erreur reste retentable. Profil public : bloquer/débloquer avec confirmation (testé). |
 | Pages légales + attributions (conformité stores) | ✅ Fait | Module public `apps/server/src/modules/legal/routes.ts` (sans `requireAuth`) : `GET /legal/privacy` (politique de confidentialité RGPD), `GET /legal/terms` (CGU + règles de communauté UGC exigées par Apple), `GET /legal/delete-account` (page web de suppression exigée par Google Data Safety) — HTML statique sobre, pied « non affilié à TV Time ni à Whip Media » (testé). Mobile : section « À propos » dans Paramètres > Application (liens privacy/CGU + attributions obligatoires TMDb/TheTVDB/IGDB) |
 | Langue de contenu par utilisateur | ✅ Fait | Paramètres > Langue (fr/en/es/de/it/pt) : titres/résumés des séries et films traduits partout (À voir, À venir, bibliothèque, profil, fiches, recherche, explorer, fil social, listes) via TMDb `/translations` (`Media.translationsJson`, une requête par média, backfill en fond au changement de langue) ; jeux IGDB hors périmètre (nom international) |
 
 ## Prochaines étapes (par priorité)
 
-0. **Retours Benjamin (08/07 aprem)** :
+0. ~~**Migration front Prisme**~~ ✅ **Terminée** (lots 1–14) : tokens,
+   primitives, shell/navigation et **tous les écrans** migrés en Prisme sans
+   régression fonctionnelle (plan [`docs/REFONTE_FRONT_PRISME.md`](REFONTE_FRONT_PRISME.md),
+   matrice [`de parité fonctionnelle`](feature-parity-matrix.md)). Reste à faire
+   côté prod : redéployer l'export Web après fusion (géré par Benjamin).
+1. **Retours Benjamin (08/07 aprem)** :
    - **Barre de progression** sur les séries/animés (façon TV Time : mince barre
      épisodes vus / total sous les cartes « À voir » et sur le profil). Données
      watchedCount/totalCount à exposer côté serveur.
@@ -76,12 +84,346 @@ app mobile **React Native + Expo** (`mobile/`, npm) + serveur **Fastify + Prisma
      swipe droite = « À voir » (watchlist), swipe gauche = « Pas intéressé »
      (`/api/disliked`, `isHidden` — déjà en place). Gros chantier UI (gestes en web
      app), backend prêt.
-1. Option « Ne plus suivre » / gestion fine depuis les listes du profil (l'API existe : `DELETE /api/shows/:id/tracking`).
+2. Option « Ne plus suivre » / gestion fine depuis les listes du profil (l'API existe : `DELETE /api/shows/:id/tracking`).
 4. Notifications push (quand on passera au dev build Expo).
 5. SSO Google/Facebook (ids OAuth à créer, dev build requis).
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-20 — Claude : 5 fonctionnalités communautaires (côté mobile)
+- **Réactions sur le fil** (`app/social.tsx`) : cœur ❤️ + compteur en pied de
+  chaque carte (média et badge), toggle `POST /api/social/feed/react` avec
+  mise à jour optimiste du cache `['social','feed']` (rollback si erreur).
+- **« Tes amis ont adoré »** : `FeedTab` accepte une prop `header` ; dans
+  l'onglet Communauté, carrousel horizontal de recommandations
+  (`/api/social/recommendations`) avec note moyenne et « Aimé par {prénoms} ».
+- **Défi de la semaine** (segment Classement) : PrismeCard au-dessus du
+  classement (`/api/social/challenge/weekly`) — rangs, avatars, minutes
+  depuis lundi, ProgressBar relative au leader, couronne or.
+- **Streaks visibles** : « 🔥 {streak} » à côté du nom sur le fil ; onglet
+  Amis : liste « Mes abonnements » (`/api/social/following`) affichée hors
+  recherche, avec « 🔥 {streak} · Nv. {level} » (jamais sur les résultats de
+  recherche, le serveur ne les y fournit pas).
+- **Clubs** : 4e segment de l'onglet Communauté (`components/community.tsx`) —
+  Mes clubs / Suggestions (`/api/clubs`, join/leave avec confirmation),
+  discussion = fil de commentaires du média (`/comments/[id]`), création via
+  modal listant ma bibliothèque (queries `/api/shows/library` +
+  `/api/movies/profile` réutilisées).
+
+### 2026-07-20 (nuit) — Claude : onglet Communauté remplace Bibliothèque
+- **Décision équipe (Benjamin)** : Bibliothèque doublonnait le Profil (mêmes
+  liens `/library/*`). L'onglet devient **Communauté** (`81670af`, icône
+  users) : **Fil** (activité des abonnements — épisodes vus, notes, badges
+  débloqués), **Classement** (temps séries/films entre amis, tableau partagé
+  avec l'écran Stats) et **Amis** (recherche + abonnements). Réutilise
+  `FeedTab`/`FriendsTab` (social.tsx) et `LeaderboardBoard` (leaderboard.tsx),
+  désormais exportés. Films/Jeux (onglets masqués) se rattachent au Profil.
+- **Pistes communautaires/gamifiées à discuter** (non implémentées) :
+  réactions sur le fil, recommandations « tes amis ont adoré », défis
+  hebdo entre amis (qui regarde le plus), streaks visibles sur le fil,
+  vitrine de badges sur le profil public, clubs/watch-parties par série.
+
+### 2026-07-20 (nuit) — Claude : agenda en 3 segments + en-têtes compacts (retours Étienne)
+- **Agenda coupé en trois** (`200f793`) : segments Séries / Films / Jeux.
+  Séries = épisodes à venir (existant) ; Films = sorties des films de la liste
+  (`/api/movies` → `upcoming`, rangées affiche + date) ; Jeux = sorties des
+  jeux suivis (`/api/games/upcoming`, groupes par période).
+- **En-têtes d'onglets compacts** : nouveau `TabHeader` (titre seul, centré,
+  18 px) sur Accueil, Agenda, Explorer, Bibliothèque, Jeux, Films — suppression
+  des eyebrows/sous-titres (« Reprenez exactement là où vous en étiez »,
+  « INSPIRATIONS », « Trouvez votre prochaine histoire »…). Les écrans poussés
+  (réglages, stats…) gardent leur grand en-tête avec retour.
+- **Onglet Bibliothèque : PAS refondu** — décision d'équipe en attente.
+  Constat : c'est aujourd'hui un simple menu de liens + compteurs (double
+  navigation). Proposition Claude à trancher : en faire la vraie bibliothèque
+  (segments Séries / Films / Jeux affichant directement les collections,
+  favoris épinglés en tête) et retirer les écrans intermédiaires ; sinon le
+  supprimer et promouvoir Films/Jeux dans la tab bar. À valider par Étienne.
+
+### 2026-07-20 (soir) — Claude : lots 12-14 → version full-Prisme (arbitrage inversé)
+- À la demande d'Étienne, la **base des lots 12-14 est désormais la version
+  full-Prisme** (`062de06`, ex-branche `claude/finish-prisme`) : ScreenShell/
+  ScreenHeader/SegmentedFilter/PrismeCard sur réglages, stats, badges,
+  leaderboard, trophées, profil (édition/couverture), import, comptes liés,
+  jeux. Greffe depuis la version précédente : **bouton retour des réglages**
+  (`goBack` avec fallback — c'était la cause du bug « retour » signalé).
+- Parité fonctionnelle vérifiée fichier par fichier (resync bibliothèque,
+  disclaimer TV Time/Whip, liaisons SSO, avatar/couverture, 18+ masqué iOS,
+  attributions TMDb/TheTVDB/IGDB, suppression de compte). Typecheck 0 erreur ;
+  préversion redéployée sur `/prisme/` (retour vérifié au clic, console propre).
+
+### 2026-07-20 — Claude : arbitrage Fable/Opus des lots 12-14 + préversion web
+- **Arbitrage** (commit `60f685c`) : la version `main` (Fable) des lots 12-14 est
+  conservée comme base ; greffes ciblées depuis la branche Opus
+  `claude/finish-prisme` : tint du pull-to-refresh en `COLORS.primary` +
+  centrage `contentMax` de la file « À voir » (`(tabs)/index.tsx`), toast de
+  gamification restylé Prisme (`lib/useGamificationToasts.ts`), a11y du profil
+  (roles radio/état coché, label « Fermer »), gris en dur → `COLORS.textSoft`
+  (trophées). Typecheck mobile : 0 erreur.
+- **Bouton retour** : vérifié en préversion (clic avec historique ET arrivée
+  directe pile vide → fallback `goBack`) — le bug rapporté venait de l'ancien
+  build Opus déployé, le build `main` est sain.
+- **Préversion web déployée** : `https://serietime.studio-vives.fr/prisme/`
+  (export Expo web avec `experiments.baseUrl=/prisme`, nginx `root`+`try_files`).
+  La prod (`/`) et le site photo restent inchangés. Reste : clic-tour connecté
+  (Benjamin/Étienne) avant bascule de la prod.
+
+### 2026-07-18 — Claude : convergence Jeux/Home + QA globale (lot 14 — refonte terminée)
+- **Onglet Jeux** (`/(tabs)/games`) : en-tête d'écran cohérent avec l'onglet
+  Séries (eyebrow BIBLIOTHÈQUE + titre + sous-titre), fond `pageMuted`, **grille
+  responsive** (3/4/5 colonnes, contenu centré à `contentMax`), carrousels
+  découverte/sorties en tokens Prisme. Bibliothèque par statut (VOULUS/POSSÉDÉS/
+  EN COURS/TERMINÉS/ABANDONNÉS), pastille de statut flottante, pull-to-refresh,
+  découverte IGDB (tap = ajoute + ouvre la fiche), sorties à venir groupées par
+  mois : logique, requêtes et routes strictement inchangées.
+- **Convergence** : Home (`index`) et Agenda déjà Prisme (lots précédents) ;
+  Jeux aligné sur la même identité ; l'écran hub Bibliothèque et les pages
+  favoris restent cohérents. Toutes les routes historiques (`movies`, `games`,
+  `/library/*`, deep links média/personne/épisode/commentaires) restent
+  enregistrées et ouvrent la vue équivalente.
+- **QA globale** : `tsc --noEmit` mobile vert sur l'ensemble ; **export Expo Web
+  réussi (42 fichiers, toutes les routes générées, aucune erreur ni avertissement)**.
+- **Bilan** : la migration visuelle Prisme couvre désormais **tous les écrans**
+  de l'application (lots 1–14). Aucune fonctionnalité retirée ; aucune
+  modification de schéma, d'endpoint ni d'authentification.
+
+### 2026-07-18 — Claude : réglages, compte, profil, imports Prisme (lot 13)
+- **Paramètres** (`/settings`) : onglets Compte/Application sur `TopTabs` Prisme,
+  sections regroupées en **cartes surface** (lignes 44px, séparateurs fins,
+  pastilles d'icône), zone sensible (déconnexion/suppression) **isolée** dans sa
+  propre carte, feuilles modales sur surface avec largeur bornée. Aucune
+  préférence retirée : mot de passe + réinitialisation SSO, comptes liés, import
+  TV Time, export, resync bibliothèque, Steam, profil privé, thème (4 thèmes),
+  langue de contenu, contenu 18+ (masqué iOS), vider le cache, liens légaux et
+  attributions TMDb/TheTVDB/IGDB — toutes les mutations et gardes conservées.
+- **Édition du profil** (`/profile/edit`) : en-tête surface avec bouton
+  Sauvegarder plein, champs regroupés en cartes, entrées et sélecteurs Prisme,
+  modales Sexe/Pays sur surface. Sélection d'avatar (resize 512px), couverture,
+  année/sexe/pays et sauvegarde optimiste inchangées.
+- **Couverture** (`/profile/cover`) : barre de recherche pilule surface, résultats
+  et bannières en tokens Prisme, apparition en cascade. Résolution TMDb/TVDb et
+  choix de bannière inchangés.
+- **Comptes liés** (`/linked-accounts`) : rangées liées en carte surface avec
+  pastille d'état, boutons SSO Prisme. Liaison/déliaison Google/Discord/Facebook
+  inchangée.
+- **Import TV Time** (`/import`) : parcours Source → fichier → analyse →
+  confirmation → progression → bilan en cartes surface, barre de progression
+  animée, bilan de fin illustré. Upload, analyse, reprise et polling inchangés.
+- **Validation** : `tsc --noEmit` mobile vert.
+
+### 2026-07-18 — Claude : statistiques, badges, trophées Prisme (lot 12)
+- **Reprise du chantier Prisme là où Codex s'était arrêté** (lots 1–11 déjà sur
+  `main`). Développement sur la branche `claude/plottime-refonte-lots-12-14-vonk3r`.
+- **Statistiques** (`/stats`) : canevas responsive `contentMax`, cartes surface
+  élevées, en-tête d'onglets sur surface, pastilles d'icône par section, eyebrows,
+  histogrammes maison recolorés (barre courante en violet Prisme), apparition en
+  cascade. Données, onglets Séries/Films, comparaison et lien Badges inchangés.
+- **Badges** (`/stats/badges`) : carte de synthèse « X / total » avec pastille
+  jaune, sections en cartes surface, grille verrouillé/débloqué conservée.
+- **Classement** (`/stats/leaderboard`) : lignes en cartes surface, médailles
+  or/argent/bronze sur les trois premiers rangs, ligne « vous » en accent violet.
+  Onglets Séries/Films, format de durée et état vide inchangés.
+- **Trophées** (`/trophies`) : canevas responsive, cartes surface élevées, blocs
+  niveau/streak/défis/badges/classement en tokens Prisme, modale de badge sur
+  surface avec bouton plein, squelette recalé. Toute la gamification (XP, paliers,
+  streaks, défis, badges, classement hebdo, modale) est préservée.
+- **Validation** : `tsc --noEmit` mobile vert.
+
+### 2026-07-18 — Codex : communauté et notifications Prisme
+- **Communauté** : le fil, la recherche d’amis et les listes d’abonnés/abonnements
+  adoptent des cartes Prisme, des listes virtualisées, le rafraîchissement et des
+  mutations optimistes verrouillées avec rollback et erreur visible.
+- **Parité multi-média** : activités et commentaires personnels ouvrent désormais
+  correctement les fiches Série, Film ou Jeu ; les profils restent accessibles
+  séparément sans boutons imbriqués sur le Web.
+- **Profil public** : avatar réel, confidentialité, suivi, blocage, réputation,
+  trophées, streaks, statistiques, récents et favoris des trois médias sont
+  conservés dans un canevas responsive et accessible.
+- **Notifications** : lecture globale, badge, états réseau et destinations média,
+  acteur, statistiques ou badges sont préservés et explicités dans le centre
+  Prisme chronologique.
+- **Routes Expo** : les navigations dynamiques Personne, recommandations, épisode
+  et commentaires ont reçu le type Href après régénération des routes, sans
+  changement de destination ni de logique.
+- **Validation** : typechecks mobile et monorepo validés ; 158 tests core validés ;
+  export Expo Web de 41 routes validé ; smoke visuel des 5 routes du lot à
+  390/1440 px sans débordement, erreur console, 404 ni erreur d’hydratation. Les
+  20 tests serveur sans base passent ; les 163 tests SQLite restent bloqués avant
+  exécution par le moteur Prisma (Schema engine error).
+
+### 2026-07-18 — Codex : fiches détaillées Prisme
+- **Séries et films** : la fiche complète adopte Prisme sans modifier consultation,
+  suivi, vu/non-vu, saisons, casting, recommandations, listes, personnalisation,
+  partage, signalement, favoris, watch later, abandon ni suppression.
+- **Jeux et personnes** : statuts, possession, extensions, bande-annonce,
+  filmographie, liens sociaux et résolution des médias conservent leurs routes et
+  contrats, avec responsive, états réseau et retours d'erreur explicites.
+- **Épisodes et commentaires** : feuilles et discussions Prisme accessibles,
+  navigation latérale et longues listes virtualisées, réponses, réactions,
+  modération, signalement et suppression préservés.
+- **Fiabilité** : mutations concurrentes verrouillées, rollbacks visibles, succès
+  affichés après confirmation, créations de listes récupérables après échec
+  partiel et marquage global aligné sur les épisodes réellement diffusés.
+- **Validation** : typechecks mobile, serveur et types partagés validés ; 158 tests
+  core validés ; export Expo Web de 41 routes et contrôle visuel 390/1440 px
+  validés. Les 20 tests serveur sans base passent ; les 163 tests SQLite restent
+  bloqués localement avant exécution par le moteur Prisma (Schema engine error).
+
+### 2026-07-18 — Codex : bibliothèques et favoris Prisme
+- **Séries et films** : grilles 3/4/5 colonnes, progression, regroupements,
+  filtres, tris, tirer-pour-actualiser et états réseau conservent leurs données.
+- **Favoris** : séries/films héritent des nouvelles cartes ; jeux favoris et mode
+  de réorganisation adoptent Prisme sans changer ordre, rollback ni sauvegarde.
+- **Responsive et accessibilité** : canevas 760 px, feuilles défilables en faible
+  hauteur, cibles 44 px et statuts/contrôles annoncés.
+- **Drag & drop** : contrat historique trois colonnes conservé et borné à 560 px.
+- **Validation** : revue croisée sans bloquant, typecheck, diff et export Expo Web
+  validés avec **41 routes statiques** ; endpoints et routes inchangés.
+
+### 2026-07-18 — Codex : Explorer complet Prisme
+- **Recherche unifiée** : séries/films, jeux et utilisateurs gardent debounce,
+  consultation, suivi, imports silencieux, wishlist et abonnements optimistes.
+- **Flux immersif** : cartes verticales Prisme, catégories, détails, commentaires,
+  partage, à voir, terminé/vu et « pas intéressé » restent disponibles.
+- **États robustes** : erreurs distinguées du vide, ancien deck conservé après un
+  échec d’actualisation, pagination et tirer-pour-actualiser web/natif préservés.
+- **Responsive et accessible** : canevas 760 px, cibles 44 px, onglets et états
+  sélectionnés annoncés ; cache Jeux inclus après les actions du flux.
+- **Validation** : revue croisée sans bloquant, typecheck, diff et export Expo Web
+  validés avec **41 routes statiques** ; endpoints et routes inchangés.
+
+### 2026-07-18 — Codex : socle partagé des fiches Prisme
+- **Chargement** : le squelette séries/films/jeux devient responsive, annoncé aux
+  lecteurs d’écran et cohérent dans les thèmes clairs comme sombres.
+- **Confirmations** : signalement et marquage des épisodes précédents adoptent des
+  feuilles Prisme, des cibles de 44 px et respectent le mouvement réduit.
+- **Notes** : étoiles et demi-étoiles conservent leur calcul, avec libellé vocal
+  explicite « Note x sur 5 » et identité visuelle Prisme.
+- **Parité** : props, callbacks, fermeture extérieure et actions Oui/Non inchangés.
+- **Validation** : revue croisée sans bloquant, typecheck mobile, diff et export
+  Expo Web validés avec **41 routes statiques**.
+
+### 2026-07-18 — Codex : synchronisation Profil après mutation jeu
+- **Cache cohérent** : statut, possession, favori ou retrait d’un jeu invalident
+  désormais le Profil, comme le font déjà les fiches séries et films.
+- **Validation** : contrôle de diff ciblé validé ; contrat API inchangé.
+
+### 2026-07-18 — Codex : garde-fous de parité fonctionnelle
+- **Saisons spéciales** : les actions « tout vu / tout non vu » transmettent
+  explicitement `seasonNumber: 0` au lieu de cibler les saisons régulières.
+- **Signalements fiables** : œuvres et commentaires n’affichent plus un faux
+  succès après une panne ; l’erreur est visible et l’action peut être retentée.
+- **Notifications de jeux** : leur métadonnée conserve désormais `mediaType: game`,
+  ce qui ouvre `/game/:id` au lieu d’une fiche série erronée.
+- **Authentification** : l’inscription exige 8 caractères côté client comme le
+  serveur, avec aide et message de validation cohérents.
+- **Validation** : 5 tests ciblés, typechecks mobile/serveur et diff validés.
+
+### 2026-07-18 — Codex : export de sauvegarde réparé
+- **Contrat API** : le client utilise désormais le `POST /api/backup/export`
+  réellement exposé par le serveur, au lieu du `GET` qui produisait une 404.
+- **Web et natif** : téléchargement `plottime-sauvegarde.json` sur le web et
+  ouverture du partage système sur iOS/Android avec le contenu JSON.
+- **Retour utilisateur** : double déclenchement bloqué, attente affichée et erreur
+  réseau explicite au lieu d’un échec silencieux.
+- **Validation** : typecheck mobile et contrôle de diff validés.
+
+### 2026-07-18 — Codex : profil personnel Prisme
+- **Identité et progression** : couverture, avatar, niveau, édition, notifications
+  et réglages adoptent une composition Prisme originale et responsive.
+- **Parité fonctionnelle** : compteurs sociaux, statistiques, trophées, listes,
+  collections et favoris des séries, films et jeux gardent données et destinations.
+- **Interactions accessibles** : pagination des listes synchronisée, cibles d’au
+  moins 44 px et libellés vocaux enrichis pour notifications et affiches.
+- **Validation** : typecheck mobile, contrôle de diff et export Expo Web validés
+  avec **41 routes statiques** ; aucun endpoint, modèle ou contrat modifié.
+
+### 2026-07-18 — Codex : onboarding et authentification Prisme
+- **Accueil authentification** : l’écran `/setup` adopte la marque Prisme, une
+  hiérarchie plus claire et une carte centrale adaptée du petit mobile au desktop.
+- **Parité fonctionnelle** : choix du serveur en développement, contrôle de santé,
+  connexion, inscription et SSO web/natif conditionnel restent inchangés.
+- **Responsive et accessibilité** : cibles tactiles, états occupés, alertes,
+  contrastes et bouton Google suivent la largeur réellement disponible.
+- **Validation** : typecheck mobile, contrôle de diff et export Expo Web validés
+  avec **41 routes statiques** ; aucun endpoint, modèle ou contrat modifié.
+
+### 2026-07-18 — Codex : Agenda et aperçu Films Prisme
+- **Agenda** : cartes chronologiques, miniatures de repli et événements passés
+  adoptent la hiérarchie Prisme sans masquer les informations déjà diffusées.
+- **Parité temporelle** : le défilement initial vers aujourd’hui, l’accès aux
+  groupes passés, les horaires, chaînes, premières et épisodes multiples restent
+  inchangés, comme l’ouverture de la fiche série.
+- **Films** : l’aperçu historique conserve les deux jeux de données `/api/movies`
+  et l’ouverture de la fiche film, avec filtres segmentés et vrais compteurs.
+- **Responsive** : la grille Films passe automatiquement de 3 à 5 colonnes entre
+  mobile et desktop dans la largeur de contenu contrôlée.
+- **Accessibilité** : cartes Agenda nommées, retours d’appui visibles et filtres
+  exposés comme onglets sélectionnés.
+- **Validation** : typecheck mobile, contrôle de diff et export Expo Web validés
+  avec **41 routes statiques** ; aucun endpoint, modèle ou contrat modifié.
+
+### 2026-07-18 — Codex : cartes d’épisodes et états partagés Prisme
+- **File de visionnage** : les cartes d’épisodes adoptent la hiérarchie Prisme,
+  une miniature de repli, un état vu lisible et des libellés accessibles sans
+  modifier l’ouverture de la série, de l’épisode ni la mutation vu/non-vu.
+- **Interactions imbriquées** : les actions titre et coche arrêtent explicitement
+  la propagation vers la carte ; la cible de la coche reste d’au moins 44 px.
+- **États transverses** : chargement, vide, erreur récupérable, badges et repères
+  de section utilisent désormais les tokens partagés et restent responsifs
+  jusqu’à la largeur desktop.
+- **Animation** : le retour visuel conserve le mode de réduction des mouvements
+  et n’ajoute aucun abonnement par carte.
+- **Validation** : typecheck mobile, contrôle de diff et export Expo Web validés
+  avec **41 routes statiques** ; aucun endpoint, modèle ou contrat modifié.
+
+### 2026-07-18 — Codex : navigation Prisme, Agenda et Bibliothèque
+- **Navigation cible** : la barre principale expose désormais Accueil, Agenda,
+  Explorer, Bibliothèque et Profil dans un shell flottant Prisme avec cibles
+  tactiles de 48 px et animation compatible avec la réduction des mouvements.
+- **Parité des routes** : les anciennes routes Films et Jeux restent enregistrées
+  et accessibles par lien profond ; elles sont seulement masquées de la barre.
+- **Accueil et Agenda** : la file À voir conserve historique, mutations
+  optimistes et fiche épisode ; l'ancien onglet À venir devient un écran Agenda
+  sans dupliquer son appel API ni ses comportements de défilement.
+- **Bibliothèque** : nouveau hub vers Séries, Films, Jeux et leurs Favoris. Les
+  seuls compteurs affichés sont les totaux fiables du profil ; les aperçus
+  limités à 12 ne sont pas présentés comme des totaux.
+- **Validation** : typecheck mobile et contrôle de diff validés ; aucun endpoint,
+  modèle Prisma ou contrat d'authentification modifié.
+
+### 2026-07-17 — Codex : socle visuel et accessibilité Prisme
+- **Identité** : palette claire Prisme violet/rose/jaune, rôles sémantiques
+  compatibles avec les quatre thèmes, espacements, rayons, ombres, tailles
+  tactiles et durées de mouvement partagés.
+- **Primitives** : ajout de ScreenShell, ScreenHeader, IconAction,
+  SectionHeader, SegmentedFilter, PrismeCard, ProgressBar accessible et
+  MediaTypeChip, sans nouvelle dépendance.
+- **Accessibilité** : zoom et text scaling Web réactivés, override global
+  allowFontScaling supprimé, focus clavier visible et mode couleurs forcées.
+- **Performance** : l'écoute de la réduction des mouvements est mutualisée entre
+  les composants au lieu de créer un abonnement par carte.
+- **Parité** : aucune route, requête API, mutation ou logique métier modifiée ;
+  le typecheck mobile passe.
+
+### 2026-07-17 — Codex : audit refonte front Prisme, matrice de parité et plan de migration
+- **Audit fonctionnel et technique** : cartographie d'environ **30 routes front**,
+  **132 routes serveur** et **33 modèles Prisma**, avec inventaire des parcours,
+  actions, stores, services, contrats API et principaux risques de régression.
+- **Parité et planification** : création de
+  [`docs/feature-parity-matrix.md`](feature-parity-matrix.md) et de
+  [`docs/REFONTE_FRONT_PRISME.md`](REFONTE_FRONT_PRISME.md) pour piloter la
+  migration écran par écran sans suppression de fonctionnalité.
+- **Prototype recadré** : Prisme devient la direction visuelle de référence,
+  enrichie de la densité Studio pour les longues listes ; le prototype reste une
+  source esthétique partielle et ne remplace ni le comportement du dépôt ni les
+  écrans absents à concevoir.
+- **Baseline de vérification** : typecheck mobile validé et **158 tests purs**
+  verts avant migration.
+- **Environnement Windows** : la suite serveur globale échoue au démarrage du
+  moteur de schéma Prisma avant les suites de migration ; ce point d'outillage
+  est identifié séparément de l'audit et de la future migration visuelle.
 
 ### 2026-07-17 — Claude : auth NATIVE builds stores — Apple / Google / Discord (STORES.md A1)
 - **Serveur — Sign in with Apple (`modules/auth/routes.ts`)** : `POST

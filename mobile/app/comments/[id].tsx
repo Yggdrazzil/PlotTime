@@ -1,23 +1,65 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  FlatList,
+  StyleSheet,
+  Pressable,
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+  useWindowDimensions,
+} from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, FONTS } from '@/lib/theme';
-import { EmptyState, Loading } from '@/components/ui';
-import { Pop, AppearItem } from '@/components/anim';
+import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
+import { EmptyState, LoadError } from '@/components/ui';
+import { Pop, AppearItem, Skeleton } from '@/components/anim';
+import { useReduceMotion } from '@/lib/useReduceMotion';
 import { useComments, SORT_LABEL } from '@/components/comments/useComments';
 import { CommentCard } from '@/components/comments/CommentCard';
 import { BlockedCommentPopup } from '@/components/comments/BlockedCommentPopup';
 
-// Page « Commentaires » (copie TV Time) : ouverte depuis la rangée
-// « Commentaires N › » au bas de la fiche. Cartes blanches sur fond gris,
-// cœur + réponses + partager, FAB crayon jaune pour publier.
+function CommentsSkeleton() {
+  return (
+    <ScrollView
+      contentContainerStyle={styles.listContent}
+      showsVerticalScrollIndicator={false}
+      accessibilityLabel="Chargement des commentaires"
+    >
+      {[0, 1, 2].map((item) => (
+        <View key={item} style={styles.skeletonCard}>
+          <View style={styles.skeletonHead}>
+            <Skeleton style={styles.skeletonAvatar} />
+            <View style={styles.skeletonCopy}>
+              <Skeleton style={styles.skeletonName} />
+              <Skeleton style={styles.skeletonDate} />
+            </View>
+          </View>
+          <Skeleton style={styles.skeletonLine} />
+          <Skeleton style={[styles.skeletonLine, styles.skeletonLineShort]} />
+          <View style={styles.skeletonActions}>
+            <Skeleton style={styles.skeletonAction} />
+            <Skeleton style={styles.skeletonAction} />
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
 export default function CommentsScreen() {
   const { id, title } = useLocalSearchParams<{ id: string; title?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const reduce = useReduceMotion();
   const [composer, setComposer] = useState(false);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -26,6 +68,10 @@ export default function CommentsScreen() {
     comments,
     total,
     isLoading,
+    isError,
+    hasData,
+    refetch,
+    isRefetching,
     sort,
     setSort,
     openReplies,
@@ -57,98 +103,398 @@ export default function CommentsScreen() {
     }
   };
 
+  const refreshControl = (
+    <RefreshControl
+      refreshing={isRefetching}
+      onRefresh={() => void refetch()}
+      tintColor={COLORS.primary}
+      colors={[COLORS.primary]}
+    />
+  );
+  const fabRight = Math.max(SPACE.md, (width - SIZES.contentMax) / 2 + SPACE.md);
+  const closeComposer = () => {
+    if (!busy) setComposer(false);
+  };
+
   return (
-    <Pop style={{ backgroundColor: COLORS.white }}>
-      {/* En-tête TV Time : titre + compteur centrés. */}
-      <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
-        <Pressable onPress={() => goBack('/')} hitSlop={10} style={styles.headSide} accessibilityRole="button" accessibilityLabel="Retour">
-          <Feather name="chevron-left" size={28} color={COLORS.black} />
-        </Pressable>
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={styles.headTitle} numberOfLines={1}>{title ?? 'Commentaires'}</Text>
-          <Text style={styles.headCount}>{total} commentaire{total > 1 ? 's' : ''}</Text>
+    <Pop style={styles.screen}>
+      <View style={[styles.header, { paddingTop: insets.top + SPACE.xs }]}>
+        <View style={styles.headerInner}>
+          <Pressable
+            onPress={() => goBack('/')}
+            style={({ pressed }) => [styles.headSide, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+          >
+            <Feather name="chevron-left" size={26} color={COLORS.text} />
+          </Pressable>
+          <View style={styles.headerCopy}>
+            <Text style={styles.headEyebrow}>DISCUSSION</Text>
+            <Text accessibilityRole="header" style={styles.headTitle} numberOfLines={1}>{title ?? 'Commentaires'}</Text>
+            <Text style={styles.headCount}>{total} commentaire{total !== 1 ? 's' : ''}</Text>
+          </View>
+          <View style={styles.headSide} />
         </View>
-        <View style={styles.headSide} />
       </View>
-      <Pressable style={styles.sortRow} onPress={() => setSort(sort === 'pertinents' ? 'recents' : 'pertinents')}>
-        <Text style={styles.sortLabel}>TRIER PAR</Text>
-        <Text style={styles.sortValue}>{SORT_LABEL[sort]}</Text>
-      </Pressable>
 
-      {isLoading ? (
-        <Loading />
-      ) : comments.length === 0 ? (
-        <EmptyState title="Aucun commentaire" message="Soyez le premier à réagir avec le crayon jaune." />
-      ) : (
-        <ScrollView style={{ backgroundColor: COLORS.pageMuted }} contentContainerStyle={{ paddingVertical: 10, paddingBottom: insets.bottom + 110 }}>
-          {comments.map((c, i) => (
-            <AppearItem key={c.id} index={i}>
-              <CommentCard
-                comment={c}
-                onHeart={heart}
-                onRemove={remove}
-                onShare={shareComment}
-                replyOpen={!!openReplies[c.id]}
-                onToggleReplies={() => { toggleReplies(c.id); setReplyTo(c.id); setReplyText(''); }}
-                isReplying={replyTo === c.id}
-                replyText={replyText}
-                setReplyText={setReplyText}
-                onPostReply={() => postReply(c.id)}
-                onOpenUser={(userId) => router.push(`/user/${userId}`)}
-              />
-            </AppearItem>
-          ))}
-        </ScrollView>
-      )}
+      <View style={styles.toolbar}>
+        <Pressable
+          style={({ pressed }) => [styles.sortRow, pressed && styles.pressed]}
+          onPress={() => setSort(sort === 'pertinents' ? 'recents' : 'pertinents')}
+          accessibilityRole="button"
+          accessibilityLabel={`Trier les commentaires. Tri actuel : ${SORT_LABEL[sort]}`}
+          accessibilityHint="Bascule entre les commentaires les plus pertinents et les plus récents"
+        >
+          <View style={styles.sortIcon} accessible={false}>
+            <Feather name="sliders" size={17} color={COLORS.primary} />
+          </View>
+          <View style={styles.sortCopy}>
+            <Text style={styles.sortLabel}>TRIER PAR</Text>
+            <Text style={styles.sortValue}>{SORT_LABEL[sort]}</Text>
+          </View>
+          <Feather name="repeat" size={17} color={COLORS.textMuted} />
+        </Pressable>
+      </View>
 
-      {/* FAB crayon jaune (TV Time) : écrire un commentaire. */}
+      <View style={styles.content}>
+        {isLoading && !hasData ? (
+          <CommentsSkeleton />
+        ) : isError && !hasData ? (
+          <ScrollView
+            contentContainerStyle={styles.stateContent}
+            refreshControl={refreshControl}
+            showsVerticalScrollIndicator={false}
+          >
+            <LoadError onRetry={() => void refetch()} busy={isRefetching} />
+          </ScrollView>
+        ) : comments.length === 0 ? (
+          <ScrollView
+            contentContainerStyle={styles.stateContent}
+            refreshControl={refreshControl}
+            showsVerticalScrollIndicator={false}
+          >
+            <EmptyState title="Aucun commentaire" message="Soyez le premier à lancer la discussion." />
+          </ScrollView>
+        ) : (
+          <FlatList
+            style={styles.list}
+            data={comments}
+            keyExtractor={(comment) => comment.id}
+            renderItem={({ item: comment, index }) => (
+              <AppearItem index={index}>
+                <CommentCard
+                  comment={comment}
+                  onHeart={heart}
+                  onRemove={remove}
+                  onShare={shareComment}
+                  replyOpen={!!openReplies[comment.id]}
+                  onToggleReplies={() => {
+                    const willOpen = !openReplies[comment.id];
+                    toggleReplies(comment.id);
+                    setReplyTo(willOpen ? comment.id : null);
+                    setReplyText('');
+                    if (postError) clearPostError();
+                  }}
+                  isReplying={replyTo === comment.id}
+                  replyText={replyText}
+                  setReplyText={(value) => {
+                    setReplyText(value);
+                    if (postError) clearPostError();
+                  }}
+                  onPostReply={() => postReply(comment.id)}
+                  onOpenUser={(userId) => router.push(`/user/${userId}`)}
+                />
+              </AppearItem>
+            )}
+            contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 112 }]}
+            refreshControl={refreshControl}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            initialNumToRender={6}
+            maxToRenderPerBatch={6}
+            windowSize={7}
+          />
+        )}
+      </View>
+
       <Pressable
-        style={[styles.fab, { bottom: insets.bottom + 22 }]}
-        onPress={() => setComposer(true)}
+        style={({ pressed }) => [
+          styles.fab,
+          { right: fabRight, bottom: insets.bottom + SPACE.lg },
+          pressed && styles.fabPressed,
+        ]}
+        onPress={() => {
+          clearPostError();
+          setComposer(true);
+        }}
         accessibilityRole="button"
         accessibilityLabel="Écrire un commentaire"
       >
-        <Feather name="edit-2" size={24} color={COLORS.onAccent} />
+        <Feather name="edit-3" size={22} color={COLORS.onPrimary} />
       </Pressable>
 
-      <Modal visible={composer} transparent animationType="fade" onRequestClose={() => setComposer(false)}>
-        <Pressable style={styles.overlay} onPress={() => setComposer(false)} />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 14 }]}>
-          <Text style={styles.sheetTitle}>Votre commentaire</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Partager un avis…"
-            placeholderTextColor={COLORS.textMuted}
-            value={text}
-            onChangeText={(t) => { setText(t); if (postError) clearPostError(); }}
-            multiline
-            autoFocus
-          />
-          <Pressable style={[styles.send, (!text.trim() || busy) && { opacity: 0.4 }]} onPress={submit} disabled={!text.trim() || busy}>
-            {busy ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.sendText}>PUBLIER</Text>}
-          </Pressable>
-        </View>
+      <Modal
+        visible={composer}
+        transparent
+        animationType={reduce ? 'none' : 'fade'}
+        onRequestClose={closeComposer}
+      >
+        <Pressable
+          style={styles.overlay}
+          onPress={closeComposer}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Fermer la rédaction"
+        />
+        <KeyboardAvoidingView
+          style={styles.sheetWrap}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          pointerEvents="box-none"
+        >
+          <View
+            style={[styles.sheet, { paddingBottom: insets.bottom + SPACE.md }]}
+            accessibilityViewIsModal
+            onAccessibilityEscape={closeComposer}
+          >
+            <View style={styles.sheetHandle} accessible={false} />
+            <View style={styles.sheetHead}>
+              <View style={styles.sheetHeading}>
+                <Text accessibilityRole="header" style={styles.sheetTitle}>Votre commentaire</Text>
+                <Text style={styles.sheetSubtitle}>Partagez votre avis avec la communauté.</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
+                onPress={closeComposer}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel="Fermer"
+                accessibilityState={{ disabled: busy }}
+              >
+                <Feather name="x" size={21} color={COLORS.text} />
+              </Pressable>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Partager un avis…"
+              placeholderTextColor={COLORS.textMuted}
+              value={text}
+              onChangeText={(value) => {
+                setText(value);
+                if (postError) clearPostError();
+              }}
+              multiline
+              maxLength={2000}
+              autoFocus
+              accessibilityLabel="Votre commentaire"
+            />
+            <View style={styles.sheetFooter}>
+              <Text style={styles.characterCount}>{text.length}/2000</Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.send,
+                  (!text.trim() || busy) && styles.disabled,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => void submit()}
+                disabled={!text.trim() || busy}
+                accessibilityRole="button"
+                accessibilityLabel="Publier le commentaire"
+                accessibilityState={{ disabled: !text.trim() || busy, busy }}
+              >
+                {busy ? (
+                  <ActivityIndicator size="small" color={COLORS.onPrimary} />
+                ) : (
+                  <>
+                    <Text style={styles.sendText}>PUBLIER</Text>
+                    <Feather name="send" size={16} color={COLORS.onPrimary} />
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
-      {/* Popup de modération : commentaire/réponse rejeté (règles communauté). */}
       <BlockedCommentPopup message={postError} onClose={clearPostError} />
     </Pop>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, backgroundColor: COLORS.white },
-  headSide: { width: 44 },
-  headTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.bold },
-  headCount: { fontSize: 13, fontFamily: FONTS.regular, color: COLORS.textMuted, marginTop: 1 },
-  sortRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.white, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border },
-  sortLabel: { fontSize: 11, fontFamily: FONTS.extraBold, color: COLORS.textMuted, letterSpacing: 0.5 },
-  sortValue: { fontSize: 16, fontFamily: FONTS.semiBold, color: COLORS.blue },
-  fab: { position: 'absolute', right: 20, width: 62, height: 62, borderRadius: 31, backgroundColor: COLORS.yellow, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8 },
+  screen: { backgroundColor: COLORS.pageMuted },
+  header: {
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  headerInner: {
+    width: '100%',
+    maxWidth: SIZES.contentMax,
+    minHeight: 76,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACE.sm,
+    paddingBottom: SPACE.sm,
+  },
+  headSide: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.control,
+  },
+  headerCopy: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: SPACE.xs },
+  headEyebrow: {
+    color: COLORS.primary,
+    fontSize: 10.5,
+    lineHeight: 14,
+    fontFamily: FONTS.extraBold,
+    letterSpacing: 1.1,
+  },
+  headTitle: { color: COLORS.text, fontSize: 19, lineHeight: 24, fontFamily: FONTS.extraBold },
+  headCount: { marginTop: 1, color: COLORS.textMuted, fontSize: 12.5, lineHeight: 17, fontFamily: FONTS.regular },
+  toolbar: {
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.borderLight,
+  },
+  sortRow: {
+    width: '100%',
+    maxWidth: SIZES.contentMax,
+    minHeight: 60,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.xs,
+  },
+  sortIcon: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: RADIUS.control,
+  },
+  sortCopy: { flex: 1, minWidth: 0 },
+  sortLabel: { color: COLORS.textMuted, fontSize: 10.5, lineHeight: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.7 },
+  sortValue: { color: COLORS.primary, fontSize: 15, lineHeight: 20, fontFamily: FONTS.bold },
+  content: { flex: 1, backgroundColor: COLORS.pageMuted },
+  list: { flex: 1 },
+  listContent: { paddingTop: SPACE.sm },
+  stateContent: {
+    minHeight: 360,
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACE.lg,
+    paddingBottom: 96,
+  },
+  skeletonCard: {
+    width: '94%',
+    maxWidth: SIZES.contentMax,
+    alignSelf: 'center',
+    marginVertical: SPACE.xs,
+    padding: SPACE.md,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+  },
+  skeletonHead: { flexDirection: 'row', alignItems: 'center', gap: SPACE.sm },
+  skeletonAvatar: { width: 44, height: 44, borderRadius: 22 },
+  skeletonCopy: { flex: 1, gap: SPACE.xs },
+  skeletonName: { width: '38%', height: 15 },
+  skeletonDate: { width: '25%', height: 11 },
+  skeletonLine: { height: 14, marginTop: SPACE.md },
+  skeletonLineShort: { width: '68%', marginTop: SPACE.xs },
+  skeletonActions: { flexDirection: 'row', gap: SPACE.xs, marginTop: SPACE.md },
+  skeletonAction: { width: 58, height: 44, borderRadius: RADIUS.control },
+  fab: {
+    position: 'absolute',
+    width: 58,
+    height: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderWidth: 1,
+    borderColor: COLORS.primarySoft,
+    borderRadius: 29,
+    ...SHADOW.season,
+  },
+  fabPressed: { opacity: 0.82, transform: [{ scale: 0.95 }] },
+  pressed: { opacity: 0.72 },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
-  sheet: { position: 'absolute', left: 8, right: 8, bottom: 8, backgroundColor: COLORS.white, borderRadius: 14, padding: 16 },
-  sheetTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold, marginBottom: 10 },
-  input: { color: COLORS.text, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, minHeight: 80, padding: 12, fontFamily: FONTS.regular, fontSize: 16, textAlignVertical: 'top' },
-  send: { alignSelf: 'flex-end', marginTop: 12, backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 10 },
-  sendText: { color: COLORS.onAccent, fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
+  sheetWrap: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: SPACE.xs, paddingBottom: SPACE.xs },
+  sheet: {
+    width: '100%',
+    maxWidth: SIZES.contentMax,
+    alignSelf: 'center',
+    paddingHorizontal: SPACE.md,
+    paddingTop: SPACE.xs,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.sheet,
+    ...SHADOW.season,
+  },
+  sheetHandle: {
+    width: 42,
+    height: 4,
+    alignSelf: 'center',
+    marginBottom: SPACE.sm,
+    backgroundColor: COLORS.border,
+    borderRadius: RADIUS.pill,
+  },
+  sheetHead: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.sm, marginBottom: SPACE.md },
+  sheetHeading: { flex: 1, minWidth: 0 },
+  sheetTitle: { color: COLORS.text, fontSize: 20, lineHeight: 26, fontFamily: FONTS.extraBold },
+  sheetSubtitle: { marginTop: 2, color: COLORS.textMuted, fontSize: 13.5, lineHeight: 19, fontFamily: FONTS.regular },
+  closeButton: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: RADIUS.control,
+  },
+  input: {
+    minHeight: 112,
+    maxHeight: 220,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: SPACE.sm,
+    color: COLORS.text,
+    backgroundColor: COLORS.surfaceMuted,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.control,
+    fontFamily: FONTS.regular,
+    fontSize: 16,
+    lineHeight: 23,
+    textAlignVertical: 'top',
+  },
+  sheetFooter: {
+    minHeight: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACE.sm,
+    marginTop: SPACE.sm,
+  },
+  characterCount: { color: COLORS.textSoft, fontFamily: FONTS.regular, fontSize: 12 },
+  send: {
+    minWidth: 132,
+    minHeight: SIZES.touchComfortable,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.xs,
+    paddingHorizontal: SPACE.lg,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
+  },
+  sendText: { color: COLORS.onPrimary, fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.5 },
+  disabled: { opacity: 0.4 },
 });

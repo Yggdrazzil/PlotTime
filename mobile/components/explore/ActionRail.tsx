@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { tmdbImage } from '@/lib/api';
-import { COLORS, FONTS } from '@/lib/theme';
+import { COLORS, FONTS, RADIUS, SIZES, SPACE } from '@/lib/theme';
 import { PopIn } from '@/components/anim';
 import { formatCount } from '@/lib/format';
 import type { FeedItem } from './types';
@@ -37,19 +37,24 @@ function RailButton({
   const color = active ? activeColor ?? COLORS.yellow : '#fff';
   return (
     <Pressable
-      style={styles.btn}
+      style={({ pressed }) => [styles.btn, pressed && styles.btnPressed]}
       onPress={onPress}
-      hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityHint={caption}
       accessibilityState={selected != null ? { selected } : undefined}
     >
-      <PopIn key={String(active)} style={styles.iconWrap}>
-        <Feather name={icon} size={28} color={color} />
+      <PopIn
+        key={String(active)}
+        style={[
+          styles.iconWrap,
+          active && styles.iconWrapActive,
+          active && { borderColor: color },
+        ]}
+      >
+        <Feather name={icon} size={24} color={color} />
       </PopIn>
       {count != null && count > 0 ? <Text style={styles.count}>{formatCount(count)}</Text> : null}
-      {/* Mini-libellé permanent : cœur/œil/pouce n'étaient pas compréhensibles
-          sans lui (retour utilisateur). Coloré quand l'action est active. */}
       <Text style={[styles.caption, active ? { color } : null]}>{caption}</Text>
     </Pressable>
   );
@@ -80,16 +85,15 @@ export function ActionRail({
   return (
     <View style={styles.rail}>
       <Pressable
-        style={styles.posterBtn}
+        style={({ pressed }) => [styles.posterBtn, pressed && styles.btnPressed]}
         onPress={onFiche}
-        hitSlop={6}
         accessibilityRole="button"
-        accessibilityLabel="Voir la fiche"
+        accessibilityLabel={`Voir la fiche de ${item.title}`}
       >
         {poster ? (
-          <Image source={{ uri: poster }} style={styles.poster} resizeMode="cover" />
+          <Image source={{ uri: poster }} style={styles.poster} resizeMode="cover" accessible={false} />
         ) : (
-          <View style={[styles.poster, styles.posterEmpty]}>
+          <View style={[styles.poster, styles.posterEmpty]} accessible={false}>
             <Feather name="film" size={18} color="#fff" />
           </View>
         )}
@@ -99,7 +103,7 @@ export function ActionRail({
       <RailButton
         icon="heart"
         active={state.liked}
-        activeColor={COLORS.yellow}
+        activeColor={COLORS.secondary}
         count={state.likes}
         onPress={onLike}
         label={
@@ -132,12 +136,77 @@ export function ActionRail({
 }
 
 const styles = StyleSheet.create({
-  rail: { position: 'absolute', right: 10, bottom: 96, alignItems: 'center', gap: 16 },
-  posterBtn: { marginBottom: 4 },
-  poster: { width: 46, height: 46, borderRadius: 23, borderWidth: 2, borderColor: '#fff', backgroundColor: '#26262e' },
+  rail: {
+    position: 'absolute',
+    right: SPACE.sm,
+    bottom: 64,
+    alignItems: 'center',
+    gap: 2,
+  },
+  posterBtn: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+    borderRadius: RADIUS.control,
+  },
+  poster: {
+    width: 50,
+    height: 50,
+    backgroundColor: '#211B29',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    borderRadius: RADIUS.control,
+  },
   posterEmpty: { alignItems: 'center', justifyContent: 'center' },
-  btn: { alignItems: 'center', gap: 4 },
-  iconWrap: { alignItems: 'center', justifyContent: 'center' },
-  count: { color: '#fff', fontFamily: FONTS.bold, fontSize: 12, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 },
-  caption: { color: '#fff', fontFamily: FONTS.semiBold, fontSize: 10, textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 3, marginTop: -2 },
+  btn: {
+    minWidth: 58,
+    minHeight: 58,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+    borderRadius: RADIUS.control,
+  },
+  btnPressed: { opacity: 0.64, transform: [{ scale: 0.96 }] },
+  iconWrap: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(7,4,12,0.64)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+    borderRadius: RADIUS.control,
+  },
+  iconWrapActive: { backgroundColor: 'rgba(255,255,255,0.15)' },
+  count: {
+    position: 'absolute',
+    top: -1,
+    right: 0,
+    minWidth: 19,
+    minHeight: 19,
+    paddingHorizontal: 4,
+    overflow: 'hidden',
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(7,4,12,0.86)',
+    borderRadius: RADIUS.pill,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    lineHeight: 19,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowRadius: 4,
+  },
+  caption: {
+    maxWidth: 62,
+    color: '#FFFFFF',
+    fontFamily: FONTS.bold,
+    fontSize: 9.5,
+    lineHeight: 12,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.72)',
+    textShadowRadius: 4,
+  },
 });

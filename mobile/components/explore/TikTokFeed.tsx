@@ -12,11 +12,10 @@ import {
   type ViewToken,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
-import { COLORS, FONTS } from '@/lib/theme';
-import { EmptyState, Loading } from '@/components/ui';
+import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
+import { EmptyState, LoadError, Loading } from '@/components/ui';
 import { TikTokCard } from './TikTokCard';
 import { CommentsSheet } from './CommentsSheet';
 import { PullToRefreshView } from './PullToRefreshView';
@@ -26,7 +25,6 @@ import { FEED_CATEGORIES, catOf, type FeedCategory, type FeedItem } from './type
 const keyOf = (f: FeedItem) => (f.igdbId ? `game:${f.igdbId}` : `${f.type}:${f.tmdbId ?? f.id}`);
 
 export function TikTokFeed() {
-  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const resolveMedia = useResolveMedia();
   const listRef = useRef<FlatList<FeedItem>>(null);
@@ -48,7 +46,7 @@ export function TikTokFeed() {
   // refetch renvoie un deck ENTIÈREMENT NEUF (mémoire d'impressions côté
   // serveur) — un refetch silencieux (refocus fenêtre, remontage après 30 min)
   // ramenait donc l'utilisateur en haut d'un nouveau deck en perdant ses choix.
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['explore', 'feed'],
     queryFn: () => api.get<{ feed: FeedItem[] }>('/api/explore/feed'),
     staleTime: Infinity,
@@ -88,6 +86,7 @@ export function TikTokFeed() {
     queryClient.invalidateQueries({ queryKey: ['shows'] });
     queryClient.invalidateQueries({ queryKey: ['movies'] });
     queryClient.invalidateQueries({ queryKey: ['profile'] });
+    queryClient.invalidateQueries({ queryKey: ['games', 'library'] });
   }, [queryClient]);
 
   // Flux infini : re-tire une page et ajoute les nouveautés (dédup). 2 fetchs
@@ -165,11 +164,18 @@ export function TikTokFeed() {
   );
 
   const refreshing = isGames ? gamesQuery.isRefetching : isRefetching;
+  const failed = isGames
+    ? gamesQuery.isError && !gamesQuery.data
+    : isError && !data;
   if (isGames ? gamesQuery.isLoading : isLoading) return <Loading />;
 
   return (
     <View style={styles.wrap} onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>
-      {height > 0 && deck.length > 0 ? (
+      {height > 0 && failed ? (
+        <View style={styles.stateWrap}>
+          <LoadError onRetry={() => void onRefresh()} busy={refreshing} />
+        </View>
+      ) : height > 0 && deck.length > 0 ? (
         <PullToRefreshView refreshing={refreshing} onRefresh={onRefresh} scrollYRef={scrollY}>
           <FlatList
             ref={listRef}
@@ -177,6 +183,7 @@ export function TikTokFeed() {
             keyExtractor={keyOf}
             pagingEnabled
             showsVerticalScrollIndicator={false}
+            accessibilityLabel="Suggestions personnalisées"
             decelerationRate="fast"
             getItemLayout={(_, index) => ({ length: height, offset: height * index, index })}
             initialNumToRender={2}
@@ -214,19 +221,24 @@ export function TikTokFeed() {
             )}
             ListFooterComponent={
               loadingMore ? (
-                <ActivityIndicator style={{ marginVertical: 20 }} color="#fff" />
+                <ActivityIndicator style={styles.moreLoader} color={COLORS.primary} />
               ) : (
                 // Carte de fin plein écran : y snapper déclenche un nouveau
                 // tirage (maybeEndRefresh) et ramène en haut du flux.
                 <View style={[styles.endCard, { height }]}>
-                  {endRefreshing ? (
-                    <ActivityIndicator color={COLORS.yellow} size="large" />
-                  ) : (
-                    <Feather name="refresh-cw" size={40} color={COLORS.yellow} />
-                  )}
-                  <Text style={styles.endTitle}>Tu as tout vu !</Text>
+                  <View style={styles.endGlowPrimary} pointerEvents="none" />
+                  <View style={styles.endGlowSecondary} pointerEvents="none" />
+                  <View style={styles.endIcon}>
+                    {endRefreshing ? (
+                      <ActivityIndicator color={COLORS.onPrimary} size="large" />
+                    ) : (
+                      <Feather name="refresh-cw" size={30} color={COLORS.onPrimary} />
+                    )}
+                  </View>
+                  <Text style={styles.endEyebrow}>NOUVELLE SÉLECTION</Text>
+                  <Text style={styles.endTitle}>Vous avez parcouru ce tirage.</Text>
                   <Text style={styles.endMsg}>
-                    {endRefreshing ? 'Nouveau tirage en cours…' : 'Continue à glisser pour un nouveau tirage.'}
+                    {endRefreshing ? 'Préparation de nouvelles idées…' : 'Continuez à glisser pour renouveler les suggestions.'}
                   </Text>
                 </View>
               )
@@ -235,33 +247,74 @@ export function TikTokFeed() {
         </PullToRefreshView>
       ) : height > 0 ? (
         <View style={styles.emptyWrap}>
-          <EmptyState title="Rien dans cette catégorie" message="Change de catégorie ou actualise." />
+          <EmptyState
+            title="Aucune suggestion pour le moment"
+            message="Changez de catégorie ou lancez un nouveau tirage."
+          />
+          <Pressable
+            style={({ pressed }) => [styles.refreshButton, pressed && styles.refreshButtonPressed]}
+            onPress={() => void onRefresh()}
+            disabled={refreshing}
+            accessibilityRole="button"
+            accessibilityLabel="Lancer un nouveau tirage"
+            accessibilityState={{ busy: refreshing, disabled: refreshing }}
+          >
+            {refreshing ? (
+              <ActivityIndicator size="small" color={COLORS.onPrimary} />
+            ) : (
+              <Feather name="refresh-cw" size={17} color={COLORS.onPrimary} />
+            )}
+            <Text style={styles.refreshButtonText}>NOUVEAU TIRAGE</Text>
+          </Pressable>
         </View>
       ) : null}
 
       {/* Filtres catégories, en surimpression haute (la barre de recherche est
           au-dessus dans la coquille explore.tsx et gère déjà la zone sûre). */}
-      <View style={[styles.top, { paddingTop: 10 }]} pointerEvents="box-none">
+      <View style={styles.top} pointerEvents="box-none">
         <FlatList
           data={FEED_CATEGORIES}
           keyExtractor={(c) => c.key}
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 6, paddingHorizontal: 10 }}
+          contentContainerStyle={styles.chipsContent}
           renderItem={({ item: c }) => (
             <Pressable
-              style={[styles.chip, cat === c.key && styles.chipOn]}
+              style={({ pressed }) => [
+                styles.chip,
+                cat === c.key && styles.chipOn,
+                pressed && styles.chipPressed,
+              ]}
               onPress={() => {
                 setCat(c.key);
                 setActiveIndex(0);
                 listRef.current?.scrollToOffset({ offset: 0, animated: false });
               }}
+              accessibilityRole="tab"
+              accessibilityLabel={`Afficher les suggestions ${c.label.toLocaleLowerCase('fr-FR')}`}
+              accessibilityState={{ selected: cat === c.key }}
             >
               <Text style={[styles.chipText, cat === c.key && styles.chipTextOn]}>{c.label}</Text>
             </Pressable>
           )}
         />
       </View>
+
+      {deck.length > 1 && !failed ? (
+        <View
+          style={styles.progressWrap}
+          pointerEvents="none"
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel="Progression dans les suggestions"
+          accessibilityValue={{ min: 1, max: deck.length, now: Math.min(activeIndex + 1, deck.length) }}
+        >
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { flex: Math.min(activeIndex + 1, deck.length) }]} />
+            <View style={{ flex: Math.max(deck.length - activeIndex - 1, 0) }} />
+          </View>
+        </View>
+      ) : null}
 
       {/* La barre « Ajouter un commentaire » a été retirée : redondante avec le
           bouton Avis du rail (retour utilisateur 2026-07-16), elle chargeait le bas
@@ -282,15 +335,152 @@ export function TikTokFeed() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#000' },
-  emptyWrap: { flex: 1, backgroundColor: COLORS.white },
-  top: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
-  // Compact : les 5 catégories (dont JEUX) tiennent sur un écran 360dp sans coupure.
-  chip: { backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
-  chipOn: { backgroundColor: COLORS.yellow },
-  chipText: { fontFamily: FONTS.extraBold, fontSize: 12, letterSpacing: 0.2, color: '#fff' },
-  chipTextOn: { color: COLORS.onAccent },
-  endCard: { alignItems: 'center', justifyContent: 'center', gap: 14, backgroundColor: '#0d0d12', paddingHorizontal: 40 },
-  endTitle: { color: '#fff', fontSize: 22, fontFamily: FONTS.extraBold },
-  endMsg: { color: 'rgba(255,255,255,0.7)', fontFamily: FONTS.regular, fontSize: 14, textAlign: 'center' },
+  wrap: { flex: 1, overflow: 'hidden', backgroundColor: '#0D0A14' },
+  stateWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingTop: 48,
+    backgroundColor: COLORS.pageMuted,
+  },
+  emptyWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 48,
+    paddingBottom: SPACE.lg,
+    backgroundColor: COLORS.pageMuted,
+  },
+  top: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    paddingTop: SPACE.xs,
+    paddingBottom: SPACE.xs,
+    backgroundColor: 'rgba(13,10,20,0.22)',
+  },
+  chipsContent: {
+    gap: 6,
+    paddingHorizontal: SPACE.sm,
+  },
+  chip: {
+    minHeight: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACE.sm,
+    backgroundColor: 'rgba(13,10,20,0.68)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.34)',
+    borderRadius: RADIUS.pill,
+  },
+  chipOn: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  chipPressed: { opacity: 0.76 },
+  chipText: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.extraBold,
+    fontSize: 11,
+    letterSpacing: 0.45,
+  },
+  chipTextOn: { color: COLORS.onPrimary },
+  progressWrap: {
+    position: 'absolute',
+    top: 59,
+    left: SPACE.sm,
+    right: SPACE.sm,
+    zIndex: 9,
+  },
+  progressTrack: {
+    height: 3,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.28)',
+    borderRadius: RADIUS.pill,
+  },
+  progressFill: {
+    backgroundColor: COLORS.secondary,
+    borderRadius: RADIUS.pill,
+  },
+  moreLoader: { marginVertical: SPACE.lg },
+  endCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.sm,
+    overflow: 'hidden',
+    paddingHorizontal: SPACE.xl,
+    backgroundColor: '#0D0A14',
+  },
+  endGlowPrimary: {
+    position: 'absolute',
+    top: -80,
+    right: -90,
+    width: 280,
+    height: 280,
+    backgroundColor: COLORS.primary,
+    borderRadius: 140,
+    opacity: 0.2,
+  },
+  endGlowSecondary: {
+    position: 'absolute',
+    bottom: -100,
+    left: -100,
+    width: 260,
+    height: 260,
+    backgroundColor: COLORS.secondary,
+    borderRadius: 130,
+    opacity: 0.16,
+  },
+  endIcon: {
+    width: 64,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACE.xs,
+    backgroundColor: COLORS.primary,
+    borderRadius: 32,
+    ...SHADOW.card,
+  },
+  endEyebrow: {
+    color: COLORS.secondary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 11,
+    letterSpacing: 1.2,
+  },
+  endTitle: {
+    maxWidth: 360,
+    color: '#FFFFFF',
+    fontSize: 25,
+    lineHeight: 31,
+    fontFamily: FONTS.extraBold,
+    textAlign: 'center',
+  },
+  endMsg: {
+    maxWidth: 360,
+    color: 'rgba(255,255,255,0.76)',
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+  },
+  refreshButton: {
+    minHeight: SIZES.touchComfortable,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.xs,
+    paddingHorizontal: SPACE.lg,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
+    ...SHADOW.card,
+  },
+  refreshButtonPressed: { opacity: 0.8 },
+  refreshButtonText: {
+    color: COLORS.onPrimary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
 });

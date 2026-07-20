@@ -1,24 +1,35 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
-import { COLORS, FONTS } from '@/lib/theme';
+import { Feather } from '@expo/vector-icons';
+import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
+import { useReduceMotion } from '@/lib/useReduceMotion';
 
 // Petite popup centrée (ton complice) affichée quand un commentaire/réponse est
 // rejeté par la modération (400 comment_blocked). Le message vient du serveur.
 export function BlockedCommentPopup({ message, onClose }: { message: string | null; onClose: () => void }) {
+  const reduce = useReduceMotion();
   return (
-    <Modal visible={!!message} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose} />
+    <Modal visible={!!message} transparent animationType={reduce ? 'none' : 'fade'} onRequestClose={onClose}>
+      <Pressable
+        style={styles.overlay}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Fermer le message"
+      />
       <View style={styles.wrap} pointerEvents="box-none">
-        <View style={styles.card}>
-          <Text style={styles.emoji}>🙅</Text>
+        <View style={styles.card} accessibilityViewIsModal onAccessibilityEscape={onClose}>
+          <View style={styles.iconWrap} accessible={false}>
+            <Feather name="alert-circle" size={24} color={COLORS.danger} />
+          </View>
+          <Text accessibilityRole="header" style={styles.title}>Action impossible</Text>
           <Text style={styles.message}>{message}</Text>
           <Pressable
-            style={styles.button}
+            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
             onPress={onClose}
             accessibilityRole="button"
-            accessibilityLabel="OK compris, fermer le message"
+            accessibilityLabel="Fermer le message"
           >
-            <Text style={styles.buttonText}>OK compris</Text>
+            <Text style={styles.buttonText}>J’AI COMPRIS</Text>
           </Pressable>
         </View>
       </View>
@@ -28,32 +39,62 @@ export function BlockedCommentPopup({ message, onClose }: { message: string | nu
 
 const styles = StyleSheet.create({
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
-  wrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  wrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACE.lg,
+  },
   card: {
     width: '100%',
-    maxWidth: 340,
-    backgroundColor: COLORS.white,
-    borderRadius: 18,
-    paddingHorizontal: 22,
-    paddingTop: 22,
-    paddingBottom: 18,
+    maxWidth: 380,
     alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
+    padding: SPACE.lg,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.sheet,
+    ...SHADOW.card,
   },
-  emoji: { fontSize: 34, marginBottom: 10 },
-  message: { fontFamily: FONTS.medium, fontSize: 15, lineHeight: 21, color: COLORS.text, textAlign: 'center' },
+  iconWrap: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACE.sm,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 26,
+  },
+  title: {
+    marginBottom: SPACE.xs,
+    color: COLORS.text,
+    fontFamily: FONTS.extraBold,
+    fontSize: 20,
+    lineHeight: 26,
+    textAlign: 'center',
+  },
+  message: {
+    color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
   button: {
-    marginTop: 18,
-    backgroundColor: COLORS.yellow,
-    borderRadius: 999,
-    paddingHorizontal: 28,
-    paddingVertical: 11,
+    minHeight: SIZES.touchComfortable,
     alignSelf: 'stretch',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACE.lg,
+    paddingHorizontal: SPACE.lg,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
   },
-  buttonText: { fontFamily: FONTS.extraBold, fontSize: 14, letterSpacing: 0.3, color: COLORS.onAccent },
+  buttonPressed: { opacity: 0.78, transform: [{ scale: 0.98 }] },
+  buttonText: {
+    color: COLORS.onPrimary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 13,
+    letterSpacing: 0.4,
+  },
 });

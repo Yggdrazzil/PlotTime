@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Image, Platform, Linking, Animated, Easing } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Image, Platform, Linking, Animated, Easing, useWindowDimensions } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
-import { COLORS, FONTS } from '@/lib/theme';
+import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
 import { Loading, LoadError } from '@/components/ui';
 import { Pop, PressableScale, SlideUpBar } from '@/components/anim';
 import { shareMedia } from '@/lib/share';
@@ -89,10 +90,24 @@ export default function GameDetail() {
   const [artwork, setArtwork] = useState<'poster' | 'banner' | null>(null);
   const [listsOpen, setListsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const reduce = useReduceMotion();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const trackingLock = useRef(false);
+
+  useEffect(
+    () => () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    },
+    [],
+  );
 
   const showToast = (msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(msg);
-    setTimeout(() => setToast(null), 2000);
+    toastTimer.current = setTimeout(() => {
+      setToast(null);
+      toastTimer.current = null;
+    }, 2000);
   };
 
   const detailKey = ['game', String(id)];
@@ -107,6 +122,7 @@ export default function GameDetail() {
     // La recherche de jeux (Explorer > JEUX) affiche « ajouté » via inLibrary :
     // l'invalider pour que le retour depuis la fiche soit déjà à jour.
     qc.invalidateQueries({ queryKey: ['games', 'search'] });
+    qc.invalidateQueries({ queryKey: ['profile'] });
     qc.invalidateQueries({ queryKey: ['gamification'] }); // XP/badges/streak (spec 2026-07-16 §10)
   };
 
@@ -123,38 +139,73 @@ export default function GameDetail() {
   };
 
   const setStatus = useMutation({
-    mutationFn: (status: GameStatus) => api.post(`/api/games/${id}/status`, { status }),
+    mutationFn: (status: GameStatus) =>
+      api.post('/api/games/' + id + '/status', { status }),
     onMutate: (status: GameStatus) => patch({ userStatus: status }),
-    onError: (_e, _v, ctx) => rollback(ctx),
+    onError: (_error, _status, context) => {
+      rollback(context);
+      showToast('Le statut n’a pas pu être enregistré. Réessaie.');
+    },
     onSettled: refresh,
   });
-
   // Interrupteur « Je possède » — indépendant du statut (mise à jour optimiste).
   const setOwned = useMutation({
-    mutationFn: (owned: boolean) => api.post(`/api/games/${id}/owned`, { owned }),
+    mutationFn: (owned: boolean) =>
+      api.post('/api/games/' + id + '/owned', { owned }),
     onMutate: (owned: boolean) => patch({ isOwned: owned }),
-    onError: (_e, _v, ctx) => rollback(ctx),
+    onError: (_error, _owned, context) => {
+      rollback(context);
+      showToast('La possession n’a pas pu être enregistrée. Réessaie.');
+    },
     onSettled: refresh,
   });
-
   const removeTracking = useMutation({
-    mutationFn: () => api.del(`/api/games/${id}/tracking`),
+    mutationFn: () => api.del('/api/games/' + id + '/tracking'),
     onMutate: () => {
-      showToast('Jeu retiré');
       // DELETE /tracking supprime toute la ligne — « Je possède » part avec.
       return patch({ userStatus: null, isOwned: false });
     },
-    onError: (_e, _v, ctx) => rollback(ctx),
+    onSuccess: () => showToast('Jeu retiré'),
+    onError: (_error, _value, context) => {
+      rollback(context);
+      showToast('Le jeu n’a pas pu être retiré. Réessaie.');
+    },
     onSettled: refresh,
   });
-
   const favorite = useMutation({
-    mutationFn: () => api.post<{ ok: boolean; isFavorite: boolean }>(`/api/games/${id}/favorite`),
+    mutationFn: () =>
+      api.post<{ ok: boolean; isFavorite: boolean }>(
+        '/api/games/' + id + '/favorite',
+      ),
     onMutate: () => patch({ isFavorite: !detail.data?.isFavorite }),
-    onError: (_e, _v, ctx) => rollback(ctx),
+    onError: (_error, _value, context) => {
+      rollback(context);
+      showToast('Le favori n’a pas pu être enregistré. Réessaie.');
+    },
     onSettled: refresh,
   });
 
+  const releaseTrackingLock = () => {
+    trackingLock.current = false;
+  };
+  const changeStatus = (status: GameStatus) => {
+    if (trackingLock.current) return false;
+    trackingLock.current = true;
+    setStatus.mutate(status, { onSettled: releaseTrackingLock });
+    return true;
+  };
+  const changeOwned = (owned: boolean) => {
+    if (trackingLock.current) return false;
+    trackingLock.current = true;
+    setOwned.mutate(owned, { onSettled: releaseTrackingLock });
+    return true;
+  };
+  const removeFromTracking = () => {
+    if (trackingLock.current) return false;
+    trackingLock.current = true;
+    removeTracking.mutate(undefined, { onSettled: releaseTrackingLock });
+    return true;
+  };
   const share = () => {
     if (!detail.data) return;
     const url = typeof window !== 'undefined' ? window.location.href : undefined;
@@ -162,7 +213,7 @@ export default function GameDetail() {
   };
 
   // Signalement : envoie l'œuvre à l'équipe de modération (tri manuel).
-  // Échec silencieux — toast neutre dans tous les cas.
+  // Le succès n’est affiché qu’après confirmation du serveur.
   const submitReport = async () => {
     setReportOpen(false);
     if (!detail.data) return;
@@ -174,45 +225,108 @@ export default function GameDetail() {
         title: detail.data.title,
         reason: 'adult',
       });
+      showToast('Merci, signalement envoyé 👍');
     } catch {
-      // Erreur silencieuse : on remercie quand même (pas de fuite d'état serveur).
+      showToast('Signalement impossible. Réessaie.');
     }
-    showToast('Merci, signalement envoyé 👍');
   };
 
-  if (detail.isLoading) return <FicheSkeleton heroHeight={200} />;
+  if (detail.isLoading) return <FicheSkeleton heroHeight={288} />;
   if (!detail.data) return <LoadError onRetry={detail.refetch} busy={detail.isRefetching} />;
   const game = detail.data;
+  const posterUri = tmdbImage(game.posterPath, 'w342');
+  const heroMeta = [game.year, game.platforms?.split(',')[0]?.trim()].filter(Boolean).join(' · ');
+  const trackingBusy =
+    trackingLock.current ||
+    setStatus.isPending ||
+    setOwned.isPending ||
+    removeTracking.isPending;
   const heroUri = tmdbImage(game.backdropPath) ?? tmdbImage(game.posterPath);
 
   return (
-    <Pop style={{ flex: 1, backgroundColor: COLORS.white }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
-        <View style={styles.hero}>
-          {heroUri ? <Image source={{ uri: heroUri }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
-          <View style={styles.heroShade} />
-          <View style={[styles.heroBtns, { top: insets.top + 8 }]}>
-            <Pressable onPress={() => goBack('/games')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retour">
-              <Feather name="chevron-down" size={30} color="#fff" />
-            </Pressable>
-            <Pressable onPress={() => setMenu(true)} hitSlop={8} accessibilityLabel="Options">
-              <Feather name="more-horizontal" size={28} color="#fff" />
-            </Pressable>
+    <Pop style={styles.screen}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom + 80, 96) }]}
+      >
+        <View style={styles.canvas}>
+          <View style={styles.hero}>
+            {heroUri ? (
+              <Image source={{ uri: heroUri }} style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityIgnoresInvertColors />
+            ) : (
+              <View style={[StyleSheet.absoluteFill, styles.heroFallback]} accessible={false}>
+                <View style={styles.heroPrismOne} />
+                <View style={styles.heroPrismTwo} />
+                <Ionicons name="game-controller-outline" size={74} color="rgba(255,255,255,0.34)" />
+              </View>
+            )}
+            <LinearGradient
+              colors={['rgba(12,7,28,0.08)', 'rgba(12,7,28,0.52)', 'rgba(12,7,28,0.95)']}
+              locations={[0, 0.46, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={[styles.heroBtns, { top: insets.top + SPACE.sm }]}>
+              <PressableScale
+                style={styles.heroAction}
+                onPress={() => goBack('/games')}
+                accessibilityRole="button"
+                accessibilityLabel="Retour aux jeux"
+                accessibilityHint="Revient à l’écran précédent"
+              >
+                <Feather name="arrow-left" size={22} color="#fff" />
+              </PressableScale>
+              <View style={styles.heroActionGroup}>
+                <PressableScale
+                  style={styles.heroAction}
+                  onPress={() => favorite.mutate()}
+                  disabled={favorite.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel={game.isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                  accessibilityState={{ selected: game.isFavorite, disabled: favorite.isPending, busy: favorite.isPending }}
+                >
+                  <Feather name="heart" size={20} color={game.isFavorite ? '#FF77B8' : '#fff'} />
+                </PressableScale>
+                <PressableScale
+                  style={styles.heroAction}
+                  onPress={share}
+                  accessibilityRole="button"
+                  accessibilityLabel="Partager ce jeu"
+                >
+                  <Feather name="share-2" size={20} color="#fff" />
+                </PressableScale>
+                <PressableScale
+                  style={styles.heroAction}
+                  onPress={() => setMenu(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Plus d’options"
+                >
+                  <Feather name="more-horizontal" size={22} color="#fff" />
+                </PressableScale>
+              </View>
+            </View>
+            <View style={styles.heroCopy}>
+              <View style={styles.eyebrowRow}>
+                <Ionicons name="game-controller-outline" size={15} color="#fff" />
+                <Text style={styles.heroEyebrow}>JEU VIDÉO</Text>
+              </View>
+              <Text style={styles.heroTitle} numberOfLines={2}>{game.title}</Text>
+              {heroMeta ? <Text style={styles.heroMeta} numberOfLines={1}>{heroMeta}</Text> : null}
+            </View>
           </View>
-        </View>
 
-        <View style={styles.headRow}>
-          {tmdbImage(game.posterPath, 'w342') ? (
-            <Image source={{ uri: tmdbImage(game.posterPath, 'w342')! }} style={styles.poster} resizeMode="cover" />
+          <View style={styles.body}>
+          <View style={styles.identityCard}>
+          {posterUri ? (
+            <Image source={{ uri: posterUri }} style={styles.poster} resizeMode="cover" accessibilityLabel={'Affiche de ' + game.title} />
           ) : (
             <View style={[styles.poster, styles.posterEmpty]}>
-              <Feather name="image" size={26} color="#b4b4b4" />
+              <Ionicons name="game-controller-outline" size={32} color={COLORS.textSoft} />
             </View>
           )}
-          <View style={{ flex: 1 }}>
+          <View style={styles.identityCopy}>
             {/* 1 ligne comme la fiche série : la 2e ligne tomberait en blanc
                 sur fond blanc (le bloc chevauche la bannière). */}
-            <Text style={styles.title} numberOfLines={1}>{game.title}</Text>
+            <Text style={styles.title} numberOfLines={2}>{game.title}</Text>
             {/* Infos compactes À CÔTÉ de la jaquette (remplit le vide à droite).
                 Deux notes DISTINCTES sur le MÊME barème /100 (décision 2026-07-17,
                 façon jv.com) — plus d'étoiles combinées en doublon. */}
@@ -223,11 +337,27 @@ export default function GameDetail() {
               {game.releaseDate ? (
                 <Text style={styles.headFact}><Text style={styles.factLabel}>Sortie le </Text>{shortDateFr(game.releaseDate)}</Text>
               ) : null}
-              {game.playerScore ? (
-                <Text style={styles.headFact}><Text style={styles.factLabel}>Note joueurs : </Text>{game.playerScore}/100</Text>
-              ) : null}
-              {game.criticScore ? (
-                <Text style={styles.headFact}><Text style={styles.factLabel}>Note presse : </Text>{game.criticScore}/100</Text>
+              {game.playerScore || game.criticScore ? (
+                <View style={styles.scoreRow}>
+                  {game.playerScore ? (
+                    <View style={styles.scorePill}>
+                      <Feather name="users" size={14} color={COLORS.primary} />
+                      <View>
+                        <Text style={styles.scoreValue}>{game.playerScore}/100</Text>
+                        <Text style={styles.scoreLabel}>Joueurs</Text>
+                      </View>
+                    </View>
+                  ) : null}
+                  {game.criticScore ? (
+                    <View style={styles.scorePill}>
+                      <Feather name="award" size={14} color={COLORS.secondary} />
+                      <View>
+                        <Text style={styles.scoreValue}>{game.criticScore}/100</Text>
+                        <Text style={styles.scoreLabel}>Presse</Text>
+                      </View>
+                    </View>
+                  ) : null}
+                </View>
               ) : null}
             </View>
           </View>
@@ -235,17 +365,35 @@ export default function GameDetail() {
 
         {/* Suivi REMONTÉ juste sous la jaquette/titre (avant le trailer) :
             l'utilisateur coche son statut sans scroller. */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Suivi</Text>
+        <View style={[styles.section, styles.trackingCard]}>
+          <View style={styles.sectionHeading}>
+            <View style={styles.sectionIcon}>
+              <Feather name="activity" size={18} color={COLORS.primary} />
+            </View>
+            <View style={styles.sectionHeadingCopy}>
+              <Text style={styles.sectionTitle}>Suivi</Text>
+              <Text style={styles.sectionSubtitle}>Où en es-tu dans cette aventure ?</Text>
+            </View>
+          </View>
           <View style={styles.statusRow}>
             {GAME_STATUSES.map((s) => (
               <Pressable
                 key={s}
-                style={[styles.statusChip, game.userStatus === s && styles.statusChipSel]}
+                style={({ pressed }) => [
+                  styles.statusChip,
+                  game.userStatus === s && styles.statusChipSel,
+                  pressed && styles.statusChipPressed,
+                  trackingBusy && styles.controlDisabled,
+                ]}
                 // Re-taper le statut actif le DÉSÉLECTIONNE (retrait du suivi).
-                onPress={() => (game.userStatus === s ? removeTracking.mutate() : setStatus.mutate(s))}
-                disabled={setStatus.isPending || removeTracking.isPending}
+                onPress={() => (game.userStatus === s ? removeFromTracking() : changeStatus(s))}
+                disabled={trackingBusy}
+                accessibilityRole="button"
+                accessibilityLabel={game.userStatus === s ? 'Retirer le statut ' + STATUS_LABELS[s] : 'Choisir le statut ' + STATUS_LABELS[s]}
+                accessibilityHint={game.userStatus === s ? 'Retire ce jeu de ton suivi' : undefined}
+                accessibilityState={{ selected: game.userStatus === s, disabled: trackingBusy, busy: trackingBusy }}
               >
+                {game.userStatus === s ? <Feather name="check" size={15} color={COLORS.onPrimary} /> : null}
                 <Text style={[styles.statusChipText, game.userStatus === s && styles.statusChipTextSel]}>
                   {STATUS_LABELS[s]}
                 </Text>
@@ -256,8 +404,8 @@ export default function GameDetail() {
               collection…) — même style que les toggles des Paramètres. */}
           <OwnedToggle
             on={game.isOwned}
-            disabled={setOwned.isPending}
-            onToggle={(v) => setOwned.mutate(v)}
+            disabled={trackingBusy}
+            onToggle={changeOwned}
           />
         </View>
 
@@ -268,68 +416,98 @@ export default function GameDetail() {
             de jeu — l'ancienne section « Informations » est fusionnée ici. */}
         {game.platforms || game.developer || game.publisher || game.gameModes || game.playtimeMinutes ? (
           <View style={[styles.section, styles.factList]}>
+            <View style={styles.sectionHeading}>
+              <View style={styles.sectionIcon}>
+                <Feather name="info" size={18} color={COLORS.primary} />
+              </View>
+              <View style={styles.sectionHeadingCopy}>
+                <Text style={styles.sectionTitle}>Informations</Text>
+              </View>
+            </View>
             {game.platforms ? (
-              <Text style={styles.fact}><Text style={styles.factLabel}>Plateformes : </Text>{game.platforms}</Text>
+              <FactRow icon="monitor" label="Plateformes" value={game.platforms} />
             ) : null}
             {game.developer ? (
-              <Text style={styles.fact}><Text style={styles.factLabel}>Développeur : </Text>{game.developer}</Text>
+              <FactRow icon="code" label="Développeur" value={game.developer} />
             ) : null}
             {game.publisher ? (
-              <Text style={styles.fact}><Text style={styles.factLabel}>Éditeur : </Text>{game.publisher}</Text>
+              <FactRow icon="briefcase" label="Éditeur" value={game.publisher} />
             ) : null}
             {game.gameModes ? (
-              <Text style={styles.fact}><Text style={styles.factLabel}>Modes : </Text>{game.gameModes}</Text>
+              <FactRow icon="users" label="Modes" value={game.gameModes} />
             ) : null}
             {game.playtimeMinutes ? (
-              <Text style={styles.fact}><Text style={styles.factLabel}>Temps de jeu : </Text>{formatPlaytime(game.playtimeMinutes)}</Text>
+              <FactRow icon="clock" label="Temps de jeu" value={formatPlaytime(game.playtimeMinutes)} />
             ) : null}
           </View>
         ) : null}
 
         {game.overview ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Résumé</Text>
+          <View style={[styles.section, styles.overviewCard]}>
+            <View style={styles.sectionHeading}>
+              <View style={styles.sectionIcon}>
+                <Feather name="book-open" size={18} color={COLORS.primary} />
+              </View>
+              <View style={styles.sectionHeadingCopy}>
+                <Text style={styles.sectionTitle}>Résumé</Text>
+              </View>
+            </View>
             <Text style={styles.overview}>{game.overview}</Text>
           </View>
         ) : null}
 
         <RelatedGamesRow items={game.related ?? []} />
 
-        <CommentsRow mediaId={game.id} title={game.title} />
+            <CommentsRow mediaId={game.id} title={game.title} />
+          </View>
+        </View>
       </ScrollView>
 
-      <SlideUpBar visible={!!toast} style={[styles.toastBar, { paddingBottom: insets.bottom + 16 }]}>
-        <View style={styles.toastRow}>
+      <SlideUpBar visible={!!toast} style={[styles.toastBar, { paddingBottom: insets.bottom + SPACE.md }]}>
+        <View style={styles.toastRow} accessibilityRole="alert" accessibilityLiveRegion="polite">
           <Feather name="check" size={22} color={COLORS.black} />
           <Text style={styles.toastText}>{toast}</Text>
         </View>
       </SlideUpBar>
 
-      <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
-        <Pressable style={styles.overlay} onPress={() => setMenu(false)} />
-        <View style={[styles.sheet, { bottom: insets.bottom + 8 }]}>
-          {game.userStatus ? (
-            <View style={styles.menuStatusRow}>
-              <Text style={styles.menuStatusText}>{STATUS_LABELS[game.userStatus as GameStatus]}</Text>
-            </View>
-          ) : null}
-          <SheetItem icon="edit-2" label="Personnaliser" onPress={() => { setMenu(false); setPersoMenu(true); }} />
-          <SheetItem
-            icon="heart"
-            color={game.isFavorite ? COLORS.red : COLORS.black}
-            label={game.isFavorite ? 'Retirer des favoris' : 'Favoris'}
-            onPress={() => { favorite.mutate(); setMenu(false); }}
-          />
-          <SheetItem icon="plus-square" label="Ajouter à une liste" onPress={() => { setMenu(false); setListsOpen(true); }} />
-          {game.userStatus ? (
+      <Modal visible={menu} transparent animationType={reduce ? 'none' : 'fade'} onRequestClose={() => setMenu(false)}>
+        <Pressable style={styles.overlay} onPress={() => setMenu(false)} accessibilityRole="button" accessibilityLabel="Fermer les options" />
+        <View style={[styles.sheetDock, { paddingBottom: Math.max(insets.bottom, SPACE.xs) }]} pointerEvents="box-none">
+          <View
+            style={styles.sheet}
+            accessibilityViewIsModal
+            onAccessibilityEscape={() => setMenu(false)}
+          >
+            <View style={styles.sheetHandle} />
+            {game.userStatus ? (
+              <View style={styles.menuStatusRow}>
+                <Text style={styles.menuStatusText}>{STATUS_LABELS[game.userStatus as GameStatus]}</Text>
+              </View>
+            ) : null}
+            <SheetItem icon="edit-2" label="Personnaliser" onPress={() => { setMenu(false); setPersoMenu(true); }} />
             <SheetItem
-              icon="minus-square"
-              label="Retirer"
-              onPress={() => { setMenu(false); removeTracking.mutate(); }}
+              icon="heart"
+              color={game.isFavorite ? COLORS.red : COLORS.text}
+              label={game.isFavorite ? 'Retirer des favoris' : 'Favoris'}
+              onPress={() => { favorite.mutate(); setMenu(false); }}
+              disabled={favorite.isPending}
+              busy={favorite.isPending}
             />
-          ) : null}
-          <SheetItem icon="share-2" label="Partager" onPress={() => { setMenu(false); share(); }} />
-          <SheetItem icon="flag" label="Signaler" onPress={() => { setMenu(false); setReportOpen(true); }} last />
+            <SheetItem icon="plus-square" label="Ajouter à une liste" onPress={() => { setMenu(false); setListsOpen(true); }} />
+            {game.userStatus ? (
+              <SheetItem
+                icon="minus-square"
+                label="Retirer"
+                onPress={() => {
+                  if (removeFromTracking()) setMenu(false);
+                }}
+                disabled={trackingBusy}
+                busy={removeTracking.isPending}
+              />
+            ) : null}
+            <SheetItem icon="share-2" label="Partager" onPress={() => { setMenu(false); share(); }} />
+            <SheetItem icon="flag" label="Signaler" onPress={() => { setMenu(false); setReportOpen(true); }} last />
+          </View>
         </View>
       </Modal>
 
@@ -363,26 +541,51 @@ function OwnedToggle({ on, disabled, onToggle }: { on: boolean; disabled?: boole
   const reduce = useReduceMotion();
   const v = useRef(new Animated.Value(on ? 1 : 0)).current;
   useEffect(() => {
-    Animated.timing(v, { toValue: on ? 1 : 0, duration: reduce ? 0 : 180, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+    Animated.timing(v, {
+      toValue: on ? 1 : 0,
+      duration: reduce ? 0 : 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
   }, [on, reduce, v]);
+
   return (
-    <View style={styles.ownedRow}>
-      <Feather name="archive" size={20} color={COLORS.black} />
-      <Text style={styles.ownedLabel}>Je possède</Text>
+    <View style={[styles.ownedRow, disabled && styles.controlDisabled]}>
+      <View style={styles.ownedIcon}>
+        <Feather name="archive" size={19} color={COLORS.primary} />
+      </View>
+      <View style={styles.ownedCopy}>
+        <Text style={styles.ownedLabel}>Je possède</Text>
+        <Text style={styles.ownedHint}>Indépendant de ton statut de suivi</Text>
+      </View>
       <Pressable
+        style={styles.toggleTarget}
         onPress={() => onToggle(!on)}
         disabled={disabled}
-        hitSlop={8}
         accessibilityRole="switch"
-        accessibilityLabel="Je possède"
-        accessibilityState={{ checked: on }}
+        accessibilityLabel="Je possède ce jeu"
+        accessibilityHint="Active ou désactive la présence du jeu dans ta collection"
+        accessibilityState={{ checked: on, disabled: !!disabled, busy: !!disabled }}
       >
-        <Animated.View style={[styles.toggle, { backgroundColor: v.interpolate({ inputRange: [0, 1], outputRange: [COLORS.chipSelected, COLORS.yellow] }) }]}>
+        <Animated.View
+          style={[
+            styles.toggle,
+            {
+              backgroundColor: v.interpolate({
+                inputRange: [0, 1],
+                outputRange: [COLORS.surfaceMuted, COLORS.primary],
+              }),
+            },
+          ]}
+        >
           <Animated.View
             style={[
               styles.knob,
               {
-                backgroundColor: v.interpolate({ inputRange: [0, 1], outputRange: ['#ffffff', '#000000'] }),
+                backgroundColor: v.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [COLORS.surface, COLORS.onPrimary],
+                }),
                 transform: [{ translateX: v.interpolate({ inputRange: [0, 1], outputRange: [0, 22] }) }],
               },
             ]}
@@ -393,6 +596,27 @@ function OwnedToggle({ on, disabled, onToggle }: { on: boolean; disabled?: boole
   );
 }
 
+function FactRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.factRow}>
+      <View style={styles.factIcon}>
+        <Feather name={icon} size={17} color={COLORS.primary} />
+      </View>
+      <View style={styles.factCopy}>
+        <Text style={styles.factLabel}>{label}</Text>
+        <Text style={styles.fact}>{value}</Text>
+      </View>
+    </View>
+  );
+}
 // Aperçu bande-annonce (16:9) : miniature YouTube + bouton lecture centré. Sur
 // web, tap = iframe intégré autoplay ; sur natif, tap = ouverture YouTube
 // (pas de nouvelle dépendance native).
@@ -410,7 +634,15 @@ function TrailerPreview({ videoId }: { videoId: string }) {
 
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Bande-annonce</Text>
+      <View style={styles.sectionHeading}>
+        <View style={styles.sectionIcon}>
+          <Feather name="play-circle" size={18} color={COLORS.primary} />
+        </View>
+        <View style={styles.sectionHeadingCopy}>
+          <Text style={styles.sectionTitle}>Bande-annonce</Text>
+          <Text style={styles.sectionSubtitle}>Découvre l’univers du jeu</Text>
+        </View>
+      </View>
       <View style={styles.trailerBox}>
         {playing && Platform.OS === 'web' ? (
           // RN-web rend les tags DOM natifs via React.createElement — pas d'équivalent
@@ -418,6 +650,7 @@ function TrailerPreview({ videoId }: { videoId: string }) {
           React.createElement('iframe', {
             src: `https://www.youtube.com/embed/${videoId}?autoplay=1`,
             style: { width: '100%', height: '100%', border: 0 },
+            title: 'Bande-annonce du jeu',
             allow: 'autoplay; encrypted-media; picture-in-picture',
             allowFullScreen: true,
           })
@@ -427,6 +660,7 @@ function TrailerPreview({ videoId }: { videoId: string }) {
             onPress={play}
             accessibilityRole="button"
             accessibilityLabel="Lire la bande-annonce"
+            accessibilityHint={Platform.OS === 'web' ? 'Lance la vidéo dans la fiche' : 'Ouvre la vidéo dans YouTube'}
           >
             <Image source={{ uri: thumbUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             <View style={styles.trailerPlayShade}>
@@ -447,21 +681,43 @@ function SheetItem({
   onPress,
   color,
   last,
+  disabled = false,
+  busy = false,
 }: {
   icon: keyof typeof Feather.glyphMap;
   label: string;
   onPress: () => void;
   color?: string;
   last?: boolean;
+  disabled?: boolean;
+  busy?: boolean;
 }) {
   return (
-    <Pressable style={[styles.sheetItem, last && { borderBottomWidth: 0 }]} onPress={onPress}>
-      <Feather name={icon} size={20} color={color ?? COLORS.black} />
+    <Pressable
+      style={({ pressed }) => [
+        styles.sheetItem,
+        last && { borderBottomWidth: 0 },
+        pressed && styles.sheetItemPressed,
+        disabled && styles.controlDisabled,
+      ]}
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled, busy }}
+    >
+      <View style={styles.sheetItemIcon}>
+        <Feather name={icon} size={20} color={color ?? COLORS.text} />
+      </View>
       <Text style={styles.sheetLabel}>{label}</Text>
+      {busy ? (
+        <ActivityIndicator color={COLORS.primary} size="small" />
+      ) : (
+        <Feather name="chevron-right" size={18} color={COLORS.textSoft} />
+      )}
     </Pressable>
   );
 }
-
 // « Personnaliser » (copie de show/[id].tsx) : propose « Modifier l'affiche »
 // et « Changer la bannière ».
 function PersonalizeMenu({
@@ -474,17 +730,21 @@ function PersonalizeMenu({
   onPick: (mode: 'poster' | 'banner') => void;
 }) {
   const insets = useSafeAreaInsets();
+  const reduce = useReduceMotion();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose} />
-      <View style={[styles.sheet, { bottom: insets.bottom + 8 }]}>
+    <Modal visible={visible} transparent animationType={reduce ? 'none' : 'fade'} onRequestClose={onClose}>
+      <Pressable style={styles.overlay} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fermer la personnalisation" />
+      <View style={[styles.sheetDock, { paddingBottom: Math.max(insets.bottom, SPACE.xs) }]} pointerEvents="box-none">
+        <View
+          style={styles.sheet}
+          accessibilityViewIsModal
+          onAccessibilityEscape={onClose}
+        >
+        <View style={styles.sheetHandle} />
         <Text style={pstyles.menuHeader}>Personnaliser</Text>
-        <Pressable style={pstyles.menuItem} onPress={() => onPick('poster')}>
-          <Text style={pstyles.menuItemText}>Modifier l&apos;affiche</Text>
-        </Pressable>
-        <Pressable style={pstyles.menuItem} onPress={() => onPick('banner')}>
-          <Text style={pstyles.menuItemText}>Changer la bannière</Text>
-        </Pressable>
+        <SheetItem icon="image" label="Modifier l’affiche" onPress={() => onPick('poster')} />
+        <SheetItem icon="layout" label="Changer la bannière" onPress={() => onPick('banner')} last />
+      </View>
       </View>
     </Modal>
   );
@@ -505,6 +765,10 @@ function ArtworkPicker({
   onApplied: (what: 'poster' | 'banner') => void;
 }) {
   const [busyUri, setBusyUri] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
+  const reduce = useReduceMotion();
+  const { width } = useWindowDimensions();
+  const [applyError, setApplyError] = useState<string | null>(null);
   const images = useQuery({
     queryKey: ['media-images', 'games', mediaId],
     queryFn: () =>
@@ -517,11 +781,14 @@ function ArtworkPicker({
   const apply = async (uri: string) => {
     if (busyUri || !mode) return;
     setBusyUri(uri);
+    setApplyError(null);
     try {
       if (mode === 'poster') await api.post(`/api/games/${mediaId}/poster`, { posterPath: uri });
       else await api.post(`/api/games/${mediaId}/banner`, { backdropPath: uri });
       images.refetch();
       onApplied(mode);
+    } catch {
+      setApplyError('La modification n’a pas pu être enregistrée. Réessaie.');
     } finally {
       setBusyUri(null);
     }
@@ -531,25 +798,41 @@ function ArtworkPicker({
   const list = (isPoster ? images.data?.posters : images.data?.backdrops) ?? [];
   const selectedUri = isPoster ? images.data?.selectedPoster : images.data?.selectedBackdrop;
 
+  const columns = width >= 720 ? 4 : width >= 480 ? 3 : 2;
+  const pickerWidth = Math.min(width, SIZES.contentMax) - SPACE.md * 2;
+  const posterWidth = Math.max(120, (pickerWidth - SPACE.sm * (columns - 1)) / columns);
   const cell = (uri: string) => {
     const selected = uri === selectedUri;
     return (
-      <Pressable key={uri} style={isPoster ? pstyles.posterWrap : pstyles.bannerWrap} onPress={() => apply(uri)}>
+      <Pressable
+        key={uri}
+        style={({ pressed }) => [
+          isPoster ? pstyles.posterWrap : pstyles.bannerWrap,
+          isPoster ? { width: posterWidth } : undefined,
+          pressed && pstyles.imagePressed,
+        ]}
+        onPress={() => apply(uri)}
+        disabled={!!busyUri}
+        accessibilityRole="button"
+        accessibilityLabel={isPoster ? 'Choisir cette affiche' : 'Choisir cette bannière'}
+        accessibilityState={{ selected, disabled: !!busyUri, busy: busyUri === uri }}
+      >
         <Image
           source={{ uri: tmdbImage(uri, isPoster ? 'w342' : 'w500') ?? uri }}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
+          accessibilityIgnoresInvertColors
         />
         {selected ? (
-          <View style={pstyles.selectedShade}>
+          <View style={pstyles.selectedShade} pointerEvents="none">
             <View style={pstyles.selectedRow}>
-              <Text style={pstyles.selectedStar}>★</Text>
+              <Feather name="check-circle" size={18} color={COLORS.tertiary} />
               <Text style={pstyles.selectedText}>Sélectionnée</Text>
             </View>
           </View>
         ) : null}
         {busyUri === uri ? (
-          <View style={pstyles.busy}>
+          <View style={pstyles.busy} pointerEvents="none">
             <ActivityIndicator color="#fff" />
           </View>
         ) : null}
@@ -558,23 +841,37 @@ function ArtworkPicker({
   };
 
   return (
-    <Modal visible={mode !== null} animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: COLORS.white }}>
-        <View style={pstyles.header}>
-          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Fermer">
-            <Feather name="arrow-left" size={24} color={COLORS.black} />
+    <Modal visible={mode !== null} animationType={reduce ? 'none' : 'slide'} onRequestClose={onClose}>
+      <View style={pstyles.screen} accessibilityViewIsModal onAccessibilityEscape={onClose}>
+        <View style={[pstyles.header, { paddingTop: Math.max(insets.top + SPACE.xs, SPACE.lg) }]}>
+          <Pressable style={pstyles.closeButton} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fermer le sélecteur d’images">
+            <Feather name="arrow-left" size={22} color={COLORS.text} />
           </Pressable>
-          <Text style={pstyles.title}>{isPoster ? "Modifier l'affiche" : 'Changer la bannière'}</Text>
-          <View style={{ width: 24 }} />
+          <Text style={pstyles.title}>{isPoster ? 'Modifier l’affiche' : 'Changer la bannière'}</Text>
+          <View style={pstyles.closeSpacer} />
         </View>
+        {applyError ? (
+          <View style={pstyles.errorBanner} accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <Feather name="alert-circle" size={18} color={COLORS.danger} />
+            <Text style={pstyles.errorText}>{applyError}</Text>
+          </View>
+        ) : null}
         {images.isLoading ? (
           <Loading />
+        ) : images.isError ? (
+          <LoadError onRetry={() => images.refetch()} busy={images.isRefetching} />
         ) : list.length === 0 ? (
-          <Text style={pstyles.emptyNote}>
-            {isPoster ? 'Aucune affiche disponible.' : 'Aucune bannière disponible pour ce jeu.'}
-          </Text>
+          <View style={pstyles.emptyCard}>
+            <Feather name="image" size={28} color={COLORS.textSoft} />
+            <Text style={pstyles.emptyNote}>
+              {isPoster ? 'Aucune affiche disponible.' : 'Aucune bannière disponible pour ce jeu.'}
+            </Text>
+          </View>
         ) : (
-          <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 40 }}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[pstyles.pickerContent, { paddingBottom: Math.max(insets.bottom + SPACE.xl, SPACE.xxl) }]}
+          >
             <View style={isPoster ? pstyles.grid : pstyles.bannerList}>{list.map(cell)}</View>
           </ScrollView>
         )}
@@ -597,10 +894,12 @@ function ListsSheet({
   onChanged: (added: boolean, title: string) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const reduce = useReduceMotion();
   const qc = useQueryClient();
   const [newTitle, setNewTitle] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   type PickerList = { id: string; title: string; itemCount: number; containsMediaId?: boolean };
   const pickerKey = ['lists', 'picker', mediaId];
   const lists = useQuery({
@@ -613,73 +912,187 @@ function ListsSheet({
     qc.invalidateQueries({ queryKey: ['profile'] });
   };
 
-  const toggle = async (l: PickerList) => {
-    if (busyId) return;
-    setBusyId(l.id);
-    const added = !l.containsMediaId;
-    const prev = qc.getQueryData<{ lists: PickerList[] }>(pickerKey);
-    qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (d) =>
-      d ? { lists: d.lists.map((x) => (x.id === l.id ? { ...x, containsMediaId: added, itemCount: Math.max(0, x.itemCount + (added ? 1 : -1)) } : x)) } : d,
+  const toggle = async (list: PickerList) => {
+    if (busyId || creating) return;
+    setBusyId(list.id);
+    setActionError(null);
+    const added = !list.containsMediaId;
+    const previous = qc.getQueryData<{ lists: PickerList[] }>(pickerKey);
+
+    qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (data) =>
+      data
+        ? {
+            lists: data.lists.map((item) =>
+              item.id === list.id
+                ? {
+                    ...item,
+                    containsMediaId: added,
+                    itemCount: Math.max(0, item.itemCount + (added ? 1 : -1)),
+                  }
+                : item,
+            ),
+          }
+        : data,
     );
-    onChanged(added, l.title);
+
     try {
-      if (added) await api.post(`/api/lists/${l.id}/items`, { mediaId });
-      else await api.del(`/api/lists/${l.id}/items/${mediaId}`);
+      if (added) {
+        await api.post('/api/lists/' + list.id + '/items', { mediaId });
+      } else {
+        await api.del('/api/lists/' + list.id + '/items/' + mediaId);
+      }
+      onChanged(added, list.title);
       syncOthers();
     } catch {
-      if (prev) qc.setQueryData(pickerKey, prev);
+      if (previous) qc.setQueryData(pickerKey, previous);
+      setActionError('La liste n’a pas pu être modifiée. Réessaie.');
     } finally {
       setBusyId(null);
     }
   };
-
   const create = async () => {
     const title = newTitle.trim();
     if (!title || creating) return;
+
     setCreating(true);
+    setActionError(null);
     setNewTitle('');
-    const prev = qc.getQueryData<{ lists: PickerList[] }>(pickerKey);
-    const tempId = `tmp-${title}`;
-    qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (d) =>
-      d ? { lists: [...d.lists, { id: tempId, title, itemCount: 1, containsMediaId: true }] } : d,
-    );
-    onChanged(true, title);
+
+    const previous = qc.getQueryData<{ lists: PickerList[] }>(pickerKey);
+    const tempId = 'tmp-' + title;
+    const optimisticList: PickerList = {
+      id: tempId,
+      title,
+      itemCount: 1,
+      containsMediaId: true,
+    };
+
+    qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (data) => ({
+      lists: [...(data?.lists ?? []), optimisticList],
+    }));
+
     try {
-      const res = await api.post<{ id: string }>('/api/lists', { title });
-      await api.post(`/api/lists/${res.id}/items`, { mediaId });
-      qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (d) =>
-        d ? { lists: d.lists.map((x) => (x.id === tempId ? { ...x, id: res.id } : x)) } : d,
-      );
+      const result = await api.post<{ id: string }>('/api/lists', { title });
+      const createdSelected: PickerList = { ...optimisticList, id: result.id };
+
+      qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (data) => {
+        const current = data?.lists ?? [];
+        const withoutDuplicate = current.filter((item) => item.id !== result.id);
+        const withServerId = withoutDuplicate.map((item) =>
+          item.id === tempId ? createdSelected : item,
+        );
+        return {
+          lists: withServerId.some((item) => item.id === result.id)
+            ? withServerId
+            : [...withServerId, createdSelected],
+        };
+      });
+
+      try {
+        await api.post('/api/lists/' + result.id + '/items', { mediaId });
+      } catch {
+        const createdEmpty: PickerList = {
+          id: result.id,
+          title,
+          itemCount: 0,
+          containsMediaId: false,
+        };
+
+        qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (data) => {
+          const current = data?.lists ?? previous?.lists ?? [];
+          let inserted = false;
+          const lists = current.flatMap((item) => {
+            if (item.id !== tempId && item.id !== result.id) return [item];
+            if (inserted) return [];
+            inserted = true;
+            return [createdEmpty];
+          });
+          if (!inserted) lists.push(createdEmpty);
+          return { lists };
+        });
+
+        setActionError(
+          'La liste « ' +
+            title +
+            ' » a été créée, mais le jeu n’a pas été ajouté. Touche la liste pour réessayer.',
+        );
+        syncOthers();
+        return;
+      }
+
+      onChanged(true, title);
       syncOthers();
     } catch {
-      if (prev) qc.setQueryData(pickerKey, prev);
+      if (previous) {
+        qc.setQueryData(pickerKey, previous);
+      } else {
+        qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (data) => ({
+          lists: (data?.lists ?? []).filter((item) => item.id !== tempId),
+        }));
+      }
+      setNewTitle(title);
+      setActionError('La liste n’a pas pu être créée. Réessaie.');
     } finally {
       setCreating(false);
     }
   };
-
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose} />
-      <View style={[styles.sheet, { maxHeight: '70%', bottom: insets.bottom + 8 }]}>
+    <Modal visible={visible} transparent animationType={reduce ? 'none' : 'fade'} onRequestClose={onClose}>
+      <Pressable style={styles.overlay} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fermer les listes" />
+      <View style={[styles.sheetDock, { paddingBottom: Math.max(insets.bottom, SPACE.xs) }]} pointerEvents="box-none">
+        <View
+          style={[styles.sheet, styles.listSheet]}
+          accessibilityViewIsModal
+          onAccessibilityEscape={onClose}
+        >
+        <View style={styles.sheetHandle} />
         <View style={styles.menuStatusRow}>
+          <View style={styles.menuHeaderIcon}>
+            <Feather name="bookmark" size={18} color={COLORS.primary} />
+          </View>
           <Text style={styles.menuStatusText}>Ajouter à une liste</Text>
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled">
+        {actionError ? (
+          <View style={pstyles.errorBanner} accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <Feather name="alert-circle" size={18} color={COLORS.danger} />
+            <Text style={pstyles.errorText}>{actionError}</Text>
+          </View>
+        ) : null}
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={pstyles.listContent}>
           {lists.isLoading ? (
             <Loading />
+          ) : lists.isError ? (
+            <LoadError onRetry={() => lists.refetch()} busy={lists.isRefetching} />
           ) : (
-            (lists.data?.lists ?? []).map((l) => (
-              <Pressable key={l.id} style={styles.sheetItem} onPress={() => toggle(l)}>
-                <Feather name={l.containsMediaId ? 'check-square' : 'square'} size={22} color={l.containsMediaId ? '#1a9c4b' : COLORS.black} />
-                <Text style={styles.sheetLabel} numberOfLines={1}>
-                  {l.title}
-                </Text>
-                {busyId === l.id ? <ActivityIndicator color={COLORS.black} size="small" /> : (
-                  <Text style={pstyles.listCount}>{l.itemCount}</Text>
-                )}
-              </Pressable>
-            ))
+            <>
+              {(lists.data?.lists ?? []).length === 0 ? (
+                <Text style={pstyles.listEmpty}>Tu n’as pas encore de liste. Crée-en une juste dessous.</Text>
+              ) : null}
+              {(lists.data?.lists ?? []).map((l) => {
+                const disabled = !!busyId || creating;
+                return (
+                  <Pressable
+                    key={l.id}
+                    style={({ pressed }) => [styles.listItem, pressed && styles.sheetItemPressed, disabled && styles.controlDisabled]}
+                    onPress={() => toggle(l)}
+                    disabled={disabled}
+                    accessibilityRole="checkbox"
+                    accessibilityLabel={l.title}
+                    accessibilityState={{ checked: !!l.containsMediaId, disabled, busy: busyId === l.id }}
+                  >
+                    <View style={[styles.listCheck, l.containsMediaId && styles.listCheckSelected]}>
+                      {l.containsMediaId ? <Feather name="check" size={15} color={COLORS.onPrimary} /> : null}
+                    </View>
+                    <Text style={styles.sheetLabel} numberOfLines={1}>{l.title}</Text>
+                    {busyId === l.id ? (
+                      <ActivityIndicator color={COLORS.primary} size="small" />
+                    ) : (
+                      <Text style={pstyles.listCount}>{l.itemCount}</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </>
           )}
           <View style={pstyles.newListRow}>
             <TextInput
@@ -689,12 +1102,22 @@ function ListsSheet({
               value={newTitle}
               onChangeText={setNewTitle}
               onSubmitEditing={create}
+              returnKeyType="done"
+              accessibilityLabel="Nom de la nouvelle liste"
             />
-            <Pressable style={[pstyles.newListBtn, (!newTitle.trim() || creating) && { opacity: 0.4 }]} onPress={create} disabled={!newTitle.trim() || creating}>
-              {creating ? <ActivityIndicator color={COLORS.black} size="small" /> : <Text style={pstyles.newListBtnText}>CRÉER</Text>}
+            <Pressable
+              style={({ pressed }) => [pstyles.newListBtn, pressed && pstyles.newListBtnPressed, (!newTitle.trim() || creating) && styles.controlDisabled]}
+              onPress={create}
+              disabled={!newTitle.trim() || creating}
+              accessibilityRole="button"
+              accessibilityLabel="Créer la liste"
+              accessibilityState={{ disabled: !newTitle.trim() || creating, busy: creating }}
+            >
+              {creating ? <ActivityIndicator color={COLORS.onPrimary} size="small" /> : <Text style={pstyles.newListBtnText}>CRÉER</Text>}
             </Pressable>
           </View>
         </ScrollView>
+      </View>
       </View>
     </Modal>
   );
@@ -708,9 +1131,12 @@ function ListsSheet({
 function RelatedGamesRow({ items }: { items: RelatedGameDto[] }) {
   const router = useRouter();
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
   if (!items.length) return null;
+
   const open = async (r: RelatedGameDto) => {
     if (openingId) return;
+    setOpenError(null);
     if (r.localId) {
       router.push(('/game/' + r.localId) as Href);
       return;
@@ -718,49 +1144,92 @@ function RelatedGamesRow({ items }: { items: RelatedGameDto[] }) {
     setOpeningId(r.igdbId);
     try {
       const res = await api.post<{ mediaId: string | null }>('/api/games/add-from-igdb', { igdbId: r.igdbId });
-      if (res.mediaId) router.push(('/game/' + res.mediaId) as Href);
+      if (res.mediaId) {
+        router.push(('/game/' + res.mediaId) as Href);
+      } else {
+        setOpenError('Ce contenu ne peut pas être ouvert pour le moment.');
+      }
+    } catch {
+      setOpenError('Impossible d’ouvrir ce contenu. Réessaie.');
     } finally {
       setOpeningId(null);
     }
   };
+
   return (
-    <View style={[styles.section, { paddingHorizontal: 0 }]}>
-      <Text style={[styles.sectionTitle, { paddingHorizontal: 20 }]}>Éditions et extensions</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 20, paddingTop: 14 }}>
-        {items.map((r) => (
-          <PressableScale key={r.igdbId} style={styles.relCard} onPress={() => open(r)}>
-            <View style={styles.relCover}>
-              {r.posterPath ? (
-                <Image source={{ uri: r.posterPath }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-              ) : (
-                <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-                  <Ionicons name="game-controller-outline" size={30} color="#9a9a9a" />
-                </View>
-              )}
-              {r.inLibrary ? (
-                <View style={styles.relBadge}>
-                  <Feather name="check" size={16} color={COLORS.onAccent} />
-                </View>
-              ) : null}
-              {openingId === r.igdbId ? (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' }]}>
-                  <ActivityIndicator color="#fff" />
-                </View>
-              ) : null}
-            </View>
-            <View style={styles.relCap}>
-              <Text style={styles.relName} numberOfLines={2}>{r.title}</Text>
-              <Text style={styles.relKind}>
-                {[r.kind === 'edition' ? 'Édition' : 'Extension', r.year].filter(Boolean).join(' · ')}
-              </Text>
-            </View>
-          </PressableScale>
-        ))}
+    <View style={[styles.section, styles.relatedSection]}>
+      <View style={[styles.sectionHeading, styles.relatedHeading]}>
+        <View style={styles.sectionIcon}>
+          <Feather name="layers" size={18} color={COLORS.primary} />
+        </View>
+        <View style={styles.sectionHeadingCopy}>
+          <Text style={styles.sectionTitle}>Éditions et extensions</Text>
+          <Text style={styles.sectionSubtitle}>Continue l’aventure avec les contenus liés</Text>
+        </View>
+      </View>
+      {openError ? (
+        <View style={pstyles.errorBanner} accessibilityRole="alert" accessibilityLiveRegion="polite">
+          <Feather name="alert-circle" size={18} color={COLORS.danger} />
+          <Text style={pstyles.errorText}>{openError}</Text>
+        </View>
+      ) : null}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.relatedContent}
+      >
+        {items.map((r) => {
+          const opening = openingId === r.igdbId;
+          const disabled = !!openingId;
+          return (
+            <PressableScale
+              key={r.igdbId}
+              style={[styles.relCard, disabled && !opening ? styles.controlDisabled : undefined]}
+              onPress={() => open(r)}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={'Ouvrir ' + r.title}
+              accessibilityHint={r.localId ? 'Ouvre la fiche du jeu' : 'Ajoute le contenu puis ouvre sa fiche'}
+              accessibilityState={{ disabled, busy: opening }}
+            >
+              <View style={styles.relCover}>
+                {r.posterPath ? (
+                  <Image
+                    source={{ uri: r.posterPath }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="cover"
+                    accessibilityLabel={'Affiche de ' + r.title}
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : (
+                  <View style={[StyleSheet.absoluteFill, styles.relCoverEmpty]}>
+                    <Ionicons name="game-controller-outline" size={30} color={COLORS.textSoft} />
+                  </View>
+                )}
+                {r.inLibrary ? (
+                  <View style={styles.relBadge} accessibilityLabel="Dans ta bibliothèque">
+                    <Feather name="check" size={16} color={COLORS.onPrimary} />
+                  </View>
+                ) : null}
+                {opening ? (
+                  <View style={styles.relBusy} pointerEvents="none">
+                    <ActivityIndicator color="#fff" />
+                  </View>
+                ) : null}
+              </View>
+              <View style={styles.relCap}>
+                <Text style={styles.relName} numberOfLines={2}>{r.title}</Text>
+                <Text style={styles.relKind}>
+                  {[r.kind === 'edition' ? 'Édition' : 'Extension', r.year].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            </PressableScale>
+          );
+        })}
       </ScrollView>
     </View>
   );
 }
-
 // Rangée « Commentaires » (titre + chevron) ouvrant la page dédiée /comments/:id
 // (générique par mediaId, cf. mobile/app/comments/[id].tsx). `CommentsRowLink`
 // (show/[id].tsx) n'est pas exporté depuis ce fichier ; on reproduit ici la
@@ -769,92 +1238,828 @@ function CommentsRow({ mediaId, title }: { mediaId: string; title: string }) {
   const router = useRouter();
   return (
     <Pressable
-      style={[styles.section, styles.commentsRow]}
-      onPress={() => router.push(`/comments/${mediaId}?title=${encodeURIComponent(title)}`)}
+      style={({ pressed }) => [styles.section, styles.commentsRow, pressed && styles.commentsRowPressed]}
+      onPress={() => router.push(('/comments/' + mediaId + '?title=' + encodeURIComponent(title)) as Href)}
+      accessibilityRole="button"
+      accessibilityLabel={'Voir les commentaires sur ' + title}
+      accessibilityHint="Ouvre la discussion dédiée à ce jeu"
     >
-      <Text style={styles.sectionTitle}>Commentaires</Text>
-      <Feather name="chevron-right" size={24} color={COLORS.black} />
+      <View style={styles.commentsCopy}>
+        <View style={styles.sectionIcon}>
+          <Feather name="message-circle" size={18} color={COLORS.primary} />
+        </View>
+        <Text style={styles.commentsTitle}>Commentaires</Text>
+      </View>
+      <View style={styles.commentsArrow}>
+        <Feather name="chevron-right" size={21} color={COLORS.primary} />
+      </View>
     </Pressable>
   );
 }
-
 const styles = StyleSheet.create({
-  hero: { height: 200, backgroundColor: '#1a1a22', overflow: 'hidden' },
-  heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
-  heroBtns: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14 },
-  headRow: { flexDirection: 'row', gap: 14, padding: 20, marginTop: -50 },
-  poster: { width: 100, aspectRatio: 2 / 3, borderRadius: 8, backgroundColor: COLORS.imagePlaceholder },
-  posterEmpty: { alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 21, fontFamily: FONTS.extraBold, color: '#fff' },
-  meta: { fontFamily: FONTS.regular, fontSize: 15, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
-  // Infos compactes à droite de la jaquette (Genre / Sortie / Note presse).
-  headFacts: { marginTop: 8, gap: 3 },
-  headFact: { fontFamily: FONTS.regular, fontSize: 12.5, lineHeight: 17, color: COLORS.textMuted },
-  // Fiche d'identité du jeu (Plateformes / Dev / Éditeur / Modes / Temps de jeu) —
-  // combinée avec styles.section (padding + bordure), ne garde que l'interligne.
-  factList: { gap: 5 },
-  fact: { fontFamily: FONTS.regular, fontSize: 13, lineHeight: 18, color: COLORS.textMuted },
-  factLabel: { fontFamily: FONTS.bold, color: COLORS.black },
-  section: { paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  sectionTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold, marginBottom: 12 },
-  // « Éditions et extensions » : cartes 150 façon app Xbox (jaquette 3/4 +
-  // bandeau nom/type), badge coche jaune si déjà en bibliothèque.
-  relCard: { width: 150, borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.chipGrey },
-  relCover: { width: 150, height: 200, backgroundColor: COLORS.imagePlaceholder },
-  relBadge: { position: 'absolute', top: 0, right: 8, width: 30, height: 26, backgroundColor: COLORS.yellow, borderBottomLeftRadius: 6, borderBottomRightRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  relCap: { paddingHorizontal: 10, paddingVertical: 9, minHeight: 64 },
-  relName: { color: COLORS.text, fontSize: 13.5, fontFamily: FONTS.bold, lineHeight: 18 },
-  relKind: { color: COLORS.textMuted, fontSize: 11.5, fontFamily: FONTS.regular, marginTop: 3 },
-  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  statusChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: COLORS.chipGrey },
-  statusChipSel: { backgroundColor: COLORS.yellow },
-  statusChipText: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 14 },
-  statusChipTextSel: { color: COLORS.onAccent },
-  overview: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 16, lineHeight: 23 },
-  // Interrupteur « Je possède » (cotes du ToggleRow des Paramètres).
-  ownedRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
-  ownedLabel: { flex: 1, color: COLORS.text, fontFamily: FONTS.bold, fontSize: 14 },
-  toggle: { width: 52, height: 30, borderRadius: 15, padding: 3 },
-  knob: { width: 24, height: 24, borderRadius: 12 },
-  commentsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  toastBar: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: COLORS.yellow, paddingTop: 18, alignItems: 'center' },
-  toastRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  toastText: { color: COLORS.onAccent, fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
-  // Aperçu bande-annonce 16:9.
-  trailerBox: { width: '100%', aspectRatio: 16 / 9, borderRadius: 8, overflow: 'hidden', backgroundColor: '#1a1a22' },
-  trailerPlayShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center' },
-  trailerPlayBtn: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
-  // Menu « ... » : carte flottante compacte (mêmes cotes que show/[id].tsx).
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
-  sheet: { position: 'absolute', left: 8, right: 8, bottom: 8, backgroundColor: COLORS.white, borderRadius: 14, overflow: 'hidden' },
-  menuStatusRow: { backgroundColor: COLORS.chipGrey, borderBottomWidth: 3, borderBottomColor: COLORS.yellow, height: 48, justifyContent: 'center', paddingHorizontal: 20 },
-  menuStatusText: { fontFamily: FONTS.regular, fontSize: 16, color: '#444' },
-  sheetItem: { flexDirection: 'row', alignItems: 'center', gap: 14, height: 48, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.borderLight },
-  sheetLabel: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.regular },
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+  },
+  canvas: {
+    width: '100%',
+    maxWidth: SIZES.contentMax,
+    backgroundColor: COLORS.bg,
+  },
+  hero: {
+    width: '100%',
+    height: 288,
+    backgroundColor: '#160F2A',
+    overflow: 'hidden',
+  },
+  heroFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#3E2678',
+  },
+  heroPrismOne: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 44,
+    backgroundColor: 'rgba(239,91,168,0.34)',
+    transform: [{ rotate: '28deg' }],
+    top: -88,
+    right: -34,
+  },
+  heroPrismTwo: {
+    position: 'absolute',
+    width: 190,
+    height: 190,
+    borderRadius: 38,
+    backgroundColor: 'rgba(243,197,79,0.27)',
+    transform: [{ rotate: '-24deg' }],
+    bottom: -98,
+    left: -42,
+  },
+  heroBtns: {
+    position: 'absolute',
+    left: SPACE.md,
+    right: SPACE.md,
+    zIndex: 2,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heroActionGroup: {
+    flexDirection: 'row',
+    gap: SPACE.xs,
+  },
+  heroAction: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    borderRadius: RADIUS.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(20,13,36,0.62)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  heroCopy: {
+    position: 'absolute',
+    left: SPACE.lg,
+    right: SPACE.lg,
+    bottom: SPACE.xl + SPACE.sm,
+  },
+  eyebrowRow: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    minHeight: 28,
+    paddingHorizontal: SPACE.sm,
+    borderRadius: RADIUS.pill,
+    backgroundColor: 'rgba(109,78,209,0.88)',
+  },
+  heroEyebrow: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.extraBold,
+    fontSize: 11,
+    letterSpacing: 1.1,
+  },
+  heroTitle: {
+    marginTop: SPACE.sm,
+    color: '#FFFFFF',
+    fontFamily: FONTS.extraBold,
+    fontSize: 31,
+    lineHeight: 35,
+    letterSpacing: -0.5,
+  },
+  heroMeta: {
+    marginTop: SPACE.xs,
+    color: 'rgba(255,255,255,0.86)',
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+  },
+  body: {
+    marginTop: -SPACE.xl,
+    paddingBottom: SPACE.sm,
+  },
+  identityCard: {
+    minHeight: 174,
+    marginHorizontal: SPACE.md,
+    marginBottom: SPACE.sm,
+    padding: SPACE.sm,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACE.md,
+    borderRadius: RADIUS.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.borderLight,
+    backgroundColor: COLORS.surface,
+    ...SHADOW.card,
+  },
+  poster: {
+    width: 108,
+    aspectRatio: 2 / 3,
+    borderRadius: RADIUS.poster,
+    backgroundColor: COLORS.imagePlaceholder,
+  },
+  posterEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  identityCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: SPACE.xxs,
+  },
+  title: {
+    color: COLORS.text,
+    fontFamily: FONTS.extraBold,
+    fontSize: 21,
+    lineHeight: 25,
+  },
+  headFacts: {
+    marginTop: SPACE.xs,
+    gap: SPACE.xxs,
+  },
+  headFact: {
+    color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
+  scoreRow: {
+    marginTop: SPACE.xxs,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACE.xs,
+  },
+  scorePill: {
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: SPACE.xs,
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  scoreValue: {
+    color: COLORS.text,
+    fontFamily: FONTS.extraBold,
+    fontSize: 13,
+  },
+  scoreLabel: {
+    color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 10.5,
+  },
+  section: {
+    marginHorizontal: SPACE.md,
+    marginBottom: SPACE.sm,
+    padding: SPACE.md,
+    borderRadius: RADIUS.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.borderLight,
+    backgroundColor: COLORS.surface,
+    ...SHADOW.card,
+  },
+  trackingCard: {
+    overflow: 'hidden',
+  },
+  overviewCard: {
+    paddingBottom: SPACE.lg,
+  },
+  sectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    marginBottom: SPACE.md,
+  },
+  sectionHeadingCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sectionIcon: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    borderRadius: RADIUS.control,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primarySoft,
+  },
+  sectionTitle: {
+    color: COLORS.text,
+    fontFamily: FONTS.extraBold,
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  sectionSubtitle: {
+    marginTop: 2,
+    color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACE.xs,
+  },
+  statusChip: {
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.xxs,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: SPACE.xs,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  statusChipSel: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
+  statusChipPressed: {
+    opacity: 0.78,
+  },
+  statusChipText: {
+    color: COLORS.text,
+    fontFamily: FONTS.bold,
+    fontSize: 13.5,
+  },
+  statusChipTextSel: {
+    color: COLORS.onPrimary,
+  },
+  controlDisabled: {
+    opacity: 0.48,
+  },
+  ownedRow: {
+    minHeight: 64,
+    marginTop: SPACE.md,
+    paddingTop: SPACE.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.borderLight,
+  },
+  ownedIcon: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.primarySoft,
+  },
+  ownedCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  ownedLabel: {
+    color: COLORS.text,
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+  },
+  ownedHint: {
+    marginTop: 2,
+    color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 11.5,
+    lineHeight: 15,
+  },
+  toggleTarget: {
+    width: 60,
+    minHeight: SIZES.touch,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  toggle: {
+    width: 52,
+    height: 30,
+    padding: 3,
+    borderRadius: 15,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+  },
+  knob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    ...SHADOW.card,
+  },
+  factList: {
+    gap: SPACE.xs,
+  },
+  factRow: {
+    minHeight: 52,
+    paddingVertical: SPACE.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.borderLight,
+  },
+  factIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: RADIUS.control,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primarySoft,
+  },
+  factCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  fact: {
+    marginTop: 1,
+    color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  factLabel: {
+    color: COLORS.text,
+    fontFamily: FONTS.bold,
+    fontSize: 12.5,
+  },
+  overview: {
+    color: COLORS.text,
+    fontFamily: FONTS.regular,
+    fontSize: 15.5,
+    lineHeight: 23,
+  },
+  trailerBox: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    overflow: 'hidden',
+    borderRadius: RADIUS.card,
+    backgroundColor: '#160F2A',
+  },
+  trailerPlayShade: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(12,7,28,0.32)',
+  },
+  trailerPlayBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.72)',
+    ...SHADOW.card,
+  },
+  relatedSection: {
+    paddingHorizontal: 0,
+    paddingBottom: SPACE.md,
+    overflow: 'hidden',
+  },
+  relatedHeading: {
+    paddingHorizontal: SPACE.md,
+  },
+  relatedContent: {
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    paddingBottom: SPACE.xxs,
+  },
+  relCard: {
+    width: 152,
+    overflow: 'hidden',
+    borderRadius: RADIUS.poster,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  relCover: {
+    width: 150,
+    height: 200,
+    overflow: 'hidden',
+    backgroundColor: COLORS.imagePlaceholder,
+  },
+  relCoverEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  relBadge: {
+    position: 'absolute',
+    top: SPACE.xs,
+    right: SPACE.xs,
+    width: 32,
+    height: 32,
+    borderRadius: RADIUS.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    ...SHADOW.card,
+  },
+  relBusy: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(12,7,28,0.48)',
+  },
+  relCap: {
+    minHeight: 72,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: SPACE.xs,
+  },
+  relName: {
+    color: COLORS.text,
+    fontFamily: FONTS.bold,
+    fontSize: 13.5,
+    lineHeight: 18,
+  },
+  relKind: {
+    marginTop: SPACE.xxs,
+    color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 11.5,
+  },
+  commentsRow: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  commentsRowPressed: {
+    opacity: 0.78,
+  },
+  commentsCopy: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+  },
+  commentsTitle: {
+    color: COLORS.text,
+    fontFamily: FONTS.extraBold,
+    fontSize: 17,
+  },
+  commentsArrow: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    borderRadius: RADIUS.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primarySoft,
+  },
+  toastBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: SPACE.md,
+    alignItems: 'center',
+    backgroundColor: COLORS.tertiary,
+  },
+  toastRow: {
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    paddingHorizontal: SPACE.md,
+  },
+  toastText: {
+    color: COLORS.onAccent,
+    fontFamily: FONTS.extraBold,
+    fontSize: 14,
+    letterSpacing: 0.3,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: COLORS.overlay,
+  },
+  sheetDock: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    paddingHorizontal: SPACE.sm,
+  },
+  sheet: {
+    width: '100%',
+    maxWidth: 540,
+    overflow: 'hidden',
+    borderRadius: RADIUS.sheet,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    ...SHADOW.season,
+  },
+  listSheet: {
+    maxHeight: '82%',
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 42,
+    height: 4,
+    marginTop: SPACE.xs,
+    marginBottom: SPACE.xxs,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.border,
+  },
+  menuStatusRow: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.borderLight,
+    backgroundColor: COLORS.primarySoft,
+  },
+  menuHeaderIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: RADIUS.control,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface,
+  },
+  menuStatusText: {
+    flex: 1,
+    color: COLORS.text,
+    fontFamily: FONTS.bold,
+    fontSize: 15,
+  },
+  sheetItem: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.borderLight,
+  },
+  sheetItemPressed: {
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  sheetItemIcon: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetLabel: {
+    flex: 1,
+    color: COLORS.text,
+    fontFamily: FONTS.semiBold,
+    fontSize: 15.5,
+  },
+  listItem: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.borderLight,
+  },
+  listCheck: {
+    width: 26,
+    height: 26,
+    borderRadius: RADIUS.small,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface,
+  },
+  listCheckSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
 });
 
 const pstyles = StyleSheet.create({
-  menuHeader: { fontSize: 15, fontFamily: FONTS.regular, color: '#555', paddingHorizontal: 22, paddingTop: 20, paddingBottom: 8 },
-  menuItem: { paddingHorizontal: 22, paddingVertical: 13 },
-  menuItemText: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.regular },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16,
-    paddingTop: 54, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border,
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
   },
-  title: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.bold },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  posterWrap: { width: '48.3%', aspectRatio: 2 / 3, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder },
-  bannerList: { gap: 12 },
-  bannerWrap: { width: '100%', aspectRatio: 16 / 9, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder },
-  selectedShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  selectedRow: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 14 },
-  selectedStar: { color: COLORS.yellow, fontSize: 19, lineHeight: 22 },
-  selectedText: { color: COLORS.white, fontSize: 16, fontFamily: FONTS.semiBold },
-  busy: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
-  emptyNote: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15, padding: 20 },
-  listCount: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15 },
-  newListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 24, paddingVertical: 16 },
-  newListInput: { color: COLORS.text, flex: 1, borderBottomWidth: 1, borderBottomColor: COLORS.border, fontFamily: FONTS.regular, fontSize: 16, paddingVertical: 8 },
-  newListBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
-  newListBtnText: { color: COLORS.onAccent, fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
+  header: {
+    width: '100%',
+    maxWidth: SIZES.contentMax,
+    alignSelf: 'center',
+    minHeight: SIZES.header,
+    paddingHorizontal: SPACE.md,
+    paddingBottom: SPACE.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.borderLight,
+    backgroundColor: COLORS.surface,
+  },
+  closeButton: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    borderRadius: RADIUS.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  closeSpacer: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+  },
+  title: {
+    flex: 1,
+    paddingHorizontal: SPACE.xs,
+    color: COLORS.text,
+    fontFamily: FONTS.extraBold,
+    fontSize: 18,
+    textAlign: 'center',
+  },
+  pickerContent: {
+    width: '100%',
+    maxWidth: SIZES.contentMax,
+    alignSelf: 'center',
+    padding: SPACE.md,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACE.sm,
+  },
+  posterWrap: {
+    aspectRatio: 2 / 3,
+    overflow: 'hidden',
+    borderRadius: RADIUS.poster,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.imagePlaceholder,
+  },
+  bannerList: {
+    gap: SPACE.md,
+  },
+  bannerWrap: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    overflow: 'hidden',
+    borderRadius: RADIUS.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.imagePlaceholder,
+  },
+  imagePressed: {
+    opacity: 0.8,
+  },
+  selectedShade: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(12,7,28,0.58)',
+  },
+  selectedRow: {
+    minHeight: SIZES.touch,
+    paddingHorizontal: SPACE.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+  },
+  selectedText: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+  },
+  busy: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(12,7,28,0.48)',
+  },
+  emptyCard: {
+    width: '100%',
+    maxWidth: SIZES.contentMax - SPACE.xl,
+    alignSelf: 'center',
+    margin: SPACE.md,
+    padding: SPACE.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.sm,
+    borderRadius: RADIUS.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  emptyNote: {
+    color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 14.5,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  errorBanner: {
+    marginHorizontal: SPACE.md,
+    marginBottom: SPACE.sm,
+    padding: SPACE.sm,
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    borderRadius: RADIUS.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.danger,
+    backgroundColor: COLORS.surface,
+  },
+  errorText: {
+    flex: 1,
+    color: COLORS.danger,
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  menuHeader: {
+    color: COLORS.textMuted,
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    paddingHorizontal: SPACE.md,
+    paddingTop: SPACE.sm,
+    paddingBottom: SPACE.xs,
+  },
+  listContent: {
+    paddingBottom: SPACE.xs,
+  },
+  listEmpty: {
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.lg,
+    color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  listCount: {
+    color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+  },
+  newListRow: {
+    padding: SPACE.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+  },
+  newListInput: {
+    flex: 1,
+    minHeight: SIZES.touchComfortable,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: SPACE.xs,
+    borderRadius: RADIUS.control,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    color: COLORS.text,
+    backgroundColor: COLORS.surfaceMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+  },
+  newListBtn: {
+    minWidth: 86,
+    minHeight: SIZES.touchComfortable,
+    paddingHorizontal: SPACE.sm,
+    borderRadius: RADIUS.control,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+  },
+  newListBtnPressed: {
+    opacity: 0.78,
+  },
+  newListBtnText: {
+    color: COLORS.onPrimary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
 });

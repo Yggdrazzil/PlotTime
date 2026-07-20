@@ -1,14 +1,49 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Alert, Image, ActivityIndicator } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { COLORS, FONTS } from '@/lib/theme';
-import { api } from '@/lib/api';
+import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
+import { api, tmdbImage } from '@/lib/api';
 import { PopIn } from '@/components/anim';
 import { ReportModal } from '@/components/ReportModal';
 import type { CommentDto } from './types';
 import { dateFr } from './types';
 
-// Carte « Commentaires » (copie TV Time) : avatar, nom, date, corps, cœur ❤️,
+function UserAvatar({
+  user,
+  size = 44,
+  onPress,
+}: {
+  user: CommentDto['user'];
+  size?: number;
+  onPress: () => void;
+}) {
+  const uri = user.avatarUrl ? tmdbImage(user.avatarUrl, 'w185') ?? user.avatarUrl : null;
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.avatarTarget, pressed && styles.pressed]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Ouvrir le profil de ${user.displayName}`}
+    >
+      {uri ? (
+        <Image
+          source={{ uri }}
+          style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
+          resizeMode="cover"
+          accessible={false}
+        />
+      ) : (
+        <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]} accessible={false}>
+          <Text style={[styles.avatarInit, size < 40 && styles.avatarInitSmall]}>
+            {user.displayName.slice(0, 1).toUpperCase()}
+          </Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+// Carte de discussion PlotTime : avatar, nom, date, corps, cœur ❤️,
 // réponses, partager, fil de réponses + composeur inline. Partagée par la
 // page plein écran (mobile/app/comments/[id].tsx) et le bottom sheet TikTok.
 // Les commentaires DES AUTRES portent une action « Signaler » (drapeau,
@@ -23,7 +58,7 @@ export function CommentCard(props: {
   isReplying: boolean;
   replyText: string;
   setReplyText: (s: string) => void;
-  onPostReply: () => void;
+  onPostReply: () => Promise<boolean>;
   onOpenUser: (userId: string) => void;
 }) {
   const { comment: c, onHeart, onRemove, onShare, replyOpen, onToggleReplies, isReplying, replyText, setReplyText, onPostReply, onOpenUser } = props;
@@ -33,11 +68,11 @@ export function CommentCard(props: {
   // rangée (le serveur dédoublonne côté back, pas de toast global ici).
   const [reportTarget, setReportTarget] = useState<CommentDto | null>(null);
   const [reportedIds, setReportedIds] = useState<Set<string>>(new Set());
+  const [replyBusy, setReplyBusy] = useState(false);
   const confirmReport = async () => {
     const target = reportTarget;
     setReportTarget(null);
     if (!target) return;
-    setReportedIds((ids) => new Set(ids).add(target.id));
     try {
       await api.post('/api/report', {
         commentId: target.id,
@@ -45,18 +80,31 @@ export function CommentCard(props: {
         title: target.body.slice(0, 80),
         reason: 'abuse',
       });
+      setReportedIds((ids) => new Set(ids).add(target.id));
     } catch {
-      // Silencieux : le signalement pourra être retenté (état local conservé
-      // volontairement pour ne pas inviter au spam).
+      Alert.alert(
+        'Signalement impossible',
+        'Le commentaire n’a pas pu être signalé. Vérifie ta connexion puis réessaie.',
+      );
     }
   };
+  const submitReply = async () => {
+    if (!replyText.trim() || replyBusy) return;
+    setReplyBusy(true);
+    try {
+      await onPostReply();
+    } finally {
+      setReplyBusy(false);
+    }
+  };
+
   const reportAction = (target: CommentDto, size: number) =>
     reportedIds.has(target.id) ? (
-      <Text style={styles.reported}>Signalé ✓</Text>
+      <Text style={styles.reported} accessibilityRole="text">Signalé ✓</Text>
     ) : (
       <Pressable
+        style={({ pressed }) => [styles.iconAction, pressed && styles.pressed]}
         onPress={() => setReportTarget(target)}
-        hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel="Signaler ce commentaire"
       >
@@ -67,16 +115,19 @@ export function CommentCard(props: {
   return (
     <View style={styles.card}>
       <View style={styles.cardHead}>
-        <Pressable style={styles.avatar} onPress={() => onOpenUser(c.user.id)}>
-          <Text style={styles.avatarInit}>{c.user.displayName.slice(0, 1).toUpperCase()}</Text>
-        </Pressable>
-        <View style={{ flex: 1 }}>
+        <UserAvatar user={c.user} onPress={() => onOpenUser(c.user.id)} />
+        <View style={styles.authorCopy}>
           <Text style={styles.name}>{c.user.displayName}</Text>
           <Text style={styles.date}>{dateFr(c.createdAt)}</Text>
         </View>
         {c.isMine ? (
-          <Pressable onPress={() => onRemove(c)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Supprimer">
-            <Feather name="trash-2" size={18} color={COLORS.textMuted} />
+          <Pressable
+            style={({ pressed }) => [styles.iconAction, pressed && styles.pressed]}
+            onPress={() => onRemove(c)}
+            accessibilityRole="button"
+            accessibilityLabel="Supprimer ce commentaire"
+          >
+            <Feather name="trash-2" size={18} color={COLORS.danger} />
           </Pressable>
         ) : (
           reportAction(c, 18)
@@ -85,9 +136,8 @@ export function CommentCard(props: {
       <Text style={styles.body}>{c.body}</Text>
       <View style={styles.footer}>
         <Pressable
-          style={styles.footBtn}
+          style={({ pressed }) => [styles.footBtn, pressed && styles.pressed]}
           onPress={() => onHeart(c)}
-          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={c.reactions.mine.includes('❤️') ? "Retirer le j'aime" : "J'aime"}
           accessibilityState={{ selected: c.reactions.mine.includes('❤️') }}
@@ -95,39 +145,47 @@ export function CommentCard(props: {
           {c.reactions.mine.includes('❤️') ? (
             <PopIn><Ionicons name="heart" size={22} color={COLORS.red} /></PopIn>
           ) : (
-            <Ionicons name="heart-outline" size={22} color={COLORS.black} />
+            <Ionicons name="heart-outline" size={22} color={COLORS.text} />
           )}
           {c.reactions.total > 0 ? <Text style={styles.footCount}>{c.reactions.total}</Text> : null}
         </Pressable>
         <Pressable
-          style={styles.footBtn}
+          style={({ pressed }) => [styles.footBtn, pressed && styles.pressed]}
           onPress={onToggleReplies}
-          hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={replyOpen ? 'Masquer les réponses' : 'Afficher les réponses'}
+          accessibilityLabel={replyOpen ? 'Masquer les réponses' : 'Afficher les réponses et répondre'}
+          accessibilityState={{ expanded: replyOpen }}
         >
-          <Feather name="message-circle" size={21} color={COLORS.black} />
+          <Feather name="message-circle" size={21} color={COLORS.primary} />
           {(c.replies?.length ?? 0) > 0 ? <Text style={styles.footCount}>{c.replies!.length}</Text> : null}
         </Pressable>
         <View style={{ flex: 1 }} />
-        <Pressable onPress={() => onShare(c)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Partager">
-          <Feather name="share" size={20} color={COLORS.black} />
+        <Pressable
+          style={({ pressed }) => [styles.iconAction, pressed && styles.pressed]}
+          onPress={() => onShare(c)}
+          accessibilityRole="button"
+          accessibilityLabel="Partager ce commentaire"
+        >
+          <Feather name="share-2" size={19} color={COLORS.text} />
         </Pressable>
       </View>
       {replyOpen ? (
         <View style={styles.replies}>
           {c.replies?.map((r) => (
             <View key={r.id} style={styles.replyRow}>
-              <View style={[styles.avatar, { width: 32, height: 32, borderRadius: 16 }]}>
-                <Text style={[styles.avatarInit, { fontSize: 13 }]}>{r.user.displayName.slice(0, 1).toUpperCase()}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
+              <UserAvatar user={r.user} size={36} onPress={() => onOpenUser(r.user.id)} />
+              <View style={styles.replyCopy}>
                 <Text style={styles.replyName}>{r.user.displayName} <Text style={styles.date}>· {dateFr(r.createdAt)}</Text></Text>
                 <Text style={styles.replyBody}>{r.body}</Text>
               </View>
               {r.isMine ? (
-                <Pressable onPress={() => onRemove(r)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Supprimer">
-                  <Feather name="trash-2" size={15} color={COLORS.textMuted} />
+                <Pressable
+                  style={({ pressed }) => [styles.iconAction, pressed && styles.pressed]}
+                  onPress={() => onRemove(r)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Supprimer cette réponse"
+                >
+                  <Feather name="trash-2" size={16} color={COLORS.danger} />
                 </Pressable>
               ) : (
                 reportAction(r, 15)
@@ -142,9 +200,27 @@ export function CommentCard(props: {
                 placeholderTextColor={COLORS.textMuted}
                 value={replyText}
                 onChangeText={setReplyText}
+                multiline
+                maxLength={2000}
+                accessibilityLabel="Votre réponse"
               />
-              <Pressable style={[styles.replySend, !replyText.trim() && { opacity: 0.4 }]} onPress={onPostReply} disabled={!replyText.trim()}>
-                <Text style={styles.sendText}>OK</Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.replySend,
+                  (!replyText.trim() || replyBusy) && styles.disabled,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => void submitReply()}
+                disabled={!replyText.trim() || replyBusy}
+                accessibilityRole="button"
+                accessibilityLabel="Publier la réponse"
+                accessibilityState={{ disabled: !replyText.trim() || replyBusy, busy: replyBusy }}
+              >
+                {replyBusy ? (
+                  <ActivityIndicator size="small" color={COLORS.onPrimary} />
+                ) : (
+                  <Feather name="send" size={17} color={COLORS.onPrimary} />
+                )}
               </Pressable>
             </View>
           ) : null}
@@ -163,26 +239,165 @@ export function CommentCard(props: {
   );
 }
 
-// Cotes TV Time (capture commentaires Naruto) : cartes blanches radius 12 sur
-// fond gris, avatar 44, nom 16, date 14 grise, corps 16/22, icônes 20-22.
 const styles = StyleSheet.create({
-  card: { backgroundColor: COLORS.white, borderRadius: 12, marginHorizontal: 12, marginVertical: 6, padding: 16 },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#20202a', alignItems: 'center', justifyContent: 'center' },
-  avatarInit: { color: '#fff', fontSize: 17, fontFamily: FONTS.extraBold },
-  name: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.bold },
-  date: { fontSize: 13, fontFamily: FONTS.regular, color: COLORS.textMuted, marginTop: 1 },
-  reported: { fontSize: 12, fontFamily: FONTS.semiBold, color: COLORS.textMuted },
-  body: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 16, lineHeight: 22, marginTop: 12 },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: 26, marginTop: 14 },
-  footBtn: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  footCount: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.semiBold },
-  replies: { marginTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.borderLight, paddingTop: 10, gap: 10 },
-  replyRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  replyName: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.bold },
-  replyBody: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 15, lineHeight: 20, marginTop: 2 },
-  replyComposer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  replyInput: { color: COLORS.text, flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: FONTS.regular, fontSize: 15 },
-  replySend: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
-  sendText: { color: COLORS.onAccent, fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
+  card: {
+    width: '94%',
+    maxWidth: SIZES.contentMax,
+    alignSelf: 'center',
+    marginVertical: SPACE.xs,
+    padding: SPACE.md,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    ...SHADOW.card,
+  },
+  cardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+  },
+  authorCopy: { flex: 1, minWidth: 0 },
+  avatarTarget: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.pill,
+  },
+  avatar: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    backgroundColor: COLORS.primary,
+  },
+  avatarInit: {
+    color: COLORS.onPrimary,
+    fontSize: 17,
+    fontFamily: FONTS.extraBold,
+  },
+  avatarInitSmall: { fontSize: 13 },
+  name: {
+    color: COLORS.text,
+    fontSize: 16,
+    lineHeight: 21,
+    fontFamily: FONTS.extraBold,
+  },
+  date: {
+    marginTop: 1,
+    color: COLORS.textMuted,
+    fontSize: 12.5,
+    lineHeight: 17,
+    fontFamily: FONTS.regular,
+  },
+  iconAction: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.control,
+  },
+  pressed: { opacity: 0.7, transform: [{ scale: 0.96 }] },
+  reported: {
+    minHeight: SIZES.touch,
+    textAlignVertical: 'center',
+    color: COLORS.success,
+    fontSize: 12,
+    lineHeight: SIZES.touch,
+    fontFamily: FONTS.bold,
+  },
+  body: {
+    marginTop: SPACE.sm,
+    color: COLORS.text,
+    fontFamily: FONTS.regular,
+    fontSize: 15.5,
+    lineHeight: 23,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    marginTop: SPACE.md,
+    paddingTop: SPACE.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.borderLight,
+  },
+  footBtn: {
+    minHeight: SIZES.touch,
+    minWidth: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: RADIUS.control,
+  },
+  footCount: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontFamily: FONTS.bold,
+  },
+  replies: {
+    gap: SPACE.sm,
+    marginTop: SPACE.sm,
+    padding: SPACE.sm,
+    backgroundColor: COLORS.surfaceMuted,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.control,
+  },
+  replyRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACE.xs,
+  },
+  replyCopy: { flex: 1, minWidth: 0, paddingTop: 3 },
+  replyName: {
+    color: COLORS.text,
+    fontSize: 13.5,
+    lineHeight: 18,
+    fontFamily: FONTS.extraBold,
+  },
+  replyBody: {
+    marginTop: 3,
+    color: COLORS.text,
+    fontFamily: FONTS.regular,
+    fontSize: 14.5,
+    lineHeight: 20,
+  },
+  replyComposer: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: SPACE.xs,
+    marginTop: SPACE.xs,
+    padding: 5,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.control,
+  },
+  replyInput: {
+    minHeight: SIZES.touch,
+    maxHeight: 120,
+    flex: 1,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: 10,
+    color: COLORS.text,
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    textAlignVertical: 'top',
+  },
+  replySend: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.control,
+  },
+  disabled: { opacity: 0.4 },
 });

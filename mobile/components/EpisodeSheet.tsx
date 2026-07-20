@@ -1,26 +1,30 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, Modal, Image, Animated,
-  Dimensions, Share, Platform, useWindowDimensions,
+  Animated,
+  FlatList,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import type { EpisodeDto } from '@/lib/types';
 import { episodeCode } from '@/lib/format';
-import { COLORS, FONTS } from '@/lib/theme';
+import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
 import { CheckCircle } from '@/components/ui';
 import { Stars } from '@/components/Stars';
 import { MarkPreviousPopup, hasUnwatchedPrevious } from '@/components/MarkPreviousPopup';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-
-// Fenêtre « fiche épisode » (copie TV Time) ouverte depuis les cartes de
-// l'onglet Séries : chevron ↓ + points de pagination, image de l'épisode
-// (pastille série → fiche, partage), date + Vu/Pas vu + coche, Où regarder,
-// note de la communauté + synopsis, rangée Commentaires. Swipe latéral pour
-// passer d'un épisode au suivant (points façon TV Time, fenêtre de 5).
 
 export type EpisodeSheetTarget = {
   mediaId: string;
@@ -32,388 +36,1248 @@ export type EpisodeSheetTarget = {
 type SeasonData = { seasonNumber: number; episodes: EpisodeDto[] };
 type EpisodesData = { seasons: SeasonData[]; nextEpisode: EpisodeDto | null };
 
-const isAired = (e: EpisodeDto) => !e.airDate || new Date(e.airDate).getTime() <= Date.now();
-const dateFr = (iso?: string | null) =>
-  iso ? new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+const isAired = (episode: EpisodeDto) =>
+  !episode.airDate || new Date(episode.airDate).getTime() <= Date.now();
 
-export function EpisodeSheet({ target, onClose }: { target: EpisodeSheetTarget | null; onClose: () => void }) {
+const dateFr = (iso?: string | null) =>
+  iso
+    ? new Date(iso).toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : null;
+
+export function EpisodeSheet({
+  target,
+  onClose,
+}: {
+  target: EpisodeSheetTarget | null;
+  onClose: () => void;
+}) {
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const sheetWidth = Math.min(width, SIZES.contentMax);
   const [index, setIndex] = useState(0);
-  const pagerRef = useRef<ScrollView>(null);
+  const pagerRef = useRef<FlatList<EpisodeDto>>(null);
   const alignedFor = useRef<string | null>(null);
-
-  // Apparition : fond qui s'assombrit + panneau qui remonte en ressort.
   const anim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     if (!target) return;
-    if (reduce) { anim.setValue(1); return; }
+    if (reduce) {
+      anim.setValue(1);
+      return;
+    }
+
     anim.setValue(0);
-    Animated.spring(anim, { toValue: 1, useNativeDriver: Platform.OS !== 'web', friction: 10, tension: 70 }).start();
-  }, [target, reduce, anim]);
+    Animated.spring(anim, {
+      toValue: 1,
+      useNativeDriver: Platform.OS !== 'web',
+      friction: 10,
+      tension: 70,
+    }).start();
+  }, [anim, reduce, target]);
+
   const close = () => {
-    if (reduce) { onClose(); return; }
-    Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start(() => onClose());
+    if (reduce) {
+      onClose();
+      return;
+    }
+
+    Animated.timing(anim, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start(onClose);
   };
 
-  // Tous les épisodes DIFFUSÉS de la série (même cache que la fiche) : saisons
-  // régulières puis spéciaux — ce sont les pages du swipe latéral.
   const episodesQ = useQuery({
     queryKey: ['show', target?.mediaId, 'episodes'],
-    queryFn: () => api.get<EpisodesData>(`/api/shows/${target!.mediaId}/episodes`),
+    queryFn: () =>
+      api.get<EpisodesData>('/api/shows/' + target!.mediaId + '/episodes'),
     enabled: !!target,
   });
-  const pages: EpisodeDto[] = useMemo(() => {
+
+  const pages = useMemo<EpisodeDto[]>(() => {
     if (!target) return [];
+
     const seasons = episodesQ.data?.seasons;
     if (!seasons) return [target.episode];
-    const sorted = [...seasons].sort((a, b) => {
-      const sa = a.seasonNumber === 0 ? 1 : 0;
-      const sb = b.seasonNumber === 0 ? 1 : 0;
-      return sa - sb || a.seasonNumber - b.seasonNumber;
+
+    const sorted = [...seasons].sort((first, second) => {
+      const firstSpecial = first.seasonNumber === 0 ? 1 : 0;
+      const secondSpecial = second.seasonNumber === 0 ? 1 : 0;
+      return firstSpecial - secondSpecial || first.seasonNumber - second.seasonNumber;
     });
-    const list = sorted.flatMap((s) => s.episodes.filter(isAired));
-    return list.length > 0 ? list : [target.episode];
+    const airedEpisodes = sorted.flatMap((season) =>
+      season.episodes.filter(isAired),
+    );
+    return airedEpisodes.length > 0 ? airedEpisodes : [target.episode];
   }, [episodesQ.data, target]);
 
-  // À l'ouverture (puis quand les pages complètes arrivent) : se caler sur
-  // l'épisode tapé, sans animation.
   useEffect(() => {
-    if (!target) { alignedFor.current = null; return; }
-    const key = `${target.episode.id}-${pages.length}`;
-    if (alignedFor.current === key) return;
-    alignedFor.current = key;
-    const idx = Math.max(0, pages.findIndex((e) => e.id === target.episode.id));
-    setIndex(idx);
-    requestAnimationFrame(() => pagerRef.current?.scrollTo({ x: idx * width, animated: false }));
-  }, [target, pages, width]);
+    if (!target) {
+      alignedFor.current = null;
+      return;
+    }
+
+    const alignmentKey = target.episode.id + '-' + pages.length;
+    if (alignedFor.current === alignmentKey) return;
+    alignedFor.current = alignmentKey;
+
+    const targetIndex = Math.max(
+      0,
+      pages.findIndex((episode) => episode.id === target.episode.id),
+    );
+    setIndex(targetIndex);
+    requestAnimationFrame(() =>
+      pagerRef.current?.scrollToIndex({
+        index: targetIndex,
+        animated: false,
+      }),
+    );
+  }, [pages, target]);
+
+  useEffect(() => {
+    if (!target || pages.length === 0) return;
+    const currentIndex = Math.min(index, pages.length - 1);
+    requestAnimationFrame(() =>
+      pagerRef.current?.scrollToOffset({
+        offset: currentIndex * sheetWidth,
+        animated: false,
+      }),
+    );
+  }, [sheetWidth]);
 
   if (!target) return null;
-  const ep = pages[Math.min(index, pages.length - 1)] ?? target.episode;
+
+  const safeIndex = Math.min(index, Math.max(0, pages.length - 1));
+  const goToPage = (nextIndex: number) => {
+    const boundedIndex = Math.min(
+      Math.max(0, nextIndex),
+      Math.max(0, pages.length - 1),
+    );
+    setIndex(boundedIndex);
+    pagerRef.current?.scrollToIndex({
+      index: boundedIndex,
+      animated: !reduce,
+    });
+  };
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={close}>
-      <Animated.View style={[styles.backdrop, { opacity: anim }]} />
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      onRequestClose={close}
+      statusBarTranslucent
+    >
+      <Animated.View style={[styles.backdrop, { opacity: anim }]}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={close}
+          accessibilityRole="button"
+          accessibilityLabel="Fermer la fiche épisode"
+        />
+      </Animated.View>
+
       <Animated.View
         style={[
           styles.panel,
-          { marginTop: insets.top + 6 },
-          { transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [Dimensions.get('window').height, 0] }) }] },
+          {
+            width: sheetWidth,
+            marginTop: insets.top + SPACE.xs,
+            transform: [
+              {
+                translateY: anim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [height + SPACE.xxl, 0],
+                }),
+              },
+            ],
+          },
         ]}
+        accessibilityViewIsModal
+        onAccessibilityEscape={close}
       >
-        {/* Barre : chevron ↓ à gauche, points de pagination centrés (fenêtre de 5). */}
         <View style={styles.topBar}>
-          <Pressable onPress={close} hitSlop={12} style={styles.closeBtn} accessibilityLabel="Fermer">
-            <Feather name="chevron-down" size={30} color={COLORS.black} />
+          <Pressable
+            onPress={close}
+            style={({ pressed }) => [
+              styles.closeButton,
+              pressed && styles.controlPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Fermer la fiche épisode"
+          >
+            <Feather name="chevron-down" size={26} color={COLORS.text} />
           </Pressable>
-          <View style={styles.dotsWrap} pointerEvents="none">
-            <Dots total={pages.length} index={index} />
+
+          <View
+            style={styles.dotsWrap}
+            pointerEvents="none"
+            accessible
+            accessibilityLiveRegion="polite"
+            accessibilityLabel={
+              'Épisode ' + (safeIndex + 1) + ' sur ' + Math.max(1, pages.length)
+            }
+          >
+            <Dots total={pages.length} index={safeIndex} />
+            <Text style={styles.pageCount}>
+              {safeIndex + 1}/{Math.max(1, pages.length)}
+            </Text>
           </View>
-          <View style={styles.closeBtn} />
+
+          <View style={styles.pagerButtons}>
+            <Pressable
+              onPress={() => goToPage(safeIndex - 1)}
+              disabled={safeIndex <= 0}
+              style={({ pressed }) => [
+                styles.pagerButton,
+                pressed && styles.controlPressed,
+                safeIndex <= 0 && styles.pagerButtonDisabled,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Épisode précédent"
+              accessibilityState={{ disabled: safeIndex <= 0 }}
+            >
+              <Feather name="chevron-left" size={21} color={COLORS.text} />
+            </Pressable>
+            <Pressable
+              onPress={() => goToPage(safeIndex + 1)}
+              disabled={safeIndex >= pages.length - 1}
+              style={({ pressed }) => [
+                styles.pagerButton,
+                pressed && styles.controlPressed,
+                safeIndex >= pages.length - 1 && styles.pagerButtonDisabled,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Épisode suivant"
+              accessibilityState={{ disabled: safeIndex >= pages.length - 1 }}
+            >
+              <Feather name="chevron-right" size={21} color={COLORS.text} />
+            </Pressable>
+          </View>
         </View>
 
-        <ScrollView
+        {episodesQ.isError ? (
+          <Text
+            style={styles.pagerWarning}
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+          >
+            La navigation complète est indisponible. Cet épisode reste consultable.
+          </Text>
+        ) : null}
+
+        <FlatList
           ref={pagerRef}
+          data={pages}
           horizontal
           pagingEnabled
+          snapToInterval={sheetWidth}
+          decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
-          onScroll={(e) => {
-            const i = Math.round(e.nativeEvent.contentOffset.x / width);
-            if (i !== index && i >= 0 && i < pages.length) setIndex(i);
-          }}
-          scrollEventThrottle={16}
-        >
-          {pages.map((e) => (
-            <View key={e.id} style={{ width }}>
+          style={styles.pager}
+          keyExtractor={(episode) => episode.id}
+          renderItem={({ item: episode }) => (
+            <View style={{ width: sheetWidth }}>
               <EpisodePage
-                episode={e}
+                episode={episode}
                 mediaId={target.mediaId}
                 mediaTitle={target.mediaTitle}
                 posterPath={target.posterPath}
                 seasons={episodesQ.data?.seasons ?? []}
+                seasonsLoading={episodesQ.isLoading && !episodesQ.isError}
                 onClose={onClose}
-                bottomPad={insets.bottom + 24}
+                bottomPad={insets.bottom + SPACE.lg}
               />
             </View>
-          ))}
-        </ScrollView>
+          )}
+          getItemLayout={(_data, itemIndex) => ({
+            length: sheetWidth,
+            offset: sheetWidth * itemIndex,
+            index: itemIndex,
+          })}
+          initialNumToRender={1}
+          maxToRenderPerBatch={2}
+          windowSize={3}
+          removeClippedSubviews={Platform.OS !== 'web'}
+          onMomentumScrollEnd={(event) => {
+            const nextIndex = Math.round(
+              event.nativeEvent.contentOffset.x / sheetWidth,
+            );
+            if (
+              nextIndex !== index &&
+              nextIndex >= 0 &&
+              nextIndex < pages.length
+            ) {
+              setIndex(nextIndex);
+            }
+          }}
+          onScrollToIndexFailed={({ index: failedIndex }) => {
+            pagerRef.current?.scrollToOffset({
+              offset: failedIndex * sheetWidth,
+              animated: false,
+            });
+          }}
+        />
       </Animated.View>
     </Modal>
   );
 }
 
-// Points de pagination façon TV Time : fenêtre glissante de 5, point actif jaune.
 function Dots({ total, index }: { total: number; index: number }) {
   if (total <= 1) return null;
-  const size = Math.min(5, total);
-  const start = Math.min(Math.max(0, index - 2), total - size);
+
+  const visibleDots = Math.min(5, total);
+  const start = Math.min(
+    Math.max(0, index - 2),
+    total - visibleDots,
+  );
+
   return (
     <View style={styles.dotsRow}>
-      {Array.from({ length: size }, (_, i) => {
-        const active = start + i === index;
-        return <View key={i} style={[styles.dot, active && styles.dotOn]} />;
+      {Array.from({ length: visibleDots }, (_, dotIndex) => {
+        const active = start + dotIndex === index;
+        return (
+          <View
+            key={dotIndex}
+            style={[styles.dot, active && styles.dotActive]}
+          />
+        );
       })}
     </View>
   );
 }
 
-// Une page épisode : blocs blancs sur fond gris. Cotes HARMONISÉES avec le
-// reste de l'app (cartes de l'onglet Séries : code 17-22, corps 13-14,
-// titres de section 16) — les tailles lues sur les captures TV Time brutes
-// rendaient « énormes » à l'écran (retour utilisateur récurrent).
 function EpisodePage({
-  episode, mediaId, mediaTitle, posterPath, seasons, onClose, bottomPad,
+  episode,
+  mediaId,
+  mediaTitle,
+  posterPath,
+  seasons,
+  seasonsLoading,
+  onClose,
+  bottomPad,
 }: {
   episode: EpisodeDto;
   mediaId: string;
   mediaTitle: string;
   posterPath?: string | null;
   seasons: SeasonData[];
+  seasonsLoading: boolean;
   onClose: () => void;
   bottomPad: number;
 }) {
   const router = useRouter();
-  const qc = useQueryClient();
-  // Pop-up « Cocher aussi les épisodes précédents ? » (si non vus avant celui-ci).
-  const [askPrev, setAskPrev] = useState(false);
+  const queryClient = useQueryClient();
+  const [askPrevious, setAskPrevious] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
-  // Plateformes : même cache que la fiche série (chargée en arrière-plan).
   const detail = useQuery({
     queryKey: ['show', mediaId],
-    queryFn: () => api.get<{ providers: { name: string }[] }>(`/api/shows/${mediaId}`),
+    queryFn: () =>
+      api.get<{ providers: { name: string }[] }>('/api/shows/' + mediaId),
     staleTime: 5 * 60_000,
   });
-  // Note de la communauté (moyenne des notes de cet épisode, sur 5).
+
   const ratings = useQuery({
     queryKey: ['community-ratings', mediaId],
     queryFn: () =>
-      api.get<{ seasons: { seasonNumber: number; points: { episodeNumber: number; avg: number }[] }[] }>(
-        `/api/shows/${mediaId}/community-ratings`,
-      ),
+      api.get<{
+        seasons: {
+          seasonNumber: number;
+          points: { episodeNumber: number; avg: number }[];
+        }[];
+      }>('/api/shows/' + mediaId + '/community-ratings'),
     retry: false,
-  });
-  const comments = useQuery({
-    queryKey: ['comments', mediaId],
-    queryFn: () => api.get<{ comments: { replies?: unknown[] }[] }>(`/api/media/${mediaId}/comments`),
+    staleTime: 5 * 60_000,
   });
 
-  // Coche « vu » OPTIMISTE : bascule immédiate dans le cache des épisodes ;
-  // la file « À voir » derrière est réconciliée en arrière-plan.
+  const comments = useQuery({
+    queryKey: ['comments', mediaId],
+    queryFn: () =>
+      api.get<{ comments: { replies?: unknown[] }[] }>(
+        '/api/media/' + mediaId + '/comments',
+      ),
+    staleTime: 60_000,
+  });
+
   const toggle = useMutation({
-    mutationFn: (e: EpisodeDto) => api.post(`/api/episodes/${e.id}/${e.watched ? 'unwatched' : 'watched'}`),
-    onMutate: async (e: EpisodeDto) => {
-      await qc.cancelQueries({ queryKey: ['show', mediaId, 'episodes'] });
-      const prev = qc.getQueryData<EpisodesData>(['show', mediaId, 'episodes']);
-      if (prev) {
-        qc.setQueryData<EpisodesData>(['show', mediaId, 'episodes'], {
-          ...prev,
-          seasons: prev.seasons.map((s) =>
-            s.seasonNumber !== e.seasonNumber
-              ? s
-              : { ...s, episodes: s.episodes.map((x) => (x.id === e.id ? { ...x, watched: !e.watched } : x)) },
-          ),
-        });
+    mutationFn: (item: EpisodeDto) =>
+      api.post(
+        '/api/episodes/' +
+          item.id +
+          '/' +
+          (item.watched ? 'unwatched' : 'watched'),
+      ),
+    onMutate: async (item: EpisodeDto) => {
+      setMutationError(null);
+      await queryClient.cancelQueries({
+        queryKey: ['show', mediaId, 'episodes'],
+      });
+      const previous = queryClient.getQueryData<EpisodesData>([
+        'show',
+        mediaId,
+        'episodes',
+      ]);
+
+      if (previous) {
+        queryClient.setQueryData<EpisodesData>(
+          ['show', mediaId, 'episodes'],
+          {
+            ...previous,
+            nextEpisode:
+              previous.nextEpisode?.id === item.id
+                ? { ...previous.nextEpisode, watched: !item.watched }
+                : previous.nextEpisode,
+            seasons: previous.seasons.map((season) =>
+              season.seasonNumber !== item.seasonNumber
+                ? season
+                : {
+                    ...season,
+                    episodes: season.episodes.map((candidate) =>
+                      candidate.id === item.id
+                        ? { ...candidate, watched: !item.watched }
+                        : candidate,
+                    ),
+                  },
+            ),
+          },
+        );
       }
-      return { prev };
+
+      return { previous };
     },
-    onError: (_e: unknown, _v: EpisodeDto, ctx?: { prev?: EpisodesData }) => {
-      if (ctx?.prev) qc.setQueryData(['show', mediaId, 'episodes'], ctx.prev);
+    onError: (
+      _error: unknown,
+      _item: EpisodeDto,
+      context?: { previous?: EpisodesData },
+    ) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          ['show', mediaId, 'episodes'],
+          context.previous,
+        );
+      }
+      setMutationError(
+        "Le statut de l'épisode n'a pas pu être enregistré. Réessaie.",
+      );
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: ['shows'] });
-      qc.invalidateQueries({ queryKey: ['show', mediaId, 'episodes'] });
-      qc.invalidateQueries({ queryKey: ['profile'] });
-      qc.invalidateQueries({ queryKey: ['gamification'] }); // XP/badges/streak (spec 2026-07-16 §10)
+      queryClient.invalidateQueries({ queryKey: ['shows'] });
+      queryClient.invalidateQueries({
+        queryKey: ['show', mediaId, 'episodes'],
+      });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: ['gamification'] });
     },
   });
-  // OUI de la pop-up : coche tous les épisodes diffusés avant celui-ci
-  // (saisons antérieures comprises, spéciaux exclus).
+
   const markPrevious = useMutation({
-    mutationFn: () => api.post(`/api/episodes/${episode.id}/watched-previous`),
+    mutationFn: () =>
+      api.post('/api/episodes/' + episode.id + '/watched-previous'),
     onMutate: async () => {
-      await qc.cancelQueries({ queryKey: ['show', mediaId, 'episodes'] });
-      const prev = qc.getQueryData<EpisodesData>(['show', mediaId, 'episodes']);
-      if (prev) {
-        const isBefore = (e: EpisodeDto) =>
-          e.seasonNumber < episode.seasonNumber ||
-          (e.seasonNumber === episode.seasonNumber && e.episodeNumber < episode.episodeNumber);
-        qc.setQueryData<EpisodesData>(['show', mediaId, 'episodes'], {
-          ...prev,
-          seasons: prev.seasons.map((s) =>
-            s.seasonNumber <= 0
-              ? s
-              : { ...s, episodes: s.episodes.map((e) => (!e.watched && isBefore(e) && isAired(e) ? { ...e, watched: true } : e)) },
-          ),
-        });
+      setMutationError(null);
+      await queryClient.cancelQueries({
+        queryKey: ['show', mediaId, 'episodes'],
+      });
+      const previous = queryClient.getQueryData<EpisodesData>([
+        'show',
+        mediaId,
+        'episodes',
+      ]);
+
+      if (previous) {
+        const isBefore = (candidate: EpisodeDto) =>
+          candidate.seasonNumber < episode.seasonNumber ||
+          (candidate.seasonNumber === episode.seasonNumber &&
+            candidate.episodeNumber < episode.episodeNumber);
+
+        queryClient.setQueryData<EpisodesData>(
+          ['show', mediaId, 'episodes'],
+          {
+            ...previous,
+            seasons: previous.seasons.map((season) =>
+              season.seasonNumber <= 0
+                ? season
+                : {
+                    ...season,
+                    episodes: season.episodes.map((candidate) =>
+                      !candidate.watched &&
+                      isBefore(candidate) &&
+                      isAired(candidate)
+                        ? { ...candidate, watched: true }
+                        : candidate,
+                    ),
+                  },
+            ),
+          },
+        );
       }
-      return { prev };
+
+      return { previous };
     },
-    onError: (_e: unknown, _v: void, ctx?: { prev?: EpisodesData }) => {
-      if (ctx?.prev) qc.setQueryData(['show', mediaId, 'episodes'], ctx.prev);
+    onError: (
+      _error: unknown,
+      _value: void,
+      context?: { previous?: EpisodesData },
+    ) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          ['show', mediaId, 'episodes'],
+          context.previous,
+        );
+      }
+      setMutationError(
+        "Les épisodes précédents n'ont pas pu être enregistrés. Réessaie.",
+      );
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: ['shows'] });
-      qc.invalidateQueries({ queryKey: ['show', mediaId, 'episodes'] });
-      qc.invalidateQueries({ queryKey: ['profile'] });
-      qc.invalidateQueries({ queryKey: ['gamification'] }); // XP/badges/streak (spec 2026-07-16 §10)
+      queryClient.invalidateQueries({ queryKey: ['shows'] });
+      queryClient.invalidateQueries({
+        queryKey: ['show', mediaId, 'episodes'],
+      });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: ['gamification'] });
     },
   });
+
   const pressCheck = () => {
-    if (!episode.watched && hasUnwatchedPrevious(seasons, episode)) setAskPrev(true);
+    if (toggle.isPending || seasonsLoading) return;
+    if (
+      !episode.watched &&
+      hasUnwatchedPrevious(seasons, episode)
+    ) {
+      setAskPrevious(true);
+    }
     toggle.mutate(episode);
   };
 
   const share = () => {
-    const message = `« ${mediaTitle} » ${episodeCode(episode.seasonNumber, episode.episodeNumber)} — suivi avec PlotTime 📺`;
+    const message =
+      '« ' +
+      mediaTitle +
+      ' » ' +
+      episodeCode(episode.seasonNumber, episode.episodeNumber) +
+      ' — suivi avec PlotTime 📺';
+
     if (Platform.OS === 'web') {
-      const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { share?: (d: object) => Promise<void> }) : undefined;
-      if (nav?.share) nav.share({ text: message }).catch(() => undefined);
-      else nav?.clipboard?.writeText(message).catch(() => undefined);
+      const navigatorApi =
+        typeof navigator !== 'undefined'
+          ? (navigator as Navigator & {
+              share?: (data: object) => Promise<void>;
+            })
+          : undefined;
+
+      if (navigatorApi?.share) {
+        navigatorApi.share({ text: message }).catch(() => undefined);
+      } else {
+        navigatorApi?.clipboard?.writeText(message).catch(() => undefined);
+      }
       return;
     }
+
     Share.share({ message }).catch(() => undefined);
   };
+
   const openShow = () => {
     onClose();
-    router.push(`/show/${mediaId}`);
+    router.push(('/show/' + mediaId) as Href);
   };
 
-  const hero = tmdbImage(episode.stillPath, 'w780') ?? tmdbImage(posterPath, 'w500');
+  const hero =
+    tmdbImage(episode.stillPath, 'w780') ??
+    tmdbImage(posterPath, 'w500');
   const providers = detail.data?.providers ?? [];
-  const avg = ratings.data?.seasons
-    .find((s) => s.seasonNumber === episode.seasonNumber)
-    ?.points.find((p) => p.episodeNumber === episode.episodeNumber)?.avg;
-  const commentsTotal = (comments.data?.comments ?? []).reduce((n, c) => n + 1 + (c.replies?.length ?? 0), 0);
+  const average = ratings.data?.seasons
+    .find((season) => season.seasonNumber === episode.seasonNumber)
+    ?.points.find(
+      (point) => point.episodeNumber === episode.episodeNumber,
+    )?.avg;
+  const commentsTotal = comments.data
+    ? comments.data.comments.reduce(
+        (total, comment) =>
+          total + 1 + (comment.replies?.length ?? 0),
+        0,
+      )
+    : null;
 
   return (
-    <ScrollView style={{ backgroundColor: COLORS.pageMuted }} contentContainerStyle={{ paddingBottom: bottomPad }}>
-      {/* Bloc image + date/vu/coche. */}
-      <View style={styles.block}>
+    <ScrollView
+      style={styles.episodeScroll}
+      contentContainerStyle={[
+        styles.episodeContent,
+        { paddingBottom: bottomPad },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.heroCard}>
         <View style={styles.hero}>
           {hero ? (
-            <Image source={{ uri: hero }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            <Image
+              source={{ uri: hero }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+              accessible
+              accessibilityLabel={
+                "Image de l'épisode " +
+                episodeCode(
+                  episode.seasonNumber,
+                  episode.episodeNumber,
+                )
+              }
+            />
           ) : (
             <View style={[StyleSheet.absoluteFill, styles.heroEmpty]}>
-              <Feather name="image" size={34} color="#9a9a9a" />
+              <Feather
+                name="image"
+                size={34}
+                color={COLORS.textSoft}
+              />
             </View>
           )}
+
           <View style={styles.heroShade} />
+
           <View style={styles.heroTop}>
-            <Pressable style={styles.seriesPill} onPress={openShow} hitSlop={6}>
-              <Text style={styles.seriesPillText} numberOfLines={1}>{mediaTitle.toUpperCase()}</Text>
-              <Feather name="chevron-right" size={12} color="#fff" />
+            <Pressable
+              style={({ pressed }) => [
+                styles.seriesPill,
+                pressed && styles.heroControlPressed,
+              ]}
+              onPress={openShow}
+              accessibilityRole="button"
+              accessibilityLabel={'Ouvrir la fiche de ' + mediaTitle}
+            >
+              <Text style={styles.seriesPillText} numberOfLines={1}>
+                {mediaTitle}
+              </Text>
+              <Feather
+                name="chevron-right"
+                size={15}
+                color="#FFFFFF"
+              />
             </Pressable>
-            <Pressable onPress={share} hitSlop={10} accessibilityLabel="Partager">
-              <Feather name="share" size={22} color="#fff" />
+
+            <Pressable
+              onPress={share}
+              style={({ pressed }) => [
+                styles.shareButton,
+                pressed && styles.heroControlPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Partager cet épisode"
+            >
+              <Feather name="share-2" size={20} color="#FFFFFF" />
             </Pressable>
           </View>
-          <View style={styles.heroCap}>
-            <Text style={styles.heroCode}>{episodeCode(episode.seasonNumber, episode.episodeNumber)}</Text>
-            {episode.title ? <Text style={styles.heroEpTitle} numberOfLines={1}>{episode.title}</Text> : null}
+
+          <View style={styles.heroCaption}>
+            <Text style={styles.heroCode}>
+              {episodeCode(
+                episode.seasonNumber,
+                episode.episodeNumber,
+              )}
+            </Text>
+            {episode.title ? (
+              <Text style={styles.heroEpisodeTitle} numberOfLines={2}>
+                {episode.title}
+              </Text>
+            ) : null}
           </View>
         </View>
+
         <View style={styles.metaRow}>
-          {episode.airDate ? (
+          <View style={styles.metaCopy}>
+            {episode.airDate ? (
+              <View style={styles.metaItem}>
+                <Feather
+                  name="calendar"
+                  size={16}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.metaText}>
+                  {dateFr(episode.airDate)}
+                </Text>
+              </View>
+            ) : null}
+
             <View style={styles.metaItem}>
-              <Feather name="calendar" size={16} color={COLORS.black} />
-              <Text style={styles.metaText}>{dateFr(episode.airDate)}</Text>
+              <Ionicons
+                name={episode.watched ? 'eye' : 'eye-outline'}
+                size={18}
+                color={
+                  episode.watched
+                    ? COLORS.success
+                    : COLORS.textMuted
+                }
+              />
+              <Text style={styles.metaText}>
+                {episode.watched ? 'Vu' : 'Pas vu'}
+              </Text>
             </View>
-          ) : null}
-          <View style={styles.metaItem}>
-            <Ionicons name={episode.watched ? 'eye' : 'eye-outline'} size={18} color={COLORS.black} />
-            <Text style={styles.metaText}>{episode.watched ? 'Vu' : 'Pas vu'}</Text>
           </View>
-          <View style={{ flex: 1 }} />
-          <CheckCircle size={40} checked={episode.watched} onPress={pressCheck} />
+
+          <CheckCircle
+            size={44}
+            checked={episode.watched}
+            onPress={toggle.isPending || seasonsLoading ? undefined : pressCheck}
+          />
         </View>
+
+        {mutationError ? (
+          <Text
+            style={styles.mutationError}
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+          >
+            {mutationError}
+          </Text>
+        ) : null}
       </View>
 
-      {/* Où regarder. */}
-      <View style={styles.block}>
-        <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>Où regarder</Text>
-          <Feather name="settings" size={18} color={COLORS.black} />
-        </View>
+      <View style={styles.sectionCard}>
+        <SectionHeader
+          icon="play-circle"
+          eyebrow="DISPONIBILITÉ"
+          title="Où regarder"
+        />
+
         {providers.length === 0 ? (
-          <Text style={styles.muted}>{detail.isLoading ? 'Chargement…' : 'Non disponible'}</Text>
+          <View style={styles.emptyLine}>
+            <Feather
+              name={detail.isError ? 'wifi-off' : 'info'}
+              size={18}
+              color={COLORS.textMuted}
+            />
+            <Text style={styles.muted}>
+              {detail.isLoading
+                ? 'Chargement des plateformes…'
+                : detail.isError
+                  ? 'Plateformes indisponibles pour le moment.'
+                  : 'Aucune plateforme renseignée.'}
+            </Text>
+          </View>
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingTop: 12 }}>
-            {providers.map((p) => (
-              <View key={p.name} style={styles.provBtn}>
-                <Ionicons name="play-circle-outline" size={17} color="#fff" />
-                <Text style={styles.provText}>{p.name.toUpperCase()}</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.providers}
+          >
+            {providers.map((provider) => (
+              <View
+                key={provider.name}
+                style={styles.providerChip}
+                accessible
+                accessibilityLabel={'Disponible sur ' + provider.name}
+              >
+                <Ionicons
+                  name="play-circle-outline"
+                  size={18}
+                  color={COLORS.onPrimary}
+                />
+                <Text style={styles.providerText}>
+                  {provider.name}
+                </Text>
               </View>
             ))}
           </ScrollView>
         )}
       </View>
 
-      {/* Informations sur l'épisode : note communauté + synopsis. */}
-      {typeof avg === 'number' || episode.overview ? (
-        <View style={styles.block}>
-          <Text style={styles.sectionTitle}>Informations sur l'épisode</Text>
-          {typeof avg === 'number' ? <Stars rating10={avg * 2} size={17} /> : null}
-          {episode.overview ? <Text style={styles.overview}>{episode.overview}</Text> : null}
+      {typeof average === 'number' || episode.overview ? (
+        <View style={styles.sectionCard}>
+          <SectionHeader
+            icon="info"
+            eyebrow="ÉPISODE"
+            title="À propos"
+          />
+          {typeof average === 'number' ? (
+            <View style={styles.ratingRow}>
+              <Stars rating10={average * 2} size={17} />
+              <Text style={styles.ratingLabel}>Note de la communauté</Text>
+            </View>
+          ) : null}
+          {episode.overview ? (
+            <Text style={styles.overview} selectable>
+              {episode.overview}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
-      {/* Commentaires (page dédiée de la série). */}
       <Pressable
-        style={[styles.block, styles.commentsRow]}
+        style={({ pressed }) => [
+          styles.commentsCard,
+          pressed && styles.cardPressed,
+        ]}
         onPress={() => {
           onClose();
-          router.push(`/comments/${mediaId}?title=${encodeURIComponent(mediaTitle)}`);
+          router.push((
+            '/comments/' +
+              mediaId +
+              '?title=' +
+              encodeURIComponent(mediaTitle)
+          ) as Href);
         }}
+        accessibilityRole="button"
+        accessibilityLabel={
+          commentsTotal === null
+            ? 'Ouvrir les commentaires'
+            : 'Ouvrir les commentaires, ' +
+              commentsTotal +
+              ' contribution' +
+              (commentsTotal > 1 ? 's' : '')
+        }
       >
-        <Text style={styles.sectionTitle}>Commentaires</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={styles.commentsCount}>{commentsTotal}</Text>
-          <Feather name="chevron-right" size={20} color={COLORS.black} />
+        <View style={styles.commentsIcon} accessible={false}>
+          <Feather
+            name="message-circle"
+            size={20}
+            color={COLORS.secondary}
+          />
+        </View>
+        <View style={styles.commentsCopy}>
+          <Text style={styles.commentsEyebrow}>COMMUNAUTÉ</Text>
+          <Text style={styles.commentsTitle}>Commentaires</Text>
+        </View>
+        <View style={styles.commentsAction}>
+          <Text style={styles.commentsCount}>
+            {comments.isLoading
+              ? '…'
+              : comments.isError
+                ? '—'
+                : commentsTotal}
+          </Text>
+          <Feather
+            name="chevron-right"
+            size={20}
+            color={COLORS.textMuted}
+          />
         </View>
       </Pressable>
 
       <MarkPreviousPopup
-        visible={askPrev}
-        onYes={() => { setAskPrev(false); markPrevious.mutate(); }}
-        onNo={() => setAskPrev(false)}
+        visible={askPrevious}
+        onYes={() => {
+          setAskPrevious(false);
+          markPrevious.mutate();
+        }}
+        onNo={() => setAskPrevious(false)}
       />
     </ScrollView>
   );
 }
 
+function SectionHeader({
+  icon,
+  eyebrow,
+  title,
+}: {
+  icon: React.ComponentProps<typeof Feather>['name'];
+  eyebrow: string;
+  title: string;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionIcon} accessible={false}>
+        <Feather name={icon} size={19} color={COLORS.primary} />
+      </View>
+      <View style={styles.sectionHeaderCopy}>
+        <Text style={styles.sectionEyebrow}>{eyebrow}</Text>
+        <Text style={styles.sectionTitle} accessibilityRole="header">
+          {title}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
-  panel: { flex: 1, backgroundColor: COLORS.white, borderTopLeftRadius: 18, borderTopRightRadius: 18, overflow: 'hidden' },
-  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 10, backgroundColor: COLORS.white },
-  closeBtn: { width: 46, height: 40, alignItems: 'center', justifyContent: 'center' },
-  dotsWrap: { flex: 1, alignItems: 'center' },
-  dotsRow: { flexDirection: 'row', gap: 9 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.chipSelected },
-  dotOn: { backgroundColor: COLORS.yellow },
-  block: { backgroundColor: COLORS.white, marginHorizontal: 12, marginBottom: 10, borderRadius: 12, overflow: 'hidden', padding: 14 },
-  // Les marges négatives compensent le padding du bloc (image bord à bord).
-  hero: { aspectRatio: 16 / 9, marginHorizontal: -14, marginTop: -14, backgroundColor: '#1a1a22', justifyContent: 'flex-end' },
-  heroEmpty: { alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.imagePlaceholder },
-  heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.28)' },
-  heroTop: { position: 'absolute', top: 12, left: 14, right: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  seriesPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1.5, borderColor: '#fff',
-    borderRadius: 999, paddingHorizontal: 12, paddingVertical: 3, flexShrink: 1,
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: COLORS.overlay,
   },
-  seriesPillText: { color: '#fff', fontSize: 11, fontFamily: FONTS.bold, letterSpacing: 0.6, flexShrink: 1 },
-  heroCap: { padding: 12 },
-  heroCode: { color: '#fff', fontSize: 22, fontFamily: FONTS.extraBold },
-  heroEpTitle: { color: 'rgba(255,255,255,0.95)', fontSize: 13, fontFamily: FONTS.regular, marginTop: 1 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 20, paddingTop: 12 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  metaText: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.regular },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.extraBold },
-  muted: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13.5, marginTop: 8 },
-  provBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#101014', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
-  provText: { color: '#fff', fontSize: 12, fontFamily: FONTS.extraBold, letterSpacing: 0.3 },
-  overview: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 13.5, lineHeight: 20, marginTop: 10 },
-  commentsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  commentsCount: { fontSize: 14, fontFamily: FONTS.regular, color: COLORS.textMuted },
+  panel: {
+    flex: 1,
+    alignSelf: 'center',
+    overflow: 'hidden',
+    borderTopLeftRadius: RADIUS.sheet,
+    borderTopRightRadius: RADIUS.sheet,
+    backgroundColor: COLORS.bg,
+    ...SHADOW.card,
+  },
+  topBar: {
+    minHeight: SIZES.header,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACE.sm,
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.borderLight,
+  },
+  closeButton: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.control,
+  },
+  pagerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xxs,
+  },
+  pagerButton: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  pagerButtonDisabled: {
+    opacity: 0.36,
+  },
+  dotsWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.xxs,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    gap: SPACE.xs,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.chipSelected,
+  },
+  dotActive: {
+    width: 19,
+    backgroundColor: COLORS.primary,
+  },
+  pageCount: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    lineHeight: 13,
+    fontFamily: FONTS.bold,
+  },
+  pagerWarning: {
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.xs,
+    color: COLORS.warning,
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: FONTS.semiBold,
+    textAlign: 'center',
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  pager: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+  pagePlaceholder: {
+    flex: 1,
+    padding: SPACE.md,
+    gap: SPACE.sm,
+    backgroundColor: COLORS.bg,
+  },
+  pagePlaceholderPoster: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.imagePlaceholder,
+  },
+  pagePlaceholderLine: {
+    width: '72%',
+    height: 18,
+    borderRadius: RADIUS.small,
+    backgroundColor: COLORS.imagePlaceholder,
+  },
+  pagePlaceholderLineShort: {
+    width: '44%',
+    height: 14,
+    borderRadius: RADIUS.small,
+    backgroundColor: COLORS.imagePlaceholder,
+  },
+  episodeScroll: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+  episodeContent: {
+    padding: SPACE.md,
+    gap: SPACE.sm,
+  },
+  heroCard: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.surface,
+    ...SHADOW.card,
+  },
+  hero: {
+    aspectRatio: 16 / 9,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+    backgroundColor: COLORS.imagePlaceholder,
+  },
+  heroEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.imagePlaceholder,
+  },
+  heroShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(12, 8, 28, 0.34)',
+  },
+  heroTop: {
+    position: 'absolute',
+    top: SPACE.sm,
+    left: SPACE.sm,
+    right: SPACE.sm,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: SPACE.sm,
+  },
+  seriesPill: {
+    minHeight: SIZES.touch,
+    maxWidth: '78%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xxs,
+    paddingHorizontal: SPACE.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.75)',
+    borderRadius: RADIUS.pill,
+    backgroundColor: 'rgba(20,13,39,0.72)',
+  },
+  seriesPillText: {
+    flexShrink: 1,
+    color: '#FFFFFF',
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: FONTS.extraBold,
+  },
+  shareButton: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.pill,
+    backgroundColor: 'rgba(20,13,39,0.72)',
+  },
+  heroControlPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.98 }],
+  },
+  heroCaption: {
+    padding: SPACE.md,
+  },
+  heroCode: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    lineHeight: 29,
+    fontFamily: FONTS.extraBold,
+  },
+  heroEpisodeTitle: {
+    marginTop: 2,
+    color: 'rgba(255,255,255,0.94)',
+    fontSize: 14,
+    lineHeight: 19,
+    fontFamily: FONTS.medium,
+  },
+  metaRow: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.md,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.sm,
+  },
+  metaCopy: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: SPACE.md,
+  },
+  metaItem: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+  },
+  metaText: {
+    color: COLORS.text,
+    fontSize: 14,
+    lineHeight: 19,
+    fontFamily: FONTS.semiBold,
+  },
+  mutationError: {
+    marginHorizontal: SPACE.md,
+    marginBottom: SPACE.md,
+    padding: SPACE.sm,
+    color: COLORS.danger,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: FONTS.semiBold,
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  sectionCard: {
+    padding: SPACE.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.surface,
+    ...SHADOW.card,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+  },
+  sectionIcon: {
+    width: 40,
+    height: 40,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.primarySoft,
+  },
+  sectionHeaderCopy: {
+    flex: 1,
+  },
+  sectionEyebrow: {
+    color: COLORS.primary,
+    fontSize: 10,
+    lineHeight: 14,
+    fontFamily: FONTS.extraBold,
+    letterSpacing: 1,
+  },
+  sectionTitle: {
+    color: COLORS.text,
+    fontSize: 18,
+    lineHeight: 23,
+    fontFamily: FONTS.extraBold,
+  },
+  emptyLine: {
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    marginTop: SPACE.sm,
+  },
+  muted: {
+    flex: 1,
+    color: COLORS.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: FONTS.regular,
+  },
+  providers: {
+    gap: SPACE.xs,
+    paddingTop: SPACE.md,
+    paddingRight: SPACE.sm,
+  },
+  providerChip: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    paddingHorizontal: SPACE.md,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primary,
+  },
+  providerText: {
+    color: COLORS.onPrimary,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: FONTS.extraBold,
+  },
+  ratingRow: {
+    alignItems: 'flex-start',
+    gap: SPACE.xxs,
+    marginTop: SPACE.md,
+  },
+  ratingLabel: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: FONTS.medium,
+  },
+  overview: {
+    marginTop: SPACE.md,
+    color: COLORS.text,
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: FONTS.regular,
+  },
+  commentsCard: {
+    minHeight: 80,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    padding: SPACE.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.surface,
+    ...SHADOW.card,
+  },
+  commentsIcon: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.primarySoft,
+  },
+  commentsCopy: {
+    flex: 1,
+  },
+  commentsEyebrow: {
+    color: COLORS.secondary,
+    fontSize: 10,
+    lineHeight: 14,
+    fontFamily: FONTS.extraBold,
+    letterSpacing: 1,
+  },
+  commentsTitle: {
+    color: COLORS.text,
+    fontSize: 17,
+    lineHeight: 22,
+    fontFamily: FONTS.extraBold,
+  },
+  commentsAction: {
+    minWidth: SIZES.touch,
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: SPACE.xxs,
+  },
+  commentsCount: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+    lineHeight: 19,
+    fontFamily: FONTS.bold,
+  },
+  controlPressed: {
+    opacity: 0.72,
+  },
+  cardPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.995 }],
+  },
 });

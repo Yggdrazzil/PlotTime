@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Animated, Easing, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Animated, Easing, Platform, Linking, Alert, Share } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
-import { COLORS, FONTS, applyThemePreference, getThemePreference, type ThemePreference } from '@/lib/theme';
-import { PageHeader } from '@/components/PageHeader';
+import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE, applyThemePreference, getThemePreference, type ThemePreference } from '@/lib/theme';
+import { ScreenShell, ScreenHeader, SectionHeader, SegmentedFilter, PrismeCard, IconAction } from '@/components/prisme';
+import { goBack } from '@/lib/nav';
 import { FadeSwitch, PopIn } from '@/components/anim';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { ssoWebAvailable, initGoogleButton, discordLogin } from '@/lib/sso';
@@ -23,28 +24,28 @@ function openExternal(url: string) {
   else Linking.openURL(url).catch(() => undefined);
 }
 
-const TABS = ['COMPTE', 'APPLICATION'];
+type Tab = 'compte' | 'application';
+const TAB_OPTIONS: { value: Tab; label: string; accessibilityLabel: string }[] = [
+  { value: 'compte', label: 'Compte', accessibilityLabel: 'Onglet Compte' },
+  { value: 'application', label: 'Application', accessibilityLabel: 'Onglet Application' },
+];
 
 export default function Settings() {
-  const [tab, setTab] = useState('COMPTE');
+  const [tab, setTab] = useState<Tab>('compte');
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
-      <PageHeader title="Paramètres" />
-      <View style={styles.tabs}>
-        {TABS.map((t) => (
-          <Pressable key={t} style={styles.tab} onPress={() => setTab(t)}>
-            <Text style={[styles.tabText, tab === t && styles.tabActive]}>{t}</Text>
-            <View style={[styles.under, tab === t && styles.underActive]} />
-          </Pressable>
-        ))}
-      </View>
+    <ScreenShell scroll contentContainerStyle={styles.content}>
+      <ScreenHeader
+        eyebrow="Réglages"
+        title="Paramètres"
+        subtitle="Compte, affichage et données personnelles."
+        leading={<IconAction icon="chevron-left" label="Retour" onPress={() => goBack('/profile')} />}
+      />
+      <SegmentedFilter options={TAB_OPTIONS} value={tab} onChange={setTab} accessibilityLabel="Filtrer les paramètres" />
       {/* Bascule d'onglet en fondu, comme les onglets hauts des autres écrans. */}
       <FadeSwitch trigger={tab}>
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-          {tab === 'COMPTE' ? <AccountTab /> : <AppTab />}
-        </ScrollView>
+        <View style={styles.list}>{tab === 'compte' ? <AccountTab /> : <AppTab />}</View>
       </FadeSwitch>
-    </View>
+    </ScreenShell>
   );
 }
 
@@ -53,6 +54,7 @@ function AccountTab() {
   const { user, logout } = useAppStore();
   const [pwOpen, setPwOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   // Nom d'utilisateur = nom d'affichage COURANT (source : profil serveur).
   // Le store local est figé à la connexion : après « Modifier le profil »,
   // il affichait encore l'ancien nom.
@@ -64,65 +66,81 @@ function AccountTab() {
 
   // Exporter : télécharge un JSON de toutes ses données (web) / partage (natif).
   const exportData = async () => {
+    if (exporting) return;
+    setExporting(true);
     try {
-      const data = await api.get<Record<string, unknown>>('/api/backup/export');
+      const data = await api.post<Record<string, unknown>>('/api/backup/export');
       const json = JSON.stringify(data, null, 2);
-      if (typeof document !== 'undefined') {
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'serietime-sauvegarde.json';
+        a.download = 'plottime-sauvegarde.json';
         a.click();
         URL.revokeObjectURL(url);
+        return;
       }
+      await Share.share({
+        title: 'Sauvegarde PlotTime',
+        message: json,
+      });
     } catch {
-      /* silencieux : bouton best-effort */
+      Alert.alert(
+        'Export impossible',
+        'La sauvegarde n’a pas pu être préparée. Vérifie ta connexion puis réessaie.',
+      );
+    } finally {
+      setExporting(false);
     }
   };
 
   return (
-    <View>
-      <SectionTitle>Identification</SectionTitle>
-      <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
-        <Field label="Nom d'utilisateur" value={displayName} blue />
-        <Field label="Adresse e-mail" value={user?.email || '—'} blue />
+    <>
+      <Section title="Identification" eyebrow="Profil">
+        <Field label="Nom d'utilisateur" value={displayName} accent />
+        <Field label="Adresse e-mail" value={user?.email || '—'} accent />
         <Field label="Identifiant utilisateur" value={user?.id ?? ''} />
-      </View>
-      <Row label="Modifier le mot de passe" onPress={() => setPwOpen(true)} />
-      <Divider />
-      {/* Comme TV Time : la liaison des comptes vit derrière une rangée dédiée. */}
-      <SectionTitle>Réseaux sociaux</SectionTitle>
-      <Row label="Modifier les comptes liés" onPress={() => router.push('/linked-accounts')} />
-      <Divider />
-      <SectionTitle>Import & sauvegarde</SectionTitle>
-      <Row label="Importer mes données TV Time" onPress={() => router.push('/import')} />
-      <Row label="Exporter mes données PlotTime" onPress={exportData} />
-      <ResyncLibraryRow />
-      <Divider />
-      <SectionTitle>Jeux — Steam</SectionTitle>
-      <SteamImportBlock />
-      <Divider />
-      <SectionTitle>Vie privée</SectionTitle>
-      <PrivateProfileToggle />
-      <Divider />
-      {/* Boutons TV Time : SE DÉCONNECTER en jaune pleine largeur, SUPPRIMER en bleu. */}
-      <View style={{ gap: 22, paddingVertical: 20 }}>
-        <Pressable style={styles.logoutBtn} onPress={logout}>
+        <Row label="Modifier le mot de passe" onPress={() => setPwOpen(true)} />
+      </Section>
+
+      {/* La liaison des comptes vit derrière une rangée dédiée. */}
+      <Section title="Réseaux sociaux" eyebrow="Compte">
+        <Row label="Modifier les comptes liés" onPress={() => router.push('/linked-accounts')} />
+      </Section>
+
+      <Section title="Import & sauvegarde" eyebrow="Données">
+        <Row label="Importer mes données TV Time" onPress={() => router.push('/import')} />
+        <Row label={exporting ? 'Préparation de la sauvegarde…' : 'Exporter mes données PlotTime'} onPress={exporting ? undefined : exportData} />
+        <ResyncLibraryRow />
+      </Section>
+
+      <Section title="Steam" eyebrow="Jeux">
+        <SteamImportBlock />
+      </Section>
+
+      <Section title="Vie privée" eyebrow="Confidentialité">
+        <PrivateProfileToggle />
+      </Section>
+
+      {/* Zone sensible isolée (recommandation Prisme : danger à part). */}
+      <PrismeCard elevated style={styles.dangerCard}>
+        <Pressable style={({ pressed }) => [styles.logoutBtn, pressed && styles.btnPressed]} onPress={logout} accessibilityRole="button" accessibilityLabel="Se déconnecter">
+          <Feather name="log-out" size={17} color={COLORS.onAccent} />
           <Text style={styles.logoutText}>SE DÉCONNECTER</Text>
         </Pressable>
-        <Pressable onPress={() => setDelOpen(true)}>
+        <Pressable style={({ pressed }) => [styles.deleteBtn, pressed && styles.deletePressed]} onPress={() => setDelOpen(true)} accessibilityRole="button" accessibilityLabel="Supprimer le compte">
           <Text style={styles.deleteText}>SUPPRIMER LE COMPTE</Text>
         </Pressable>
-      </View>
+      </PrismeCard>
 
       {pwOpen ? <PasswordModal onClose={() => setPwOpen(false)} /> : null}
       {delOpen ? <DeleteAccountModal onClose={() => setDelOpen(false)} onDeleted={logout} /> : null}
-    </View>
+    </>
   );
 }
 
-// « Définir le profil comme privé » (TV Time) : seuls les abonnés voient
+// « Définir le profil comme privé » : seuls les abonnés voient
 // l'activité. Bascule optimiste sur /api/profile.
 function PrivateProfileToggle() {
   const qc = useQueryClient();
@@ -169,12 +187,12 @@ function SteamImportBlock() {
   const canSubmit = steamId.trim().length >= 2 && !mut.isPending;
   const result = mut.data;
   return (
-    <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
-      <Text style={styles.steamHint}>
+    <View style={styles.block}>
+      <Text style={styles.hint}>
         Connectez votre compte Steam (profil public requis) pour importer votre bibliothèque de jeux possédés.
       </Text>
       <TextInput
-        style={styles.mInput}
+        style={styles.input}
         placeholder="SteamID ou URL de profil"
         placeholderTextColor={COLORS.textSoft}
         value={steamId}
@@ -186,11 +204,11 @@ function SteamImportBlock() {
         autoCorrect={false}
       />
       <Pressable
-        style={[styles.mBtn, !canSubmit && { opacity: 0.4 }]}
+        style={({ pressed }) => [styles.actionBtn, !canSubmit && styles.actionBtnDisabled, pressed && canSubmit && styles.btnPressed]}
         disabled={!canSubmit}
         onPress={() => mut.mutate(steamId.trim())}
       >
-        {mut.isPending ? <ActivityIndicator color={COLORS.black} /> : <Text style={styles.mBtnText}>IMPORTER MA BIBLIOTHÈQUE</Text>}
+        {mut.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.actionBtnText}>IMPORTER MA BIBLIOTHÈQUE</Text>}
       </Pressable>
       {result?.error ? (
         <Text style={styles.errMsg}>
@@ -218,16 +236,16 @@ function ResyncLibraryRow() {
   });
   const res = mut.data;
   return (
-    <View style={{ paddingHorizontal: 24, paddingVertical: 8 }}>
+    <View style={styles.block}>
       <Pressable
-        style={[styles.mBtn, mut.isPending && { opacity: 0.4 }]}
+        style={({ pressed }) => [styles.actionBtn, mut.isPending && styles.actionBtnDisabled, pressed && !mut.isPending && styles.btnPressed]}
         disabled={mut.isPending}
         onPress={() => mut.mutate()}
       >
         {mut.isPending ? (
-          <ActivityIndicator color={COLORS.black} />
+          <ActivityIndicator color={COLORS.onAccent} />
         ) : (
-          <Text style={styles.mBtnText}>RESYNCHRONISER MA BIBLIOTHÈQUE</Text>
+          <Text style={styles.actionBtnText}>RESYNCHRONISER MA BIBLIOTHÈQUE</Text>
         )}
       </Pressable>
       {res ? (
@@ -239,7 +257,7 @@ function ResyncLibraryRow() {
       ) : mut.isError ? (
         <Text style={styles.errMsg}>Impossible de contacter le serveur.</Text>
       ) : (
-        <Text style={[styles.steamHint, { marginTop: 12 }]}>
+        <Text style={[styles.hint, { marginTop: SPACE.sm }]}>
           Rattrape les dates de diffusion manquantes après un import (séries qui n'apparaissent pas dans « À voir »).
         </Text>
       )}
@@ -297,12 +315,12 @@ function PasswordModal({ onClose }: { onClose: () => void }) {
       ) : (
         <>
           <Text style={styles.mLabel}>Mot de passe actuel</Text>
-          <TextInput style={styles.mInput} secureTextEntry value={current} onChangeText={setCurrent} autoCapitalize="none" />
+          <TextInput style={styles.input} secureTextEntry value={current} onChangeText={setCurrent} autoCapitalize="none" />
           <Text style={styles.mLabel}>Nouveau mot de passe</Text>
-          <TextInput style={styles.mInput} secureTextEntry value={next} onChangeText={setNext} autoCapitalize="none" placeholder="8 caractères minimum" placeholderTextColor={COLORS.textSoft} />
+          <TextInput style={styles.input} secureTextEntry value={next} onChangeText={setNext} autoCapitalize="none" placeholder="8 caractères minimum" placeholderTextColor={COLORS.textSoft} />
           {error ? <Text style={styles.errMsg}>{error}</Text> : null}
-          <Pressable style={[styles.mBtn, !canSubmit && { opacity: 0.4 }]} disabled={!canSubmit} onPress={() => { setError(null); mut.mutate(); }}>
-            {mut.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.mBtnText}>ENREGISTRER</Text>}
+          <Pressable style={({ pressed }) => [styles.actionBtn, !canSubmit && styles.actionBtnDisabled, pressed && canSubmit && styles.btnPressed]} disabled={!canSubmit} onPress={() => { setError(null); mut.mutate(); }}>
+            {mut.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.actionBtnText}>ENREGISTRER</Text>}
           </Pressable>
           {canReset ? (
             <Pressable
@@ -384,16 +402,16 @@ function ResetPasswordSheet({ cfg, linked, onClose }: { cfg: SsoProviders; linke
       ) : resetToken ? (
         <>
           <Text style={styles.mLabel}>Nouveau mot de passe</Text>
-          <TextInput style={styles.mInput} secureTextEntry value={pw} onChangeText={setPw} autoCapitalize="none" placeholder="8 caractères minimum" placeholderTextColor={COLORS.textSoft} />
+          <TextInput style={styles.input} secureTextEntry value={pw} onChangeText={setPw} autoCapitalize="none" placeholder="8 caractères minimum" placeholderTextColor={COLORS.textSoft} />
           <Text style={styles.mLabel}>Confirmer le nouveau mot de passe</Text>
-          <TextInput style={styles.mInput} secureTextEntry value={pw2} onChangeText={setPw2} autoCapitalize="none" />
+          <TextInput style={styles.input} secureTextEntry value={pw2} onChangeText={setPw2} autoCapitalize="none" />
           {pw2.length > 0 && pw !== pw2 ? (
             <Text style={styles.errMsg}>Les deux mots de passe ne correspondent pas.</Text>
           ) : error ? (
             <Text style={styles.errMsg}>{error}</Text>
           ) : null}
-          <Pressable style={[styles.mBtn, !canSubmit && { opacity: 0.4 }]} disabled={!canSubmit} onPress={() => { setError(null); mut.mutate(); }}>
-            {mut.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.mBtnText}>RÉINITIALISER</Text>}
+          <Pressable style={({ pressed }) => [styles.actionBtn, !canSubmit && styles.actionBtnDisabled, pressed && canSubmit && styles.btnPressed]} disabled={!canSubmit} onPress={() => { setError(null); mut.mutate(); }}>
+            {mut.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.actionBtnText}>RÉINITIALISER</Text>}
           </Pressable>
         </>
       ) : (
@@ -435,13 +453,13 @@ function DeleteAccountModal({ onClose, onDeleted }: { onClose: () => void; onDel
         Cette action est définitive : ton compte, ta bibliothèque, ta progression et tes commentaires seront
         supprimés. Tape SUPPRIMER pour confirmer.
       </Text>
-      <TextInput style={styles.mInput} value={confirm} onChangeText={setConfirm} autoCapitalize="characters" placeholder="SUPPRIMER" placeholderTextColor={COLORS.textSoft} />
+      <TextInput style={styles.input} value={confirm} onChangeText={setConfirm} autoCapitalize="characters" placeholder="SUPPRIMER" placeholderTextColor={COLORS.textSoft} />
       <Pressable
-        style={[styles.mBtn, { backgroundColor: COLORS.red }, confirm !== 'SUPPRIMER' && { opacity: 0.4 }]}
+        style={({ pressed }) => [styles.actionBtn, styles.dangerAction, confirm !== 'SUPPRIMER' && styles.actionBtnDisabled, pressed && confirm === 'SUPPRIMER' && styles.btnPressed]}
         disabled={confirm !== 'SUPPRIMER' || mut.isPending}
         onPress={() => mut.mutate()}
       >
-        {mut.isPending ? <ActivityIndicator color="#fff" /> : <Text style={[styles.mBtnText, { color: '#fff' }]}>SUPPRIMER DÉFINITIVEMENT</Text>}
+        {mut.isPending ? <ActivityIndicator color="#fff" /> : <Text style={[styles.actionBtnText, { color: '#fff' }]}>SUPPRIMER DÉFINITIVEMENT</Text>}
       </Pressable>
     </Sheet>
   );
@@ -460,6 +478,8 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
       <Pressable style={styles.overlay} onPress={onClose}>
         <Animated.View
           style={{
+            width: '100%',
+            maxWidth: 420,
             opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
             transform: [
               { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) },
@@ -471,7 +491,7 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>{title}</Text>
             <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Fermer">
-              <Feather name="x" size={24} color={COLORS.black} />
+              <Feather name="x" size={24} color={COLORS.text} />
             </Pressable>
           </View>
           {children}
@@ -551,89 +571,102 @@ function AppTab() {
     applyThemePreference(v);
   };
   return (
-    <View>
-      <SectionTitle>Titres</SectionTitle>
-      <ToggleRow label="Afficher dans votre langue" sub="Les titres s'affichent par défaut en anglais" on={s.titlesInUserLanguage ?? true} onToggle={(v) => update.mutate({ titlesInUserLanguage: v })} />
-      <Divider />
-      <SectionTitle>Thème</SectionTitle>
-      {(
-        [
-          ['system', "Suivre le thème défini sur l'appareil"],
-          ['light', 'Thème clair'],
-          ['dark', 'Thème sombre'],
-          ['sunset', 'Thème Sunset'],
-          ['midnight', 'Thème Nuit — les couleurs PlotTime'],
-        ] as [ThemePreference, string][]
-      ).map(([v, l]) => (
-        <RadioRow key={v} label={l} on={themePref === v} onPress={() => pickTheme(v)} />
-      ))}
-      {Platform.OS !== 'web' ? (
-        <Text style={styles.themeNote}>
-          Sur l'app native, le thème suit l'appareil ; le choix explicite s'applique sur la web app.
-        </Text>
-      ) : null}
-      <Divider />
-      <SectionTitle>Langue</SectionTitle>
-      {CONTENT_LANGS.map(([v, l]) => (
-        <RadioRow key={v} label={l} on={lang === v} onPress={() => pickLang(v)} />
-      ))}
-      {langMsg ? <Text style={styles.themeNote}>{langMsg}</Text> : null}
-      <Divider />
+    <>
+      <Section title="Titres" eyebrow="Affichage">
+        <ToggleRow label="Afficher dans votre langue" sub="Les titres s'affichent par défaut en anglais" on={s.titlesInUserLanguage ?? true} onToggle={(v) => update.mutate({ titlesInUserLanguage: v })} />
+      </Section>
+
+      <Section title="Thème" eyebrow="Affichage">
+        {(
+          [
+            ['system', "Suivre le thème défini sur l'appareil"],
+            ['light', 'Thème clair'],
+            ['dark', 'Thème sombre'],
+            ['sunset', 'Thème Sunset'],
+            ['midnight', 'Thème Nuit — les couleurs PlotTime'],
+          ] as [ThemePreference, string][]
+        ).map(([v, l]) => (
+          <RadioRow key={v} label={l} on={themePref === v} onPress={() => pickTheme(v)} />
+        ))}
+        {Platform.OS !== 'web' ? (
+          <Text style={styles.note}>
+            Sur l'app native, le thème suit l'appareil ; le choix explicite s'applique sur la web app.
+          </Text>
+        ) : null}
+      </Section>
+
+      <Section title="Langue" eyebrow="Affichage">
+        {CONTENT_LANGS.map(([v, l]) => (
+          <RadioRow key={v} label={l} on={lang === v} onPress={() => pickLang(v)} />
+        ))}
+        {langMsg ? <Text style={styles.note}>{langMsg}</Text> : null}
+      </Section>
+
       {/* iOS : interrupteur 18+ MASQUÉ sur les builds App Store (guideline 1.1.4,
           Apple refuse le contenu sexuellement explicite même opt-in — cf.
           docs/STORES.md A7). Reste disponible sur web et Android. */}
       {Platform.OS !== 'ios' ? (
-        <>
-          <SectionTitle>Suggestions</SectionTitle>
+        <Section title="Suggestions" eyebrow="Contenu">
           <ToggleRow
             label="Contenu 18+"
             sub="Affiche le contenu réservé aux adultes dans les suggestions. Désactivé par défaut."
             on={s.allowAdultContent ?? false}
             onToggle={(v) => adultMut.mutate(v)}
           />
-          <Divider />
-        </>
+        </Section>
       ) : null}
-      <SectionTitle>Cache</SectionTitle>
-      <View style={{ padding: 16 }}>
-        <Pressable style={styles.cacheBtn} onPress={() => api.post('/api/cache/clear').catch(() => {})}>
-          <Text style={styles.cacheText}>VIDER LE CACHE</Text>
-        </Pressable>
-      </View>
-      <Divider />
+
+      <Section title="Cache" eyebrow="Maintenance">
+        <View style={styles.block}>
+          <Pressable style={({ pressed }) => [styles.actionBtn, pressed && styles.btnPressed]} onPress={() => api.post('/api/cache/clear').catch(() => {})}>
+            <Text style={styles.actionBtnText}>VIDER LE CACHE</Text>
+          </Pressable>
+        </View>
+      </Section>
+
       {/* À propos : liens légaux (exigés par Apple/Google) + attributions des
           sources de données (mentions obligatoires TMDb/TheTVDB/IGDB — cf.
           docs/STORES.md A2/A3). */}
-      <SectionTitle>À propos</SectionTitle>
-      <Row label="Politique de confidentialité" onPress={() => openExternal(`${LEGAL_BASE}/privacy`)} />
-      <Row label="Conditions d'utilisation" onPress={() => openExternal(`${LEGAL_BASE}/terms`)} />
-      <View style={{ paddingHorizontal: 24, paddingTop: 10 }}>
-        <Text style={styles.attribution}>Les informations sur les œuvres proviennent de :</Text>
-        <Text style={styles.attribution}>This product uses the TMDB API but is not endorsed or certified by TMDB.</Text>
-        <Text style={styles.attribution}>Metadata provided by TheTVDB. Please consider adding missing information or subscribing.</Text>
-        <Text style={styles.attribution}>Game data provided by IGDB.com.</Text>
-      </View>
+      <Section title="À propos" eyebrow="Infos">
+        <Row label="Politique de confidentialité" onPress={() => openExternal(`${LEGAL_BASE}/privacy`)} external />
+        <Row label="Conditions d'utilisation" onPress={() => openExternal(`${LEGAL_BASE}/terms`)} external />
+        <View style={styles.block}>
+          <Text style={styles.attribution}>Les informations sur les œuvres proviennent de :</Text>
+          <Text style={styles.attribution}>This product uses the TMDB API but is not endorsed or certified by TMDB.</Text>
+          <Text style={styles.attribution}>Metadata provided by TheTVDB. Please consider adding missing information or subscribing.</Text>
+          <Text style={styles.attribution}>Game data provided by IGDB.com.</Text>
+        </View>
+      </Section>
+
       <Text style={styles.version}>VERSION 1.0.0</Text>
-    </View>
+    </>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.sectionTitle}>{children}</Text>;
-}
-function Field({ label, value, blue }: { label: string; value: string; blue?: boolean }) {
+// Section : titre Prisme (eyebrow + titre) au-dessus d'une carte regroupant
+// les rangées liées, comme les blocs « Trophées » / « Activité suivie » de
+// user/[id].tsx.
+function Section({ title, eyebrow, children }: { title: string; eyebrow?: string; children: React.ReactNode }) {
   return (
-    <View style={{ paddingVertical: 12 }}>
-      <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
-      <Text style={{ fontFamily: FONTS.regular, fontSize: 14, color: blue ? COLORS.blue : COLORS.textMuted }}>{value}</Text>
+    <View style={styles.section}>
+      <SectionHeader title={title} eyebrow={eyebrow} />
+      <PrismeCard elevated style={styles.sectionCard}>{children}</PrismeCard>
     </View>
   );
 }
-function Row({ label, onPress }: { label: string; onPress?: () => void }) {
+function Field({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <Pressable style={styles.row} onPress={onPress}>
-      <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
-      <Feather name="chevron-right" size={20} color={COLORS.black} />
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={[styles.fieldValue, accent && { color: COLORS.primary, fontFamily: FONTS.semiBold }]}>{value}</Text>
+    </View>
+  );
+}
+function Row({ label, onPress, external }: { label: string; onPress?: () => void; external?: boolean }) {
+  return (
+    <Pressable style={({ pressed }) => [styles.row, pressed && onPress && styles.rowPressed]} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Feather name={external ? 'external-link' : 'chevron-right'} size={19} color={COLORS.textMuted} />
     </Pressable>
   );
 }
@@ -648,8 +681,8 @@ function ToggleRow({ label, sub, on, onToggle }: { label: string; sub?: string; 
   return (
     <View style={styles.toggleRow}>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
-        {sub ? <Text style={{ fontFamily: FONTS.regular, fontSize: 12.5, color: COLORS.textMuted, lineHeight: 17, marginTop: 2 }}>{sub}</Text> : null}
+        <Text style={styles.rowLabel}>{label}</Text>
+        {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
       </View>
       <Pressable
         onPress={() => onToggle(!on)}
@@ -663,7 +696,7 @@ function ToggleRow({ label, sub, on, onToggle }: { label: string; sub?: string; 
             style={[
               styles.knob,
               {
-                backgroundColor: v.interpolate({ inputRange: [0, 1], outputRange: ['#ffffff', '#000000'] }),
+                backgroundColor: v.interpolate({ inputRange: [0, 1], outputRange: ['#ffffff', COLORS.onAccent] }),
                 transform: [{ translateX: v.interpolate({ inputRange: [0, 1], outputRange: [0, 22] }) }],
               },
             ]}
@@ -674,9 +707,8 @@ function ToggleRow({ label, sub, on, onToggle }: { label: string; sub?: string; 
   );
 }
 function RadioRow({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
-  // Radio TV Time : anneau fin, point noir quand sélectionné.
   return (
-    <Pressable style={[styles.row, { justifyContent: 'flex-start', gap: 18 }]} onPress={onPress}>
+    <Pressable style={({ pressed }) => [styles.radioRow, pressed && styles.rowPressed]} onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={label}>
       <View style={[styles.radio, on && styles.radioSel]}>
         {on ? (
           <PopIn>
@@ -684,51 +716,57 @@ function RadioRow({ label, on, onPress }: { label: string; on: boolean; onPress:
           </PopIn>
         ) : null}
       </View>
-      <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14 }}>{label}</Text>
+      <Text style={styles.rowLabel}>{label}</Text>
     </Pressable>
   );
 }
-function Divider() {
-  return <View style={styles.divider} />;
-}
 
 const styles = StyleSheet.create({
-  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
-  tabText: { fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.5, color: COLORS.textSoft },
-  tabActive: { color: COLORS.black },
-  under: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, backgroundColor: 'transparent' },
-  underActive: { backgroundColor: COLORS.black },
-  sectionTitle: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.extraBold, paddingHorizontal: 24, paddingTop: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 11 },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 11, gap: 16 },
+  content: { paddingBottom: 0 },
+  list: { paddingTop: SPACE.xs, gap: SPACE.sm },
+  section: { gap: 0 },
+  sectionCard: { padding: SPACE.md, gap: 0 },
+  field: { paddingVertical: SPACE.sm, borderTopWidth: 1, borderTopColor: COLORS.borderLight },
+  fieldLabel: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 13 },
+  fieldValue: { fontFamily: FONTS.regular, fontSize: 15, color: COLORS.text, marginTop: 2 },
+  row: { minHeight: SIZES.touch, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.sm, paddingVertical: SPACE.sm, borderTopWidth: 1, borderTopColor: COLORS.borderLight },
+  rowPressed: { opacity: 0.6 },
+  rowLabel: { flex: 1, color: COLORS.text, fontFamily: FONTS.regular, fontSize: 15 },
+  rowSub: { fontFamily: FONTS.regular, fontSize: 12.5, color: COLORS.textMuted, lineHeight: 17, marginTop: 2 },
+  toggleRow: { minHeight: SIZES.touch, flexDirection: 'row', alignItems: 'center', paddingVertical: SPACE.sm, gap: SPACE.md, borderTopWidth: 1, borderTopColor: COLORS.borderLight },
   toggle: { width: 52, height: 30, borderRadius: 15, padding: 3 },
   knob: { width: 24, height: 24, borderRadius: 12 },
-  radio: { width: 26, height: 26, borderRadius: 13, borderWidth: 2.5, borderColor: COLORS.textMuted, alignItems: 'center', justifyContent: 'center' },
-  radioSel: { borderColor: COLORS.black },
-  radioDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: COLORS.black },
-  divider: { height: 1, backgroundColor: COLORS.borderLight, marginVertical: 12 },
-  logoutBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, marginHorizontal: 16, paddingVertical: 14, alignItems: 'center' },
+  radioRow: { minHeight: SIZES.touch, flexDirection: 'row', alignItems: 'center', gap: SPACE.md, paddingVertical: SPACE.sm, borderTopWidth: 1, borderTopColor: COLORS.borderLight },
+  radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2.5, borderColor: COLORS.textMuted, alignItems: 'center', justifyContent: 'center' },
+  radioSel: { borderColor: COLORS.primary },
+  radioDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: COLORS.primary },
+  block: { paddingVertical: SPACE.sm, borderTopWidth: 1, borderTopColor: COLORS.borderLight },
+  // Zone sensible isolée.
+  dangerCard: { gap: SPACE.sm },
+  logoutBtn: { minHeight: SIZES.touchComfortable, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACE.xs, backgroundColor: COLORS.yellow, borderRadius: RADIUS.pill, paddingVertical: SPACE.sm },
   logoutText: { color: COLORS.onAccent, fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
-  deleteText: { fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.6, color: COLORS.blue, textAlign: 'center' },
-  cacheBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingVertical: 13, alignItems: 'center' },
-  cacheText: { color: COLORS.onAccent, fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', paddingHorizontal: 24 },
-  sheet: { backgroundColor: COLORS.white, borderRadius: 16, padding: 20 },
-  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sheetTitle: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.extraBold },
-  steamHint: { fontSize: 14, fontFamily: FONTS.regular, color: COLORS.textMuted, lineHeight: 19, marginBottom: 10 },
-  mLabel: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.bold, marginTop: 14 },
-  mInput: { color: COLORS.text, borderBottomWidth: 1, borderBottomColor: COLORS.border, fontSize: 15, fontFamily: FONTS.regular, paddingVertical: 9, marginTop: 6 },
-  mBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingVertical: 12, alignItems: 'center', marginTop: 22 },
-  mBtnText: { color: COLORS.onAccent, fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
-  okMsg: { fontSize: 14, fontFamily: FONTS.bold, color: COLORS.green, textAlign: 'center', paddingVertical: 16 },
-  resetLink: { color: COLORS.blue, fontSize: 13, fontFamily: FONTS.bold, textAlign: 'center', marginTop: 16 },
-  ssoResetBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#5865F2', borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18, alignSelf: 'flex-start', marginTop: 8 },
+  deleteBtn: { minHeight: SIZES.touch, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.pill, borderWidth: 1.5, borderColor: COLORS.danger },
+  deletePressed: { backgroundColor: 'rgba(200,63,96,0.08)' },
+  deleteText: { fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.6, color: COLORS.danger, textAlign: 'center' },
+  btnPressed: { opacity: 0.86, transform: [{ scale: 0.99 }] },
+  overlay: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACE.lg },
+  sheet: { backgroundColor: COLORS.surface, borderRadius: RADIUS.sheet, padding: SPACE.lg, ...SHADOW.card },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACE.sm },
+  sheetTitle: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.extraBold },
+  hint: { fontSize: 14, fontFamily: FONTS.regular, color: COLORS.textMuted, lineHeight: 19, marginBottom: SPACE.sm },
+  mLabel: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.bold, marginTop: SPACE.sm },
+  input: { color: COLORS.text, backgroundColor: COLORS.surfaceMuted, borderWidth: 1, borderColor: COLORS.borderLight, borderRadius: RADIUS.control, fontSize: 15, fontFamily: FONTS.regular, paddingHorizontal: SPACE.sm, paddingVertical: 11, marginTop: 6 },
+  actionBtn: { minHeight: SIZES.touchComfortable, backgroundColor: COLORS.yellow, borderRadius: RADIUS.pill, paddingVertical: SPACE.sm, alignItems: 'center', justifyContent: 'center', marginTop: SPACE.md },
+  actionBtnDisabled: { opacity: 0.4 },
+  actionBtnText: { color: COLORS.onAccent, fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
+  dangerAction: { backgroundColor: COLORS.danger },
+  okMsg: { fontSize: 14, fontFamily: FONTS.bold, color: COLORS.success, textAlign: 'center', paddingVertical: SPACE.md },
+  resetLink: { color: COLORS.primary, fontSize: 13, fontFamily: FONTS.bold, textAlign: 'center', marginTop: SPACE.md },
+  ssoResetBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACE.xs, backgroundColor: '#5865F2', borderRadius: RADIUS.pill, paddingVertical: 10, paddingHorizontal: 18, alignSelf: 'flex-start', marginTop: SPACE.xs },
   ssoResetText: { color: '#fff', fontFamily: FONTS.bold, fontSize: 13 },
-  errMsg: { color: COLORS.red, fontSize: 14, fontFamily: FONTS.regular, marginTop: 12 },
-  warn: { fontSize: 15, fontFamily: FONTS.regular, color: COLORS.textMuted, lineHeight: 21, marginBottom: 8 },
-  version: { textAlign: 'center', paddingVertical: 24, fontSize: 13, fontFamily: FONTS.bold, color: COLORS.textMuted, letterSpacing: 1 },
-  themeNote: { fontSize: 13, fontFamily: FONTS.regular, color: COLORS.textMuted, paddingHorizontal: 24, paddingTop: 4, lineHeight: 18 },
+  errMsg: { color: COLORS.danger, fontSize: 14, fontFamily: FONTS.regular, marginTop: SPACE.sm },
+  warn: { fontSize: 15, fontFamily: FONTS.regular, color: COLORS.textMuted, lineHeight: 21, marginBottom: SPACE.xs },
+  version: { textAlign: 'center', paddingVertical: SPACE.lg, fontSize: 13, fontFamily: FONTS.bold, color: COLORS.textMuted, letterSpacing: 1 },
+  note: { fontSize: 13, fontFamily: FONTS.regular, color: COLORS.textMuted, paddingTop: SPACE.sm, lineHeight: 18, borderTopWidth: 1, borderTopColor: COLORS.borderLight, marginTop: 0 },
   attribution: { fontSize: 12, fontFamily: FONTS.regular, color: COLORS.textMuted, lineHeight: 17, marginBottom: 6 },
 });

@@ -4,7 +4,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, type Href } from 'expo-router';
 import { api, tmdbImage } from '@/lib/api';
-import { COLORS, FONTS } from '@/lib/theme';
+import { COLORS, FONTS, RADIUS, SPACE } from '@/lib/theme';
 import { shareMedia } from '@/lib/share';
 import { ActionRail, type RailState } from './ActionRail';
 import { DescriptionOverlay } from './DescriptionOverlay';
@@ -59,12 +59,8 @@ export function TikTokCard({
   // 30px : w300 est indiscernable et quasi instantané.
   const poster = tmdbImage(item.posterPath, 'w780') ?? tmdbImage(item.backdropPath, 'w1280');
   const bg = tmdbImage(item.backdropPath, 'w300') ?? tmdbImage(item.posterPath, 'w300');
-  const meta = [
-    item.year,
-    isGame ? 'Jeu' : item.category === 'anime' ? 'Animé' : item.type === 'show' ? 'Série' : 'Film',
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const kind = isGame ? 'Jeu' : item.category === 'anime' ? 'Animé' : item.type === 'show' ? 'Série' : 'Film';
+  const meta = item.year ? String(item.year) : 'Date à confirmer';
 
   const openFiche = async (f: FeedItem) => {
     try {
@@ -179,17 +175,22 @@ export function TikTokCard({
           ]}
           resizeMode="cover"
           blurRadius={Platform.OS === 'web' ? 0 : 30}
+          accessible={false}
         />
       ) : null}
       <View style={styles.bgDim} pointerEvents="none" />
-      {/* Affiche entière, nette, centrée — aucun rognage. */}
-      {poster ? (
-        <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} resizeMode="contain" />
-      ) : (
-        <View style={[StyleSheet.absoluteFill, styles.noImg]}>
-          <Feather name="image" size={48} color="#555" />
-        </View>
-      )}
+      <View style={styles.prismPrimary} pointerEvents="none" />
+      <View style={styles.prismSecondary} pointerEvents="none" />
+      {/* L'affiche reste entière, mais vit désormais dans un cadre Prisme distinct. */}
+      <View style={styles.artFrame} pointerEvents="none">
+        {poster ? (
+          <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} resizeMode="contain" accessible={false} />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, styles.noImg]}>
+            <Feather name="image" size={48} color="rgba(255,255,255,0.5)" />
+          </View>
+        )}
+      </View>
       {/* Scrims en DÉGRADÉ : les blocs unis créaient une bande grise à bord net
           sur les fonds clairs (limite du flou). */}
       <LinearGradient
@@ -198,7 +199,7 @@ export function TikTokCard({
         pointerEvents="none"
       />
       <LinearGradient
-        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.6)']}
+        colors={['rgba(0,0,0,0)', 'rgba(7,4,12,0.82)']}
         style={styles.scrimBottom}
         pointerEvents="none"
       />
@@ -212,34 +213,45 @@ export function TikTokCard({
             return !d;
           })
         }
+        accessibilityRole="button"
+        accessibilityLabel={`Afficher les détails de ${item.title}`}
+        accessibilityHint="Ouvre le résumé et les informations complémentaires"
+        accessibilityState={{ expanded: detail }}
       />
 
       <View style={styles.caption} pointerEvents="box-none">
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={styles.kindBadge}>
           {isGame ? (
-            <Ionicons name="game-controller" size={20} color="#fff" />
+            <Ionicons name="game-controller" size={13} color={COLORS.onPrimary} />
           ) : (
-            <Feather name={item.type === 'show' ? 'tv' : 'film'} size={20} color="#fff" />
+            <Feather name={item.type === 'show' ? 'tv' : 'film'} size={13} color={COLORS.onPrimary} />
           )}
-          <Text style={styles.title} numberOfLines={2}>
-            {item.title}
-          </Text>
+          <Text style={styles.kindText}>{kind.toLocaleUpperCase('fr-FR')}</Text>
         </View>
+
+        <Text accessibilityRole="header" style={styles.title} numberOfLines={2}>
+          {item.title}
+        </Text>
+
         <View style={styles.metaRow}>
           <Text style={styles.meta}>{meta}</Text>
           {typeof item.voteAverage === 'number' && item.voteAverage > 0 ? (
             <View style={styles.ratingPill}>
-              <Feather name="star" size={12} color={COLORS.yellow} />
+              <Feather name="star" size={12} color={COLORS.tertiary} />
               <Text style={styles.ratingText}>{item.voteAverage.toFixed(1).replace('.', ',')}</Text>
             </View>
           ) : null}
         </View>
+
         {item.overview ? (
           <Text style={styles.overview} numberOfLines={2}>
             {item.overview}
           </Text>
         ) : null}
-        <Text style={styles.hint}>Touche pour les détails</Text>
+        <View style={styles.hintRow}>
+          <Feather name="chevron-up" size={13} color="rgba(255,255,255,0.72)" />
+          <Text style={styles.hint}>Touchez pour déplier les détails</Text>
+        </View>
       </View>
 
       <ActionRail
@@ -269,18 +281,137 @@ export function TikTokCard({
 }
 
 const styles = StyleSheet.create({
-  card: { width: '100%', backgroundColor: '#0d0d12', justifyContent: 'flex-end', overflow: 'hidden' },
+  card: {
+    width: '100%',
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+    backgroundColor: '#0D0A14',
+  },
   noImg: { alignItems: 'center', justifyContent: 'center' },
-  // Assombrit le fond flouté pour faire ressortir l'affiche + le texte.
-  bgDim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
-  scrimTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 150 },
-  scrimBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 280 },
-  caption: { position: 'absolute', left: 18, right: 84, bottom: 96 },
-  title: { color: '#fff', fontSize: 24, fontFamily: FONTS.extraBold, flexShrink: 1 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
-  meta: { color: 'rgba(255,255,255,0.85)', fontFamily: FONTS.bold, fontSize: 14 },
-  ratingPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  ratingText: { color: '#fff', fontFamily: FONTS.extraBold, fontSize: 12.5 },
-  overview: { color: 'rgba(255,255,255,0.92)', fontFamily: FONTS.regular, fontSize: 15, lineHeight: 20, marginTop: 10 },
-  hint: { color: 'rgba(255,255,255,0.55)', fontFamily: FONTS.regular, fontSize: 12, marginTop: 10 },
+  bgDim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(7,4,12,0.56)',
+  },
+  prismPrimary: {
+    position: 'absolute',
+    top: 96,
+    left: -48,
+    width: 150,
+    height: 150,
+    backgroundColor: COLORS.primary,
+    borderRadius: 34,
+    opacity: 0.3,
+    transform: [{ rotate: '24deg' }],
+  },
+  prismSecondary: {
+    position: 'absolute',
+    right: -46,
+    bottom: 82,
+    width: 138,
+    height: 138,
+    backgroundColor: COLORS.secondary,
+    borderRadius: 69,
+    opacity: 0.22,
+  },
+  artFrame: {
+    position: 'absolute',
+    top: 70,
+    left: SPACE.sm,
+    right: SPACE.sm,
+    bottom: SPACE.sm,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(7,4,12,0.34)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: RADIUS.sheet,
+  },
+  scrimTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 180,
+  },
+  scrimBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 340,
+  },
+  caption: {
+    position: 'absolute',
+    left: 20,
+    right: 92,
+    bottom: 82,
+  },
+  kindBadge: {
+    minHeight: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    paddingHorizontal: 10,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
+  },
+  kindText: {
+    color: COLORS.onPrimary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10.5,
+    letterSpacing: 0.65,
+  },
+  title: {
+    flexShrink: 1,
+    marginTop: SPACE.xs,
+    color: '#FFFFFF',
+    fontSize: 25,
+    lineHeight: 30,
+    fontFamily: FONTS.extraBold,
+    textShadowColor: 'rgba(0,0,0,0.52)',
+    textShadowRadius: 8,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    marginTop: 6,
+  },
+  meta: {
+    color: 'rgba(255,255,255,0.86)',
+    fontFamily: FONTS.bold,
+    fontSize: 13.5,
+  },
+  ratingPill: {
+    minHeight: 26,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(7,4,12,0.68)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+    borderRadius: RADIUS.pill,
+  },
+  ratingText: { color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 12 },
+  overview: {
+    marginTop: SPACE.xs,
+    color: 'rgba(255,255,255,0.94)',
+    fontFamily: FONTS.regular,
+    fontSize: 14.5,
+    lineHeight: 20,
+    textShadowColor: 'rgba(0,0,0,0.58)',
+    textShadowRadius: 6,
+  },
+  hintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: SPACE.xs,
+  },
+  hint: {
+    color: 'rgba(255,255,255,0.72)',
+    fontFamily: FONTS.semiBold,
+    fontSize: 11.5,
+  },
 });

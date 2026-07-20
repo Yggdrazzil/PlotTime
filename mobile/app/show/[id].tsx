@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Image, Share, Platform, Animated, Dimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, ActivityIndicator, Image, Share, Platform, Animated, useWindowDimensions, Alert } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { goBack } from '@/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import type { EpisodeDto, MediaDto } from '@/lib/types';
 import { episodeCode } from '@/lib/format';
-import { COLORS, RADIUS, SHADOW, FONTS, STATUS_BAR, YELLOW_TRACK } from '@/lib/theme';
+import { COLORS, RADIUS, SHADOW, FONTS, STATUS_BAR, YELLOW_TRACK, SIZES, SPACE } from '@/lib/theme';
 import { TopTabs, CheckCircle, Loading, LoadError, EmptyState } from '@/components/ui';
 import { AnimatedFill, Pop, SlideUpBar, FadeSwitch, PressableScale } from '@/components/anim';
 import { Stars } from '@/components/Stars';
@@ -18,6 +19,7 @@ import { EpisodeSheet, type EpisodeSheetTarget } from '@/components/EpisodeSheet
 import { genresFr, statusFr, airDayFr, compactCount } from '@/lib/frMedia';
 import { FicheSkeleton } from '@/components/FicheSkeleton';
 import { ReportModal } from '@/components/ReportModal';
+import { useReduceMotion } from '@/lib/useReduceMotion';
 
 const INTEREST = ['LES ACTEURS', 'LA PRÉMISSE', 'LES CRÉATEURS', 'LA CHAÎNE/LA PLATEFORME', "LA FRANCHISE OU L'UNIVERS", 'AUTRE'];
 const STATUS_LABELS: Record<string, string> = {
@@ -30,6 +32,8 @@ export default function ShowDetail() {
   const isMovie = type === 'movie';
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const reduceMotion = useReduceMotion();
   const qc = useQueryClient();
   const [tab, setTab] = useState('À PROPOS');
   const [menu, setMenu] = useState(false);
@@ -40,12 +44,19 @@ export default function ShowDetail() {
   const [artwork, setArtwork] = useState<'poster' | 'banner' | null>(null);
   const [listsOpen, setListsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Bandeau jaune éphémère en bas d'écran (façon « AJOUTÉE ! » de TV Time).
   const showToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 2000);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2000);
   };
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    if (addedTimer.current) clearTimeout(addedTimer.current);
+  }, []);
 
   const detail = useQuery({
     queryKey: [isMovie ? 'movie' : 'show', id],
@@ -92,35 +103,34 @@ export default function ShowDetail() {
   };
 
   const favorite = useMutation({
-    mutationFn: () => api.post(`/api/${isMovie ? 'movies' : 'shows'}/${id}/favorite`),
+    mutationFn: () => api.post('/api/' + (isMovie ? 'movies' : 'shows') + '/' + id + '/favorite'),
     onMutate: () => patchMedia({ isFavorite: !detail.data?.media?.isFavorite }),
-    onError: (_e, _v, ctx) => rollback(ctx),
+    onError: (_e, _v, ctx) => { rollback(ctx); showToast('Modification impossible. Réessaie.'); },
     onSettled: refresh,
   });
   const markMovie = useMutation({
-    mutationFn: (seen: boolean) => api.post(`/api/movies/${id}/${seen ? 'watched' : 'unwatched'}`),
+    mutationFn: (seen: boolean) => api.post('/api/movies/' + id + '/' + (seen ? 'watched' : 'unwatched')),
     onMutate: (seen: boolean) => patchMedia({ userStatus: seen ? 'completed' : 'watchlist' }),
-    onError: (_e, _v, ctx) => rollback(ctx),
+    onError: (_e, _v, ctx) => { rollback(ctx); showToast('Modification impossible. Réessaie.'); },
     onSettled: refresh,
   });
   // Suivre (façon TV Time) : série -> statut « Pas commencé », film -> watchlist.
   const follow = useMutation({
-    mutationFn: () => api.post(isMovie ? `/api/movies/${id}/watchlist` : `/api/shows/${id}/follow`),
-    onMutate: async () => {
+    mutationFn: () => api.post(isMovie ? '/api/movies/' + id + '/watchlist' : '/api/shows/' + id + '/follow'),
+    onMutate: () => patchMedia({ userStatus: isMovie ? 'watchlist' : 'not_started' }),
+    onSuccess: () => {
       setJustAdded(true);
-      setTimeout(() => setJustAdded(false), 2000);
-      return patchMedia({ userStatus: isMovie ? 'watchlist' : 'not_started' });
+      if (addedTimer.current) clearTimeout(addedTimer.current);
+      addedTimer.current = setTimeout(() => setJustAdded(false), 2000);
     },
-    onError: (_e, _v, ctx) => rollback(ctx),
+    onError: (_e, _v, ctx) => { rollback(ctx); showToast('Ajout impossible. Réessaie.'); },
     onSettled: refresh,
   });
   const watchLater = useMutation({
-    mutationFn: () => api.post(isMovie ? `/api/movies/${id}/watchlist` : `/api/shows/${id}/watchlater`),
-    onMutate: async () => {
-      showToast('Regarder plus tard');
-      return patchMedia({ userStatus: 'watchlist' });
-    },
-    onError: (_e, _v, ctx) => rollback(ctx),
+    mutationFn: () => api.post(isMovie ? '/api/movies/' + id + '/watchlist' : '/api/shows/' + id + '/watchlater'),
+    onMutate: () => patchMedia({ userStatus: 'watchlist' }),
+    onSuccess: () => showToast('Regarder plus tard'),
+    onError: (_e, _v, ctx) => { rollback(ctx); showToast('Modification impossible. Réessaie.'); },
     onSettled: refresh,
   });
   // « Arrêter de regarder » (série commencée) : statut « Arrêtée », la série
@@ -128,23 +138,20 @@ export default function ShowDetail() {
   // « À venir ». Le statut est volontairement collant : cocher un épisode ne
   // la fait PAS repasser « En cours » (cf. recalculateShowStatus côté serveur).
   const abandon = useMutation({
-    mutationFn: () => api.post(`/api/shows/${id}/abandon`),
-    onMutate: async () => {
-      showToast('Série arrêtée');
-      return patchMedia({ userStatus: 'abandoned' });
-    },
-    onError: (_e, _v, ctx) => rollback(ctx),
+    mutationFn: () => api.post('/api/shows/' + id + '/abandon'),
+    onMutate: () => patchMedia({ userStatus: 'abandoned' }),
+    onSuccess: () => showToast('Série arrêtée'),
+    onError: (_e, _v, ctx) => { rollback(ctx); showToast('Modification impossible. Réessaie.'); },
     onSettled: refresh,
   });
   const removeTracking = useMutation({
-    mutationFn: () => api.del(`/api/${isMovie ? 'movies' : 'shows'}/${id}/tracking`),
-    onMutate: async () => {
-      showToast(isMovie ? 'Film supprimé' : 'Série supprimée');
-      return patchMedia({ userStatus: null, isFavorite: false });
-    },
-    onError: (_e, _v, ctx) => rollback(ctx),
+    mutationFn: () => api.del('/api/' + (isMovie ? 'movies' : 'shows') + '/' + id + '/tracking'),
+    onMutate: () => patchMedia({ userStatus: null, isFavorite: false }),
+    onSuccess: () => showToast(isMovie ? 'Film supprimé' : 'Série supprimée'),
+    onError: (_e, _v, ctx) => { rollback(ctx); showToast('Suppression impossible. Réessaie.'); },
     onSettled: refresh,
   });
+  const trackingBusy = favorite.isPending || markMovie.isPending || follow.isPending || watchLater.isPending || abandon.isPending || removeTracking.isPending;
   const share = () => {
     const message = `Regarde « ${detail.data?.media?.title} » — suivi avec PlotTime 📺`;
     const url = typeof window !== 'undefined' ? window.location.href : undefined;
@@ -163,7 +170,7 @@ export default function ShowDetail() {
   };
 
   // Signalement : envoie l'œuvre à l'équipe de modération (tri manuel).
-  // Échec silencieux — toast neutre dans tous les cas.
+  // Le succès n’est affiché qu’après confirmation du serveur.
   const submitReport = async () => {
     setReportOpen(false);
     const m: MediaDto | undefined = detail.data?.media;
@@ -176,22 +183,23 @@ export default function ShowDetail() {
         title: m.title,
         reason: 'adult',
       });
+      showToast('Merci, signalement envoyé 👍');
     } catch {
-      // Erreur silencieuse : on remercie quand même (pas de fuite d'état serveur).
+      showToast('Signalement impossible. Réessaie.');
     }
-    showToast('Merci, signalement envoyé 👍');
   };
 
   // En-tête repliable façon TV Time : la bannière se réduit en barre compacte
   // (titre centré) à mesure que le contenu défile, quel que soit l'onglet.
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  if (detail.isLoading) return <FicheSkeleton heroHeight={240} />;
-  if (!detail.data) return <LoadError onRetry={detail.refetch} busy={detail.isRefetching} />;
+  const responsiveHeroHeight = width >= 700 ? 300 : width < 380 ? 236 : 260;
+  if (detail.isLoading) return <FicheSkeleton heroHeight={responsiveHeroHeight} />;
+  if (!detail.data) return <View style={styles.fullState}><LoadError onRetry={detail.refetch} busy={detail.isRefetching} /></View>;
   const media: MediaDto = detail.data.media;
   const isFollowed = media.userStatus != null;
-  const HERO_MAX = 240;
-  const HERO_MIN = insets.top + 54;
+  const HERO_MAX = responsiveHeroHeight;
+  const HERO_MIN = insets.top + 60;
   // Plage de repli = exactement la hauteur perdue par l'en-tête : le bord bas
   // de l'en-tête en surimpression suit alors le contenu au pixel près (aucun
   // écart pendant le repli, cf. structure « overlay » plus bas).
@@ -231,7 +239,8 @@ export default function ShowDetail() {
   })();
 
   return (
-    <Pop style={{ backgroundColor: COLORS.white }}>
+    <Pop style={styles.screen}>
+      <View style={styles.canvas}>
       {/* Contenu EN FLUX : il défile sous l'en-tête en surimpression (padding
           haut constant = place de l'en-tête déployé + onglets). */}
       {isMovie ? (
@@ -239,7 +248,8 @@ export default function ShowDetail() {
           media={media}
           detail={detail.data}
           mediaId={String(id)}
-          onToggle={() => markMovie.mutate(media.userStatus !== 'completed')}
+          onToggle={trackingBusy ? undefined : () => markMovie.mutate(media.userStatus !== 'completed')}
+          disabled={trackingBusy}
           onScroll={onScroll}
           topPad={topPad}
         />
@@ -259,40 +269,71 @@ export default function ShowDetail() {
       <View style={styles.headerOverlay}>
       <Animated.View style={[styles.hero, { height: heroH }]}>
         {(() => {
-          const heroUri = tmdbImage(media.backdropPath, 'w780') ?? tmdbImage(media.posterPath, 'w500');
-          return heroUri ? (
-            <>
-              <Image source={{ uri: heroUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-              <View style={styles.heroShade} />
-            </>
-          ) : null;
+          const heroUri = tmdbImage(media.backdropPath, 'w1280') ?? tmdbImage(media.posterPath, 'w780');
+          return heroUri ? <Image source={{ uri: heroUri }} style={StyleSheet.absoluteFill} resizeMode="cover" accessible={false} /> : null;
         })()}
+        <LinearGradient
+          colors={['rgba(9,5,16,0.22)', 'rgba(9,5,16,0.48)', 'rgba(9,5,16,0.94)']}
+          locations={[0, 0.44, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        <View style={styles.heroPrism} pointerEvents="none" />
+        <View style={styles.heroOrb} pointerEvents="none" />
         <View style={[styles.heroBtns, { top: insets.top + 4 }]}>
-          <Pressable onPress={() => goBack('/')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retour">
-            <Feather name="chevron-down" size={30} color="#fff" />
+          <Pressable
+            style={({ pressed }) => [styles.heroIconButton, pressed && styles.pressed]}
+            onPress={() => goBack('/')}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+          >
+            <Feather name="chevron-down" size={25} color="#fff" />
           </Pressable>
-          <Pressable onPress={() => setMenu(true)} hitSlop={8} accessibilityLabel="Options">
-            <Feather name="more-horizontal" size={28} color="#fff" />
+          <Pressable
+            style={({ pressed }) => [styles.heroIconButton, pressed && styles.pressed]}
+            onPress={() => setMenu(true)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Options"
+            accessibilityHint="Ouvre les actions de personnalisation et de suivi"
+          >
+            <Feather name="more-horizontal" size={24} color="#fff" />
           </Pressable>
         </View>
         {/* Titre compact centré, visible quand l'en-tête est replié. */}
         <Animated.Text
           style={[styles.heroCollapsedTitle, { top: insets.top + 12, opacity: smallOpacity }]}
           numberOfLines={1}
+          accessible={false}
         >
           {media.title}
         </Animated.Text>
         <Animated.View style={[styles.heroTitleWrap, { opacity: bigOpacity }]}>
-          <Text style={styles.heroTitle}>{media.title}</Text>
-          <Text style={styles.heroSub}>
-            {isMovie
-              ? [media.year, genresFr(media.genres)].filter(Boolean).join(' • ')
-              : [
-                  detail.data.show?.numberOfSeasons ? `${detail.data.show.numberOfSeasons} saison${detail.data.show.numberOfSeasons > 1 ? 's' : ''}` : null,
-                  statusFr(media.status),
-                  detail.data.show?.platform ?? detail.data.show?.network,
-                ].filter(Boolean).join(' • ')}
-          </Text>
+          {tmdbImage(media.posterPath, 'w342') ? (
+            <Image
+              source={{ uri: tmdbImage(media.posterPath, 'w342')! }}
+              style={styles.heroPoster}
+              resizeMode="cover"
+              accessible={false}
+            />
+          ) : null}
+          <View style={styles.heroCopy}>
+            <View style={styles.heroKindBadge}>
+              <Feather name={isMovie ? 'film' : 'tv'} size={12} color={COLORS.onAccent} />
+              <Text style={styles.heroKindText}>{isMovie ? 'FILM' : 'SÉRIE'}</Text>
+            </View>
+            <Text accessibilityRole="header" style={styles.heroTitle} numberOfLines={2}>{media.title}</Text>
+            <Text style={styles.heroSub} numberOfLines={2}>
+              {isMovie
+                ? [media.year, genresFr(media.genres)].filter(Boolean).join(' • ')
+                : [
+                    detail.data.show?.numberOfSeasons ? `${detail.data.show.numberOfSeasons} saison${detail.data.show.numberOfSeasons > 1 ? 's' : ''}` : null,
+                    statusFr(media.status),
+                    detail.data.show?.platform ?? detail.data.show?.network,
+                  ].filter(Boolean).join(' • ')}
+            </Text>
+          </View>
         </Animated.View>
         {/* Progression globale au bas de la bannière, colorée par statut. */}
         {heroProg ? (
@@ -308,9 +349,12 @@ export default function ShowDetail() {
       {/* Barre du bas façon TV Time : + AJOUTER, puis ✓ AJOUTÉE ! pendant 2 s. */}
       {!isFollowed && !justAdded && !toast ? (
         <Pressable
-          style={[styles.addBar, { paddingBottom: insets.bottom + 16 }]}
-          onPress={() => follow.mutate()}
-          disabled={follow.isPending}
+          style={({ pressed }) => [styles.addBar, { bottom: insets.bottom + SPACE.sm }, pressed && styles.addBarPressed]}
+          onPress={trackingBusy ? undefined : () => follow.mutate()}
+          disabled={trackingBusy}
+          accessibilityRole="button"
+          accessibilityLabel={isMovie ? 'Ajouter le film à la bibliothèque' : 'Ajouter la série à la bibliothèque'}
+          accessibilityState={{ busy: trackingBusy, disabled: trackingBusy }}
         >
           {follow.isPending ? (
             <ActivityIndicator color={COLORS.onAccent} />
@@ -322,19 +366,30 @@ export default function ShowDetail() {
           )}
         </Pressable>
       ) : null}
-      <SlideUpBar visible={!!(justAdded || toast)} style={[styles.addBar, { paddingBottom: insets.bottom + 16 }]}>
-        <View style={styles.addBarRow}>
+      <SlideUpBar
+        visible={!!(justAdded || toast)}
+        style={[styles.addBar, { bottom: insets.bottom + SPACE.sm }]}
+      >
+        <View style={styles.addBarRow} accessibilityLiveRegion="polite">
           <Feather name="check" size={24} color={COLORS.onAccent} />
           <Text style={styles.addBarText}>{toast ?? (isMovie ? 'AJOUTÉ !' : 'AJOUTÉE !')}</Text>
         </View>
       </SlideUpBar>
+      </View>
 
-      <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
-        <Pressable style={styles.overlay} onPress={() => setMenu(false)} />
+      <Modal visible={menu} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={() => setMenu(false)}>
+        <Pressable
+          style={styles.overlay}
+          onPress={() => setMenu(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Fermer les options"
+        />
         {/* Carte flottante compacte (cotes TV Time) : rangées ~48dp, police 17.
             Films : pas de rangée de statut ni de « Regarder plus tard » (parité
             TV Time) ; séries commencées : « Arrêter de regarder ». */}
-        <View style={[styles.sheet, { bottom: insets.bottom + 8 }]}>
+        <View style={[styles.sheetWrap, { paddingBottom: insets.bottom + SPACE.xs }]} pointerEvents="box-none">
+        <View style={styles.sheet} accessibilityViewIsModal onAccessibilityEscape={() => setMenu(false)}>
+          <View style={styles.sheetHandle} />
           {!isMovie ? (
             <View style={styles.statusRow}>
               <Text style={styles.statusText}>{STATUS_LABELS[media.userStatus ?? 'not_started']}</Text>
@@ -346,26 +401,29 @@ export default function ShowDetail() {
             color={media.isFavorite ? COLORS.red : COLORS.black}
             label={media.isFavorite ? 'Retirer des favoris' : 'Favoris'}
             onPress={() => { favorite.mutate(); setMenu(false); }}
+            disabled={trackingBusy}
           />
           <SheetItem icon="plus-square" label="Ajouter à une liste" onPress={() => { setMenu(false); setListsOpen(true); }} />
           {!isMovie ? (
-            <SheetItem icon="clock" label="Regarder plus tard" onPress={() => { setMenu(false); watchLater.mutate(); }} />
+            <SheetItem icon="clock" label="Regarder plus tard" onPress={() => { setMenu(false); watchLater.mutate(); }} disabled={trackingBusy} />
           ) : null}
           {/* « Terminée » incluse : une série finie dont une nouvelle saison sort
               revient dans « À voir » — on doit pouvoir l'arrêter sans la
               supprimer (l'historique de visionnage est conservé). */}
           {!isMovie && (media.userStatus === 'watching' || media.userStatus === 'paused' || media.userStatus === 'completed') ? (
-            <SheetItem icon="x-circle" label="Arrêter de regarder" onPress={() => { setMenu(false); abandon.mutate(); }} />
+            <SheetItem icon="x-circle" label="Arrêter de regarder" onPress={() => { setMenu(false); abandon.mutate(); }} disabled={trackingBusy} />
           ) : null}
           {isFollowed ? (
             <SheetItem
               icon="minus-square"
               label={isMovie ? 'Supprimer le film' : 'Supprimer la série'}
               onPress={() => { setMenu(false); removeTracking.mutate(); }}
+              disabled={trackingBusy}
             />
           ) : null}
           <SheetItem icon="share-2" label="Partager" onPress={() => { setMenu(false); share(); }} />
           <SheetItem icon="flag" label="Signaler" onPress={() => { setMenu(false); setReportOpen(true); }} last />
+        </View>
         </View>
       </Modal>
 
@@ -393,11 +451,21 @@ export default function ShowDetail() {
   );
 }
 
-function SheetItem({ icon, label, onPress, color, last }: { icon: keyof typeof Feather.glyphMap; label: string; onPress: () => void; color?: string; last?: boolean }) {
+function SheetItem({ icon, label, onPress, color, last, disabled }: { icon: keyof typeof Feather.glyphMap; label: string; onPress: () => void; color?: string; last?: boolean; disabled?: boolean }) {
   return (
-    <Pressable style={[styles.sheetItem, last && { borderBottomWidth: 0 }]} onPress={onPress}>
-      <Feather name={icon} size={20} color={color ?? COLORS.black} />
-      <Text style={styles.sheetLabel}>{label}</Text>
+    <Pressable
+      style={({ pressed }) => [styles.sheetItem, last && { borderBottomWidth: 0 }, disabled && pstyles.disabled, pressed && !disabled && styles.sheetItemPressed]}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled, busy: !!disabled }}
+    >
+      <View style={styles.sheetItemIcon}>
+        <Feather name={icon} size={19} color={color ?? COLORS.primary} />
+      </View>
+      <Text style={styles.sheetLabel} numberOfLines={1}>{label}</Text>
+      <Feather name="chevron-right" size={18} color={COLORS.textSoft} />
     </Pressable>
   );
 }
@@ -414,17 +482,22 @@ function PersonalizeMenu({
   onPick: (mode: 'poster' | 'banner') => void;
 }) {
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReduceMotion();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose} />
-      <View style={[styles.sheet, { bottom: insets.bottom + 8 }]}>
-        <Text style={pstyles.menuHeader}>Personnaliser</Text>
-        <Pressable style={pstyles.menuItem} onPress={() => onPick('poster')}>
-          <Text style={pstyles.menuItemText}>Modifier l&apos;affiche</Text>
-        </Pressable>
-        <Pressable style={pstyles.menuItem} onPress={() => onPick('banner')}>
-          <Text style={pstyles.menuItemText}>Changer la bannière</Text>
-        </Pressable>
+    <Modal visible={visible} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onClose}>
+      <Pressable
+        style={styles.overlay}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Fermer la personnalisation"
+      />
+      <View style={[styles.sheetWrap, { paddingBottom: insets.bottom + SPACE.xs }]} pointerEvents="box-none">
+        <View style={styles.sheet} accessibilityViewIsModal onAccessibilityEscape={onClose}>
+          <View style={styles.sheetHandle} />
+          <Text accessibilityRole="header" style={pstyles.menuHeader}>Personnaliser l’affichage</Text>
+          <SheetItem icon="image" label="Modifier l’affiche" onPress={() => onPick('poster')} />
+          <SheetItem icon="maximize" label="Changer la bannière" onPress={() => onPick('banner')} last />
+        </View>
       </View>
     </Modal>
   );
@@ -447,7 +520,11 @@ function ArtworkPicker({
   onApplied: (what: 'poster' | 'banner') => void;
 }) {
   const base = isMovie ? 'movies' : 'shows';
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const reduceMotion = useReduceMotion();
   const [busyUri, setBusyUri] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
   const images = useQuery({
     queryKey: ['media-images', base, mediaId],
     queryFn: () =>
@@ -460,28 +537,46 @@ function ArtworkPicker({
   const apply = async (uri: string) => {
     if (busyUri || !mode) return;
     setBusyUri(uri);
+    setApplyError(null);
     try {
-      if (mode === 'poster') await api.post(`/api/${base}/${mediaId}/poster`, { posterPath: uri });
-      else await api.post(`/api/${base}/${mediaId}/banner`, { backdropPath: uri });
-      images.refetch();
+      if (mode === 'poster') await api.post('/api/' + base + '/' + mediaId + '/poster', { posterPath: uri });
+      else await api.post('/api/' + base + '/' + mediaId + '/banner', { backdropPath: uri });
+      void images.refetch();
       onApplied(mode);
+    } catch {
+      setApplyError("L'image n'a pas pu être enregistrée. Réessaie.");
     } finally {
       setBusyUri(null);
     }
   };
-
   const isPoster = mode === 'poster';
   const list = (isPoster ? images.data?.posters : images.data?.backdrops) ?? [];
   const selectedUri = isPoster ? images.data?.selectedPoster : images.data?.selectedBackdrop;
+  const posterColumns = width >= 620 ? 3 : 2;
+  const galleryWidth = Math.min(width, SIZES.contentMax) - SPACE.md * 2;
+  const posterWidth = Math.max(112, (galleryWidth - SPACE.sm * (posterColumns - 1)) / posterColumns);
 
   const cell = (uri: string) => {
     const selected = uri === selectedUri;
     return (
-      <Pressable key={uri} style={isPoster ? pstyles.posterWrap : pstyles.bannerWrap} onPress={() => apply(uri)}>
+      <Pressable
+        key={uri}
+        style={({ pressed }) => [
+          isPoster ? pstyles.posterWrap : pstyles.bannerWrap,
+          isPoster && { width: posterWidth },
+          pressed && pstyles.imagePressed,
+        ]}
+        onPress={() => apply(uri)}
+        disabled={busyUri !== null}
+        accessibilityRole="button"
+        accessibilityLabel={selected ? 'Image actuellement sélectionnée' : 'Sélectionner cette image'}
+        accessibilityState={{ selected, busy: busyUri === uri, disabled: busyUri !== null }}
+      >
         <Image
           source={{ uri: tmdbImage(uri, isPoster ? 'w342' : 'w500') ?? uri }}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
+          accessible={false}
         />
         {selected ? (
           <View style={pstyles.selectedShade}>
@@ -501,26 +596,35 @@ function ArtworkPicker({
   };
 
   return (
-    <Modal visible={mode !== null} animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: COLORS.white }}>
-        <View style={pstyles.header}>
-          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Fermer">
-            <Feather name="arrow-left" size={24} color={COLORS.black} />
+    <Modal visible={mode !== null} animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose}>
+      <View style={pstyles.artworkScreen}>
+      <View style={pstyles.artworkCanvas} accessibilityViewIsModal onAccessibilityEscape={onClose}>
+        <View style={[pstyles.header, { paddingTop: insets.top + SPACE.xs }]}>
+          <Pressable style={({ pressed }) => [pstyles.headerButton, pressed && pstyles.imagePressed]} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Fermer">
+            <Feather name="arrow-left" size={22} color={COLORS.text} />
           </Pressable>
-          <Text style={pstyles.title}>{isPoster ? "Modifier l'affiche" : 'Changer la bannière'}</Text>
-          <View style={{ width: 24 }} />
+          <Text accessibilityRole="header" style={pstyles.title}>{isPoster ? "Modifier l'affiche" : 'Changer la bannière'}</Text>
+          <View style={{ width: SIZES.touch }} />
         </View>
+        {applyError ? (
+          <Text style={pstyles.inlineError} accessibilityRole="alert" accessibilityLiveRegion="polite">
+            {applyError}
+          </Text>
+        ) : null}
         {images.isLoading ? (
           <Loading />
+        ) : images.isError && !images.data ? (
+          <LoadError onRetry={() => void images.refetch()} busy={images.isRefetching} />
         ) : list.length === 0 ? (
           <Text style={pstyles.emptyNote}>
             {isPoster ? 'Aucune affiche disponible.' : isMovie ? 'Aucune bannière disponible pour ce film.' : 'Aucune bannière disponible pour cette série.'}
           </Text>
         ) : (
-          <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 40 }}>
+          <ScrollView contentContainerStyle={pstyles.galleryContent} showsVerticalScrollIndicator={false}>
             <View style={isPoster ? pstyles.grid : pstyles.bannerList}>{list.map(cell)}</View>
           </ScrollView>
         )}
+      </View>
       </View>
     </Modal>
   );
@@ -539,10 +643,12 @@ function ListsSheet({
   onChanged: (added: boolean, title: string) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReduceMotion();
   const qc = useQueryClient();
   const [newTitle, setNewTitle] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   type PickerList = { id: string; title: string; itemCount: number; containsMediaId?: boolean };
   const pickerKey = ['lists', 'picker', mediaId];
   const lists = useQuery({
@@ -560,66 +666,95 @@ function ListsSheet({
   // Coche/décoche OPTIMISTE : la case et le compteur bougent immédiatement,
   // rollback si le serveur refuse.
   const toggle = async (l: PickerList) => {
-    if (busyId) return;
+    if (busyId || creating) return;
     setBusyId(l.id);
+    setActionError(null);
     const added = !l.containsMediaId;
     const prev = qc.getQueryData<{ lists: PickerList[] }>(pickerKey);
     qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (d) =>
       d ? { lists: d.lists.map((x) => (x.id === l.id ? { ...x, containsMediaId: added, itemCount: Math.max(0, x.itemCount + (added ? 1 : -1)) } : x)) } : d,
     );
-    onChanged(added, l.title);
     try {
-      if (added) await api.post(`/api/lists/${l.id}/items`, { mediaId });
-      else await api.del(`/api/lists/${l.id}/items/${mediaId}`);
+      if (added) await api.post('/api/lists/' + l.id + '/items', { mediaId });
+      else await api.del('/api/lists/' + l.id + '/items/' + mediaId);
       syncOthers();
+      onChanged(added, l.title);
     } catch {
       if (prev) qc.setQueryData(pickerKey, prev);
+      setActionError("La liste n'a pas pu être modifiée. Réessaie.");
     } finally {
       setBusyId(null);
     }
   };
-
   // Création OPTIMISTE : la liste apparaît tout de suite (cochée), le serveur
   // confirme derrière ; le profil est invalidé pour afficher la nouvelle liste.
   const create = async () => {
     const title = newTitle.trim();
-    if (!title || creating) return;
+    if (!title || creating || busyId) return;
     setCreating(true);
+    setActionError(null);
     setNewTitle('');
     const prev = qc.getQueryData<{ lists: PickerList[] }>(pickerKey);
-    const tempId = `tmp-${title}`;
+    const tempId = 'tmp-' + title;
     qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (d) =>
       d ? { lists: [...d.lists, { id: tempId, title, itemCount: 1, containsMediaId: true }] } : d,
     );
-    onChanged(true, title);
     try {
       const res = await api.post<{ id: string }>('/api/lists', { title });
-      await api.post(`/api/lists/${res.id}/items`, { mediaId });
       qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (d) =>
         d ? { lists: d.lists.map((x) => (x.id === tempId ? { ...x, id: res.id } : x)) } : d,
       );
+      try {
+        await api.post('/api/lists/' + res.id + '/items', { mediaId });
+        onChanged(true, title);
+      } catch {
+        qc.setQueryData<{ lists: PickerList[] }>(pickerKey, (d) =>
+          d ? { lists: d.lists.map((x) => (x.id === res.id ? { ...x, itemCount: 0, containsMediaId: false } : x)) } : d,
+        );
+        setActionError("La liste a été créée, mais l'œuvre n'a pas été ajoutée. Coche la liste pour réessayer.");
+      }
       syncOthers();
     } catch {
       if (prev) qc.setQueryData(pickerKey, prev);
+      setNewTitle(title);
+      setActionError("La liste n'a pas pu être créée. Réessaie.");
     } finally {
       setCreating(false);
     }
   };
-
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose} />
-      <View style={[styles.sheet, { maxHeight: '70%', bottom: insets.bottom + 8 }]}>
+    <Modal visible={visible} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onClose}>
+      <Pressable
+        style={styles.overlay}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Fermer les listes"
+      />
+      <View style={[styles.sheetWrap, { paddingBottom: insets.bottom + SPACE.xs }]} pointerEvents="box-none">
+      <View style={[styles.sheet, styles.listsSheet]} accessibilityViewIsModal onAccessibilityEscape={onClose}>
+        <View style={styles.sheetHandle} />
         <View style={styles.statusRow}>
-          <Text style={styles.statusText}>Ajouter à une liste</Text>
+          <Text accessibilityRole="header" style={styles.statusText}>Ajouter à une liste</Text>
         </View>
         <ScrollView keyboardShouldPersistTaps="handled">
           {lists.isLoading ? (
             <Loading />
+          ) : lists.isError && !lists.data ? (
+            <LoadError onRetry={() => void lists.refetch()} busy={lists.isRefetching} />
+          ) : (lists.data?.lists ?? []).length === 0 ? (
+            <EmptyState title="Aucune liste" message="Créez votre première liste ci-dessous." />
           ) : (
             (lists.data?.lists ?? []).map((l) => (
-              <Pressable key={l.id} style={styles.sheetItem} onPress={() => toggle(l)}>
-                <Feather name={l.containsMediaId ? 'check-square' : 'square'} size={22} color={l.containsMediaId ? '#1a9c4b' : COLORS.black} />
+              <Pressable
+                key={l.id}
+                style={({ pressed }) => [styles.sheetItem, pressed && styles.sheetItemPressed]}
+                onPress={() => toggle(l)}
+                disabled={busyId !== null || creating}
+                accessibilityRole="checkbox"
+                accessibilityLabel={l.title}
+                accessibilityState={{ checked: !!l.containsMediaId, busy: busyId === l.id, disabled: busyId !== null || creating }}
+              >
+                <Feather name={l.containsMediaId ? 'check-square' : 'square'} size={22} color={l.containsMediaId ? COLORS.success : COLORS.textMuted} />
                 <Text style={styles.sheetLabel} numberOfLines={1}>
                   {l.title}
                 </Text>
@@ -629,50 +764,189 @@ function ListsSheet({
               </Pressable>
             ))
           )}
+          {actionError ? (
+            <Text style={pstyles.inlineError} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              {actionError}
+            </Text>
+          ) : null}
           <View style={pstyles.newListRow}>
             <TextInput
               style={pstyles.newListInput}
               placeholder="Nouvelle liste…"
               placeholderTextColor={COLORS.textSoft}
               value={newTitle}
-              onChangeText={setNewTitle}
+              onChangeText={(value) => { setNewTitle(value); if (actionError) setActionError(null); }}
+              maxLength={120}
               onSubmitEditing={create}
+              returnKeyType="done"
+              accessibilityLabel="Nom de la nouvelle liste"
             />
-            <Pressable style={[pstyles.newListBtn, (!newTitle.trim() || creating) && { opacity: 0.4 }]} onPress={create} disabled={!newTitle.trim() || creating}>
+            <Pressable
+              style={({ pressed }) => [pstyles.newListBtn, (!newTitle.trim() || creating || busyId !== null) && pstyles.disabled, pressed && pstyles.imagePressed]}
+              onPress={create}
+              disabled={!newTitle.trim() || creating || busyId !== null}
+              accessibilityRole="button"
+              accessibilityLabel="Créer la liste"
+              accessibilityState={{ busy: creating, disabled: !newTitle.trim() || creating || busyId !== null }}
+            >
               {creating ? <ActivityIndicator color={COLORS.black} size="small" /> : <Text style={pstyles.newListBtnText}>CRÉER</Text>}
             </Pressable>
           </View>
         </ScrollView>
+      </View>
       </View>
     </Modal>
   );
 }
 
 const pstyles = StyleSheet.create({
-  // Mesures TV Time (réf. 38-40) : entête « Personnaliser » 15 regular,
-  // options 17 semiBold, grille d'affiches 2 colonnes, sélection assombrie.
-  menuHeader: { fontSize: 15, fontFamily: FONTS.regular, color: COLORS.textMuted, paddingHorizontal: 22, paddingTop: 20, paddingBottom: 8 },
-  menuItem: { paddingHorizontal: 22, paddingVertical: 13 },
-  menuItemText: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.regular },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16,
-    paddingTop: 54, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border,
+  artworkScreen: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: COLORS.bg,
   },
-  title: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.bold },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  posterWrap: { width: '48.3%', aspectRatio: 2 / 3, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder },
-  bannerList: { gap: 12 },
-  bannerWrap: { width: '100%', aspectRatio: 16 / 9, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder },
-  selectedShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  selectedRow: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 14 },
+  artworkCanvas: {
+    flex: 1,
+    width: '100%',
+    maxWidth: SIZES.contentMax,
+    backgroundColor: COLORS.white,
+  },
+  header: {
+    minHeight: SIZES.header,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACE.md,
+    paddingBottom: SPACE.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.white,
+  },
+  headerButton: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    borderRadius: RADIUS.control,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  title: {
+    flex: 1,
+    marginHorizontal: SPACE.sm,
+    color: COLORS.text,
+    fontSize: 18,
+    fontFamily: FONTS.extraBold,
+    textAlign: 'center',
+  },
+  galleryContent: {
+    padding: SPACE.md,
+    paddingBottom: SPACE.xxl,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACE.sm,
+  },
+  posterWrap: {
+    aspectRatio: 2 / 3,
+    borderRadius: RADIUS.poster,
+    overflow: 'hidden',
+    backgroundColor: COLORS.imagePlaceholder,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    ...SHADOW.card,
+  },
+  bannerList: { gap: SPACE.sm },
+  bannerWrap: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: RADIUS.poster,
+    overflow: 'hidden',
+    backgroundColor: COLORS.imagePlaceholder,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    ...SHADOW.card,
+  },
+  selectedShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(9,5,16,0.64)',
+    justifyContent: 'flex-end',
+  },
+  selectedRow: {
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    paddingHorizontal: SPACE.sm,
+  },
   selectedStar: { color: COLORS.yellow, fontSize: 19, lineHeight: 22 },
-  selectedText: { color: COLORS.white, fontSize: 16, fontFamily: FONTS.semiBold },
-  busy: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
-  emptyNote: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15, padding: 20 },
-  listCount: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 15 },
-  newListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 24, paddingVertical: 16 },
-  newListInput: { color: COLORS.text, flex: 1, borderBottomWidth: 1, borderBottomColor: COLORS.border, fontFamily: FONTS.regular, fontSize: 16, paddingVertical: 8 },
-  newListBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
+  selectedText: { color: '#FFFFFF', fontSize: 15, fontFamily: FONTS.bold },
+  busy: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(9,5,16,0.42)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineError: {
+    color: COLORS.red,
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    lineHeight: 20,
+    paddingHorizontal: SPACE.md,
+    paddingTop: SPACE.sm,
+    textAlign: 'center',
+  },
+  emptyNote: {
+    color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    lineHeight: 22,
+    padding: SPACE.lg,
+    textAlign: 'center',
+  },
+  imagePressed: { opacity: 0.76 },
+  disabled: { opacity: 0.46 },
+  menuHeader: {
+    fontSize: 15,
+    fontFamily: FONTS.bold,
+    color: COLORS.textMuted,
+    paddingHorizontal: SPACE.lg,
+    paddingTop: SPACE.xs,
+    paddingBottom: SPACE.sm,
+  },
+  listCount: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 14 },
+  newListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+  },
+  newListInput: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: SIZES.touch,
+    color: COLORS.text,
+    backgroundColor: COLORS.surfaceMuted,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.control,
+    fontFamily: FONTS.regular,
+    fontSize: 16,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: SPACE.xs,
+  },
+  newListBtn: {
+    minHeight: SIZES.touch,
+    minWidth: 76,
+    backgroundColor: COLORS.yellow,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACE.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   newListBtnText: { color: COLORS.onAccent, fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
 });
 
@@ -684,30 +958,31 @@ function useOpenRec(type: 'show' | 'movie') {
   const open = async (item: { tmdbId: string; localId?: string | null }) => {
     if (busyId) return;
     if (item.localId) {
-      router.push(`/show/${item.localId}${type === 'movie' ? '?type=movie' : ''}`);
+      router.push(('/show/' + item.localId + (type === 'movie' ? '?type=movie' : '')) as Href);
       return;
     }
     setBusyId(item.tmdbId);
     try {
       const res = await api.post<{ mediaId: string }>(
-        `/api/${type === 'movie' ? 'movies' : 'shows'}/add-from-tmdb`,
+        '/api/' + (type === 'movie' ? 'movies' : 'shows') + '/add-from-tmdb',
         { tmdbId: item.tmdbId, follow: false },
       );
-      router.push(`/show/${res.mediaId}${type === 'movie' ? '?type=movie' : ''}`);
+      router.push(('/show/' + res.mediaId + (type === 'movie' ? '?type=movie' : '')) as Href);
+    } catch {
+      Alert.alert('Import impossible', "Cette recommandation n'a pas pu être ouverte. Réessaie.");
     } finally {
       setBusyId(null);
     }
   };
   return { open, busyId };
 }
-
 // « Où regarder » : pastilles noires horizontales (une par plateforme), rouage
 // à droite — cotes TV Time.
 function WhereToWatch({ providers }: { providers: { name: string }[] }) {
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeadRowTight}>
-        <Text style={styles.sectionTitle}>Où regarder</Text>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>Où regarder</Text>
         <Feather name="settings" size={18} color={COLORS.black} />
       </View>
       {providers.length === 0 ? (
@@ -716,7 +991,7 @@ function WhereToWatch({ providers }: { providers: { name: string }[] }) {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingTop: 12 }}>
           {providers.map((p) => (
             <View key={p.name} style={styles.provBtn}>
-              <Ionicons name="play-circle-outline" size={17} color="#fff" />
+              <Ionicons name="play-circle-outline" size={17} color={COLORS.onPrimary} />
               <Text style={styles.provText}>{p.name.toUpperCase()}</Text>
             </View>
           ))}
@@ -732,8 +1007,15 @@ function SimilarTo({ item, isMovie }: { item: any; isMovie: boolean }) {
   const rec = useOpenRec(isMovie ? 'movie' : 'show');
   const thumb = tmdbImage(item.posterPath, 'w185');
   return (
-    <PressableScale style={[styles.section, styles.similarRow]} onPress={() => rec.open(item)}>
-      {thumb ? <Image source={{ uri: thumb }} style={styles.similarThumb} resizeMode="cover" /> : <View style={styles.similarThumb} />}
+    <PressableScale
+      style={[styles.section, styles.similarRow]}
+      onPress={() => rec.open(item)}
+      disabled={rec.busyId !== null}
+      accessibilityRole="button"
+      accessibilityLabel={`Ouvrir ${item.title}`}
+      accessibilityState={{ busy: rec.busyId === item.tmdbId, disabled: rec.busyId !== null }}
+    >
+      {thumb ? <Image source={{ uri: thumb }} style={styles.similarThumb} resizeMode="cover" accessible={false} /> : <View style={styles.similarThumb} />}
       <View style={{ flex: 1 }}>
         <Text style={styles.similarTitle}>Similaire à</Text>
         <Text style={styles.similarName} numberOfLines={1}>{item.title}</Text>
@@ -792,9 +1074,12 @@ function CastSection({ cast, mediaId, type }: { cast: any[]; mediaId: string; ty
             key={`${c.name}-${i}`}
             style={styles.castCard}
             onPress={() => router.push(`/person?mediaId=${mediaId}&type=${type}&index=${i}`)}
+            accessibilityRole="button"
+            accessibilityLabel={[c.name, c.character].filter(Boolean).join(', ')}
+            accessibilityHint="Ouvre la fiche de cette personne"
           >
             {tmdbImage(c.profilePath, 'w185') ? (
-              <Image source={{ uri: tmdbImage(c.profilePath, 'w185')! }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              <Image source={{ uri: tmdbImage(c.profilePath, 'w185')! }} style={StyleSheet.absoluteFill} resizeMode="cover" accessible={false} />
             ) : (
               <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
                 <Feather name="user" size={30} color="#9a9a9a" />
@@ -821,9 +1106,17 @@ function AlsoWatched({ items, type }: { items: any[]; type: 'show' | 'movie' }) 
       <Text style={[styles.sectionTitle, { paddingHorizontal: 20 }]}>Les utilisateurs ont également regardé</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 20, paddingTop: 14 }}>
         {items.map((r) => (
-          <PressableScale key={r.tmdbId} style={styles.recoCard} onPress={() => rec.open(r)}>
+          <PressableScale
+            key={r.tmdbId}
+            style={styles.recoCard}
+            onPress={() => rec.open(r)}
+            disabled={rec.busyId !== null}
+            accessibilityRole="button"
+            accessibilityLabel={`Ouvrir ${r.title}`}
+            accessibilityState={{ busy: rec.busyId === r.tmdbId, disabled: rec.busyId !== null }}
+          >
             {tmdbImage(r.posterPath, 'w342') ? (
-              <Image source={{ uri: tmdbImage(r.posterPath, 'w342')! }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              <Image source={{ uri: tmdbImage(r.posterPath, 'w342')! }} style={StyleSheet.absoluteFill} resizeMode="cover" accessible={false} />
             ) : (
               <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
                 <Feather name={type === 'movie' ? 'film' : 'tv'} size={26} color="#9a9a9a" />
@@ -853,6 +1146,7 @@ type RatingSeason = { seasonNumber: number; points: RatingPoint[] };
 // (quadrillage 0-5, polyline jaune, sélecteur de saison + points), cf. TV Time.
 // Masquée tant qu'aucun épisode n'a été noté (404 / liste vide).
 function CommunityRatings({ mediaId }: { mediaId: string }) {
+  const { width } = useWindowDimensions();
   const [season, setSeason] = useState(0);
   const q = useQuery({
     queryKey: ['community-ratings', mediaId],
@@ -863,7 +1157,7 @@ function CommunityRatings({ mediaId }: { mediaId: string }) {
   if (!seasons.length) return null;
   const idx = Math.min(season, seasons.length - 1);
   const cur = seasons[idx];
-  const W = Dimensions.get('window').width - 40;
+  const W = Math.max(220, Math.min(width, SIZES.contentMax) - SPACE.xl * 2);
   const H = 150;
   const PAD = { l: 26, r: 8, t: 8, b: 20 };
   // Les notes sont sur 5 dans l'app ; garde-fou si une source note sur 10.
@@ -874,12 +1168,24 @@ function CommunityRatings({ mediaId }: { mediaId: string }) {
   const pts = cur.points.map((p, i) => `${PAD.l + i * xs},${y(p.avg)}`).join(' ');
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Notes de la communauté</Text>
-      <Pressable style={styles.seasonPickRow} onPress={() => setSeason((idx + 1) % seasons.length)}>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>Notes de la communauté</Text>
+      <Pressable
+        style={({ pressed }) => [styles.seasonPickRow, pressed && styles.pressed]}
+        onPress={() => setSeason((idx + 1) % seasons.length)}
+        disabled={seasons.length <= 1}
+        accessibilityRole="button"
+        accessibilityLabel={`Saison ${cur.seasonNumber}. ${seasons.length > 1 ? 'Afficher la saison suivante' : 'Seule saison disponible'}`}
+        accessibilityState={{ disabled: seasons.length <= 1 }}
+      >
         <Text style={styles.seasonPick}>Saison {cur.seasonNumber}</Text>
         {seasons.length > 1 ? <Feather name="chevron-down" size={18} color={COLORS.black} /> : null}
       </Pressable>
-      <Svg width={W} height={H}>
+      <View
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel={`Courbe de notes de la saison ${cur.seasonNumber}, ${cur.points.length} épisode${cur.points.length > 1 ? 's' : ''}`}
+      >
+      <Svg width={W} height={H} accessible={false}>
         {[0, 1, 2, 3, 4, 5].map((g) => {
           const v = (g * scaleMax) / 5;
           return (
@@ -896,6 +1202,7 @@ function CommunityRatings({ mediaId }: { mediaId: string }) {
           <Circle key={i} cx={PAD.l + i * xs} cy={y(p.avg)} r={3.5} fill={COLORS.yellow} />
         ))}
       </Svg>
+      </View>
       {seasons.length > 1 ? (
         <View style={styles.dotsRow}>
           {seasons.map((_, i) => (
@@ -919,8 +1226,11 @@ function CommentsRowLink({ mediaId, title }: { mediaId: string; title: string })
     <Pressable
       style={[styles.section, styles.commentsRow]}
       onPress={() => router.push(`/comments/${mediaId}?title=${encodeURIComponent(title)}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Commentaires, ${total}`}
+      accessibilityHint="Ouvre tous les commentaires"
     >
-      <Text style={styles.sectionTitle}>Commentaires</Text>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>Commentaires</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text style={styles.commentsCount}>{total}</Text>
         <Feather name="chevron-right" size={20} color={COLORS.black} />
@@ -950,12 +1260,15 @@ function AboutTab({ media, detail, mediaId, interest, setInterest, onScroll, top
         {INTEREST.map((o) => (
           <Pressable
             key={o}
-            style={[styles.qbtn, interest.includes(o) && styles.qbtnSel]}
+            style={({ pressed }) => [styles.qbtn, interest.includes(o) && styles.qbtnSel, pressed && styles.pressed]}
             onPress={() =>
               setInterest((sel: string[]) => (sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]))
             }
+            accessibilityRole="checkbox"
+            accessibilityLabel={o}
+            accessibilityState={{ checked: interest.includes(o) }}
           >
-            <Text style={[styles.qbtnText, interest.includes(o) && { color: COLORS.onAccent }]}>{o}</Text>
+            <Text style={[styles.qbtnText, interest.includes(o) && { color: COLORS.onPrimary }]}>{o}</Text>
           </Pressable>
         ))}
       </View>
@@ -963,7 +1276,7 @@ function AboutTab({ media, detail, mediaId, interest, setInterest, onScroll, top
       {detail.recommendations?.length ? <SimilarTo item={detail.recommendations[0]} isMovie={false} /> : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Informations sur la série</Text>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>Informations sur la série</Text>
         <Text style={styles.infoMeta}>
           {[yearRange(media, detail.endYear), genresFr(media.genres)].filter(Boolean).join(' • ')}
         </Text>
@@ -980,7 +1293,7 @@ function AboutTab({ media, detail, mediaId, interest, setInterest, onScroll, top
   );
 }
 
-function MovieBody({ media, detail, mediaId, onToggle, onScroll, topPad }: any) {
+function MovieBody({ media, detail, mediaId, onToggle, disabled, onScroll, topPad }: any) {
   const seen = media.userStatus === 'completed';
   return (
     <ScrollView onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={{ paddingTop: topPad, paddingBottom: 90 }}>
@@ -989,7 +1302,7 @@ function MovieBody({ media, detail, mediaId, onToggle, onScroll, topPad }: any) 
           <Feather name="eye" size={18} color={COLORS.black} />
           <Text style={{ color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14 }}>{seen ? 'Vu' : 'Pas vu'}</Text>
         </View>
-        <CheckCircle size={44} checked={seen} onPress={onToggle} />
+        <CheckCircle size={44} checked={seen} onPress={disabled ? undefined : onToggle} />
       </View>
 
       <WhereToWatch providers={detail.providers ?? []} />
@@ -997,7 +1310,7 @@ function MovieBody({ media, detail, mediaId, onToggle, onScroll, topPad }: any) 
       {detail.recommendations?.length ? <SimilarTo item={detail.recommendations[0]} isMovie /> : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Informations sur le film</Text>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>Informations sur le film</Text>
         <Text style={styles.infoMeta}>{[media.year, genresFr(media.genres)].filter(Boolean).join(' • ')}</Text>
         {media.voteAverage ? <Stars rating10={media.voteAverage} size={17} /> : null}
         {media.overview ? <Text style={styles.overview}>{media.overview}</Text> : null}
@@ -1023,7 +1336,7 @@ const daysUntil = (iso?: string | null) =>
 // Vignette d'épisode : image TheTVDB/TMDb si disponible, sinon affiche de la série, sinon pictogramme.
 function EpThumb({ stillPath, fallback }: { stillPath?: string | null; fallback?: string | null }) {
   const uri = tmdbImage(stillPath, 'w300') ?? tmdbImage(fallback, 'w342');
-  if (uri) return <Image source={{ uri }} style={styles.epThumb} resizeMode="cover" />;
+  if (uri) return <Image source={{ uri }} style={styles.epThumb} resizeMode="cover" accessible={false} />;
   return (
     <View style={[styles.epThumb, { alignItems: 'center', justifyContent: 'center' }]}>
       <Feather name="image" size={24} color="#9a9a9a" />
@@ -1033,6 +1346,7 @@ function EpThumb({ stillPath, fallback }: { stillPath?: string | null; fallback?
 
 function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: { showId: string; title: string; posterPath?: string | null; onChange: () => void; onScroll?: any; topPad?: number }) {
   const qc = useQueryClient();
+  const { width } = useWindowDimensions();
   const [open, setOpen] = useState<Record<number, boolean>>({});
   // Pop-up « Cocher aussi les épisodes précédents ? » : proposée quand on
   // coche un épisode alors que des épisodes antérieurs diffusés sont non vus.
@@ -1091,18 +1405,21 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
     onSettled: refresh,
   });
   const markAll = useMutation({
-    mutationFn: (seasonNumber?: number) => api.post(`/api/shows/${showId}/mark-all-watched`, seasonNumber ? { seasonNumber } : {}),
+    mutationFn: (seasonNumber?: number) => api.post('/api/shows/' + showId + '/mark-all-watched', seasonNumber !== undefined ? { seasonNumber } : {}),
     onMutate: async (seasonNumber?: number) => {
       await qc.cancelQueries({ queryKey: ['show', showId, 'episodes'] });
       const prev = qc.getQueryData<EpisodesData>(['show', showId, 'episodes']);
       if (prev) {
         qc.setQueryData<EpisodesData>(['show', showId, 'episodes'], {
           nextEpisode: prev.nextEpisode,
-          seasons: prev.seasons.map((s) =>
-            seasonNumber !== undefined && s.seasonNumber !== seasonNumber
-              ? s
-              : { ...s, watchedCount: s.totalCount, episodes: s.episodes.map((e) => ({ ...e, watched: true })) },
-          ),
+          seasons: prev.seasons.map((s) => {
+            const target = seasonNumber !== undefined ? s.seasonNumber === seasonNumber : s.seasonNumber > 0;
+            if (!target) return s;
+            const episodes = s.episodes.map((e) =>
+              isUpcoming(e.airDate) ? e : { ...e, watched: true },
+            );
+            return { ...s, episodes, watchedCount: episodes.filter((e) => e.watched).length };
+          }),
         });
       }
       return { prev };
@@ -1111,8 +1428,7 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
       if (ctx?.prev) qc.setQueryData(['show', showId, 'episodes'], ctx.prev);
     },
     onSettled: refresh,
-  });
-  // OUI de la pop-up : coche tous les épisodes diffusés situés AVANT celui
+  });  // OUI de la pop-up : coche tous les épisodes diffusés situés AVANT celui
   // choisi (saisons antérieures comprises, spéciaux exclus) — consentement
   // explicite de l'utilisateur, reflété immédiatement dans la liste.
   const markPrevious = useMutation({
@@ -1143,14 +1459,10 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
     onSettled: refresh,
   });
   // Coche d'un épisode : bascule + proposition de cocher les précédents.
-  const pressEp = (e: EpisodeDto) => {
-    if (!e.watched && data && hasUnwatchedPrevious(data.seasons, e)) setPrevAsk(e);
-    toggleEp.mutate(e);
-  };
   // Tout démarquer (hors spéciaux quand aucune saison précise), avec la même
   // mise à jour optimiste que « tout marquer ».
   const markAllUnwatched = useMutation({
-    mutationFn: (seasonNumber?: number) => api.post(`/api/shows/${showId}/mark-all-unwatched`, seasonNumber ? { seasonNumber } : {}),
+    mutationFn: (seasonNumber?: number) => api.post(`/api/shows/${showId}/mark-all-unwatched`, seasonNumber !== undefined ? { seasonNumber } : {}),
     onMutate: async (seasonNumber?: number) => {
       await qc.cancelQueries({ queryKey: ['show', showId, 'episodes'] });
       const prev = qc.getQueryData<EpisodesData>(['show', showId, 'episodes']);
@@ -1170,6 +1482,13 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
     },
     onSettled: refresh,
   });
+  const episodeBusy = toggleEp.isPending || markAll.isPending || markPrevious.isPending || markAllUnwatched.isPending;
+  // Coche d'un épisode : bascule + proposition de cocher les précédents.
+  const pressEp = (e: EpisodeDto) => {
+    if (episodeBusy) return;
+    if (!e.watched && data && hasUnwatchedPrevious(data.seasons, e)) setPrevAsk(e);
+    toggleEp.mutate(e);
+  };
 
   // Les états intermédiaires descendent sous l'en-tête en surimpression.
   if (isLoading) return <View style={{ paddingTop: topPad }}><Loading /></View>;
@@ -1188,10 +1507,12 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
   const anyWatched = seasons.some((s) => s.watchedCount > 0);
   const caughtUp = anyWatched && !data.nextEpisode;
   const onMasterPress = () => {
+    if (episodeBusy) return;
     if (caughtUp) setConfirmUnmark(true);
     else markAll.mutate(undefined);
   };
   const doUnmarkAll = () => {
+    if (episodeBusy) return;
     setConfirmUnmark(false);
     markAllUnwatched.mutate(undefined);
   };
@@ -1213,10 +1534,10 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
           .flatMap((s) => s.episodes)
           .filter((e) => !isUpcoming(e.airDate) && !e.watched)
           .slice(0, 24);
-        const CARD_W = Dimensions.get('window').width - 56; // la suivante dépasse
+        const CARD_W = Math.max(248, Math.min(width, SIZES.contentMax) - 56); // la suivante dépasse
         return (
           <View style={{ paddingTop: 20, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight, backgroundColor: COLORS.white }}>
-            <Text style={[styles.sectionTitle, { paddingHorizontal: 24 }]}>{anyWatched ? 'Continuer le suivi' : 'Démarrer le suivi'}</Text>
+            <Text accessibilityRole="header" style={[styles.sectionTitle, { paddingHorizontal: 24 }]}>{anyWatched ? 'Continuer le suivi' : 'Démarrer le suivi'}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -1238,7 +1559,7 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
                     <Text style={styles.epRowTitle} numberOfLines={1}>{e.title}</Text>
                   </View>
                   <View style={{ justifyContent: 'center', paddingRight: 14 }}>
-                    <CheckCircle checked={e.watched} onPress={() => pressEp(e)} />
+                    <CheckCircle checked={e.watched} onPress={episodeBusy ? undefined : () => pressEp(e)} />
                   </View>
                 </Pressable>
               ))}
@@ -1249,8 +1570,15 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
 
       <View style={{ paddingTop: 20 }}>
         <View style={[styles.sectionHeadRow, { marginBottom: 0 }]}>
-          <Text style={styles.sectionTitle}>Tous les épisodes</Text>
-          <Pressable style={styles.markAllBtn} onPress={onMasterPress} accessibilityLabel="Tout marquer">
+          <Text accessibilityRole="header" style={styles.sectionTitle}>Tous les épisodes</Text>
+          <Pressable
+            style={({ pressed }) => [styles.markAllBtn, pressed && styles.pressed]}
+            onPress={episodeBusy ? undefined : onMasterPress}
+            disabled={episodeBusy}
+            accessibilityRole="button"
+            accessibilityLabel={caughtUp ? 'Proposer de tout marquer comme non vu' : 'Tout marquer comme vu'}
+            accessibilityState={{ busy: episodeBusy, disabled: episodeBusy }}
+          >
             <Feather name="check" size={18} color={COLORS.black} />
           </Pressable>
         </View>
@@ -1270,6 +1598,9 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
                 <Pressable
                   style={styles.season}
                   onPress={() => setOpen((o) => ({ ...o, [s.seasonNumber]: !o[s.seasonNumber] }))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${label}, ${s.watchedCount} sur ${s.totalCount} vus`}
+                  accessibilityState={{ expanded: !!isOpen }}
                 >
                   <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
                     <Text style={[styles.seasonTitle, { flexShrink: 1 }]} numberOfLines={1}>
@@ -1282,7 +1613,7 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
                     <CheckCircle
                       size={44}
                       checked={done}
-                      onPress={() => (done ? markAllUnwatched.mutate(s.seasonNumber) : markAll.mutate(s.seasonNumber))}
+                      onPress={episodeBusy ? undefined : () => (done ? markAllUnwatched.mutate(s.seasonNumber) : markAll.mutate(s.seasonNumber))}
                     />
                   </View>
                   {/* Barre : piste jaune pâle toujours visible, remplissage jaune,
@@ -1318,7 +1649,7 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
                                 <Text style={styles.daysLabel}>{daysUntil(e.airDate) > 1 ? 'JOURS' : 'JOUR'}</Text>
                               </View>
                             ) : (
-                              <CheckCircle size={44} checked={e.watched} onPress={() => pressEp(e)} />
+                              <CheckCircle size={44} checked={e.watched} onPress={episodeBusy ? undefined : () => pressEp(e)} />
                             )}
                           </View>
                         </Pressable>
@@ -1334,7 +1665,14 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
 
       {/* Confirmation « Marquer tout comme non vu » (cf TV Time). */}
       {confirmUnmark ? (
-        <Pressable style={styles.unmarkBar} onPress={doUnmarkAll}>
+        <Pressable
+          style={({ pressed }) => [styles.unmarkBar, pressed && styles.pressed]}
+          onPress={episodeBusy ? undefined : doUnmarkAll}
+          disabled={episodeBusy}
+          accessibilityRole="button"
+          accessibilityLabel="Marquer tous les épisodes comme non vus"
+          accessibilityState={{ busy: episodeBusy, disabled: episodeBusy }}
+        >
           <Feather name="eye-off" size={22} color={COLORS.black} />
           <Text style={styles.unmarkText}>Marquer tout comme non vu</Text>
         </Pressable>
@@ -1342,7 +1680,7 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
 
       <MarkPreviousPopup
         visible={!!prevAsk}
-        onYes={() => { if (prevAsk) markPrevious.mutate(prevAsk); setPrevAsk(null); }}
+        onYes={() => { if (episodeBusy) return; if (prevAsk) markPrevious.mutate(prevAsk); setPrevAsk(null); }}
         onNo={() => setPrevAsk(null)}
       />
 
@@ -1353,95 +1691,316 @@ function EpisodesTab({ showId, title, posterPath, onChange, onScroll, topPad }: 
 }
 
 const styles = StyleSheet.create({
-  // En-tête (bannière + onglets) en surimpression : hors flux, sa hauteur
-  // animée ne re-layoute pas le contenu qui défile dessous.
-  headerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, backgroundColor: COLORS.white },
-  hero: { height: 240, backgroundColor: '#1a1a22', justifyContent: 'flex-end', overflow: 'hidden' },
-  heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
-  addBar: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: COLORS.yellow, paddingTop: 18, alignItems: 'center' },
-  addBarRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  addBarText: { color: COLORS.onAccent, fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
-  heroBtns: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14 },
-  heroTitleWrap: { padding: 20 },
-  heroTitle: { color: '#fff', fontSize: 25, fontFamily: FONTS.extraBold },
-  heroSub: { color: 'rgba(255,255,255,0.9)', fontFamily: FONTS.regular, fontSize: 15, marginTop: 2 },
-  // Titre compact centré quand la bannière est repliée (marges = place des boutons).
-  heroCollapsedTitle: { position: 'absolute', left: 60, right: 60, textAlign: 'center', color: '#fff', fontSize: 18, fontFamily: FONTS.bold },
-  section: { paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  sectionHeadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, marginBottom: 14 },
-  // Variante sans marges pour les entêtes DANS une section (Où regarder + rouage).
-  sectionHeadRowTight: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  // Cotes HARMONISÉES avec le reste de l'app (fenêtre épisode, pages profil) :
-  // titres de section 16, corps 13,5/20, méta 14 — les tailles lues sur les
-  // captures TV Time brutes rendaient « énormes » (retour récurrent).
-  sectionTitle: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.extraBold },
-  muted: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13.5, marginTop: 8 },
-  overview: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 13.5, lineHeight: 20, marginTop: 10 },
-  infoMeta: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13, marginTop: 5 },
-  // Pastilles noires « Où regarder » (TV Time affiche toutes les plateformes).
-  provBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#101014', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
-  provText: { color: '#fff', fontSize: 12, fontFamily: FONTS.extraBold, letterSpacing: 0.3 },
-  question: { color: COLORS.text, textAlign: 'center', fontSize: 13, fontFamily: FONTS.extraBold, marginBottom: 14, letterSpacing: 0.2 },
-  qbtn: { backgroundColor: COLORS.chipGrey, borderRadius: 8, paddingVertical: 12, marginBottom: 10, alignItems: 'center' },
-  qbtnSel: { backgroundColor: COLORS.yellow },
-  qbtnText: { color: COLORS.text, fontSize: 13.5, fontFamily: FONTS.bold },
-  // « Similaire à » : vignette ronde + titre/nom à l'échelle de l'app.
-  similarRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  similarThumb: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.imagePlaceholder },
-  similarTitle: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.extraBold },
-  similarName: { fontSize: 13.5, fontFamily: FONTS.regular, color: COLORS.textMuted, marginTop: 2 },
-  // Rangées méta (horloge / chrono / personnes) sous le synopsis.
-  metaRows: { marginTop: 14, gap: 11 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  metaText: { color: COLORS.text, fontSize: 14, fontFamily: FONTS.regular },
-  // Distribution : cartes 108x148, bandeau sombre nom/rôle en bas.
-  castCard: { width: 108, height: 148, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder, justifyContent: 'flex-end' },
-  castCap: { backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 7, paddingVertical: 6 },
-  castName: { color: '#fff', fontSize: 13, fontFamily: FONTS.bold },
-  castRole: { color: 'rgba(255,255,255,0.85)', fontSize: 10.5, fontFamily: FONTS.bold, letterSpacing: 0.3, marginTop: 1 },
-  // « Également regardé » : affiches 132 (2/3), badge coche jaune en haut à droite.
-  recoCard: { width: 132, aspectRatio: 2 / 3, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder },
-  recoBadge: { position: 'absolute', top: 0, right: 10, width: 34, height: 30, backgroundColor: COLORS.yellow, borderBottomLeftRadius: 6, borderBottomRightRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  // Notes de la communauté : sélecteur de saison + points de pagination.
-  seasonPickRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, marginBottom: 12, alignSelf: 'flex-start' },
-  seasonPick: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.bold },
-  dotsRow: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: 10 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.chipSelected },
-  dotOn: { backgroundColor: COLORS.black },
-  // Rangée « Commentaires » (compteur + chevron) vers la page dédiée.
-  commentsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  commentsCount: { fontSize: 14, fontFamily: FONTS.regular, color: COLORS.textMuted },
-  eprow: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 5, minHeight: 92, overflow: 'hidden', marginBottom: 8, ...SHADOW.card },
-  epThumb: { width: 90, backgroundColor: COLORS.imagePlaceholder },
-  epCode: { color: COLORS.text, fontSize: 19, fontFamily: FONTS.extraBold },
-  markAllBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: COLORS.black, alignItems: 'center', justifyContent: 'center' },
-  season: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 76, paddingHorizontal: 20, backgroundColor: COLORS.white, borderRadius: 5, ...SHADOW.season },
-  epRowTitle: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 13, marginTop: 2 },
-  // Compte à rebours des épisodes non diffusés (cf. TV Time : « 4 / JOURS »).
-  daysWrap: { alignItems: 'center', minWidth: 44 },
-  daysNum: { color: COLORS.text, fontSize: 22, fontFamily: FONTS.extraBold, lineHeight: 25 },
-  daysLabel: { color: COLORS.text, fontSize: 10, fontFamily: FONTS.bold, letterSpacing: 0.8 },
-  seasonTitle: { color: COLORS.text, fontSize: 20, fontFamily: FONTS.extraBold },
-  seasonProg: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 15, marginRight: 14 },
-  progressTrack: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, height: 5,
-    borderBottomLeftRadius: 5, borderBottomRightRadius: 5, overflow: 'hidden',
-    backgroundColor: YELLOW_TRACK, // piste jaune pâle toujours visible (réf. 35)
+  screen: { flex: 1, backgroundColor: COLORS.bg },
+  canvas: {
+    flex: 1,
+    width: '100%',
+    maxWidth: SIZES.contentMax,
+    alignSelf: 'center',
+    backgroundColor: COLORS.pageMuted,
   },
-  progressFill: { position: 'absolute', left: 0, bottom: 0, top: 0, borderBottomLeftRadius: 5 },
-  // Barre de progression globale de la série, au bas de la bannière (TV Time).
-  // Le fond (portion restante) est surchargé inline avec la teinte du statut.
+  fullState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.bg,
+    padding: SPACE.lg,
+  },
+  headerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.borderLight,
+  },
+  hero: {
+    height: 260,
+    backgroundColor: '#171120',
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  heroPrism: {
+    position: 'absolute',
+    right: -86,
+    bottom: -124,
+    width: 220,
+    height: 220,
+    borderRadius: 46,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.17)',
+    backgroundColor: 'rgba(239,91,168,0.18)',
+    transform: [{ rotate: '34deg' }],
+  },
+  heroOrb: {
+    position: 'absolute',
+    left: -72,
+    top: -96,
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: 'rgba(243,197,79,0.13)',
+  },
+  heroBtns: {
+    position: 'absolute',
+    left: SPACE.sm,
+    right: SPACE.sm,
+    zIndex: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  heroIconButton: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    borderRadius: RADIUS.control,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(14,8,22,0.56)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  pressed: { opacity: 0.7 },
+  heroTitleWrap: {
+    width: '100%',
+    minHeight: 112,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    paddingBottom: SPACE.md,
+  },
+  heroPoster: {
+    width: 62,
+    height: 92,
+    borderRadius: RADIUS.small,
+    backgroundColor: COLORS.imagePlaceholder,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  heroCopy: { flex: 1, minWidth: 0, paddingBottom: 2 },
+  heroKindBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    minHeight: 24,
+    paddingHorizontal: SPACE.xs,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.yellow,
+    marginBottom: SPACE.xs,
+  },
+  heroKindText: { color: COLORS.onAccent, fontSize: 10, fontFamily: FONTS.extraBold, letterSpacing: 1 },
+  heroTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 29, fontFamily: FONTS.extraBold },
+  heroSub: { color: 'rgba(255,255,255,0.86)', fontFamily: FONTS.semiBold, fontSize: 13, lineHeight: 18, marginTop: 3 },
+  heroCollapsedTitle: {
+    position: 'absolute',
+    left: 70,
+    right: 70,
+    zIndex: 3,
+    textAlign: 'center',
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontFamily: FONTS.extraBold,
+  },
   heroProgressTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 5 },
   heroProgressFill: { height: '100%' },
-  unmarkBar: { position: 'absolute', left: 12, right: 12, bottom: 20, backgroundColor: COLORS.white, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 18, ...SHADOW.card },
-  unmarkText: { fontSize: 15, fontFamily: FONTS.semiBold, color: COLORS.black },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
-  // Menu « ... » : carte FLOTTANTE compacte (cotes TV Time — comparaison px des
-  // captures) : marges 8, coins 14, rangées 48dp, police 17 fine, icônes 20.
-  sheet: { position: 'absolute', left: 8, right: 8, bottom: 8, backgroundColor: COLORS.white, borderRadius: 14, overflow: 'hidden' },
-  statusRow: { backgroundColor: COLORS.chipGrey, borderBottomWidth: 3, borderBottomColor: COLORS.yellow, height: 48, justifyContent: 'center', paddingHorizontal: 20 },
-  statusText: { fontFamily: FONTS.regular, fontSize: 16, color: COLORS.textMuted },
-  sheetItem: { flexDirection: 'row', alignItems: 'center', gap: 14, height: 48, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.borderLight },
-  sheetLabel: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.regular },
+  addBar: {
+    position: 'absolute',
+    left: SPACE.sm,
+    right: SPACE.sm,
+    zIndex: 40,
+    minHeight: 56,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.yellow,
+    paddingHorizontal: SPACE.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SHADOW.card,
+  },
+  addBarPressed: { opacity: 0.84, transform: [{ scale: 0.99 }] },
+  addBarRow: { minHeight: SIZES.touch, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACE.xs },
+  addBarText: { color: COLORS.onAccent, fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.7 },
+  section: {
+    marginHorizontal: SPACE.sm,
+    marginTop: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.white,
+  },
+  sectionHeadRow: {
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACE.lg,
+    marginBottom: SPACE.sm,
+  },
+  sectionHeadRowTight: { minHeight: 32, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionTitle: { color: COLORS.text, fontSize: 17, lineHeight: 22, fontFamily: FONTS.extraBold },
+  muted: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13.5, lineHeight: 20, marginTop: SPACE.xs },
+  overview: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14, lineHeight: 21, marginTop: SPACE.sm },
+  infoMeta: { color: COLORS.textMuted, fontFamily: FONTS.semiBold, fontSize: 13, lineHeight: 18, marginTop: 5 },
+  provBtn: {
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACE.md,
+  },
+  provText: { color: COLORS.onPrimary, fontSize: 12, fontFamily: FONTS.extraBold, letterSpacing: 0.3 },
+  question: { color: COLORS.text, textAlign: 'center', fontSize: 13, lineHeight: 19, fontFamily: FONTS.extraBold, marginBottom: SPACE.md, letterSpacing: 0.2 },
+  qbtn: {
+    minHeight: SIZES.touch,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: RADIUS.control,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: SPACE.sm,
+    marginBottom: SPACE.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qbtnSel: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  qbtnText: { color: COLORS.text, textAlign: 'center', fontSize: 13, fontFamily: FONTS.bold },
+  similarRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: SPACE.sm },
+  similarThumb: { width: 52, height: 52, borderRadius: RADIUS.control, backgroundColor: COLORS.imagePlaceholder },
+  similarTitle: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.extraBold },
+  similarName: { fontSize: 13.5, fontFamily: FONTS.regular, color: COLORS.textMuted, marginTop: 2 },
+  metaRows: { marginTop: SPACE.md, gap: SPACE.sm },
+  metaItem: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: SPACE.xs },
+  metaText: { flex: 1, color: COLORS.text, fontSize: 14, lineHeight: 20, fontFamily: FONTS.regular },
+  castCard: {
+    width: 112,
+    height: 156,
+    borderRadius: RADIUS.poster,
+    overflow: 'hidden',
+    backgroundColor: COLORS.imagePlaceholder,
+    justifyContent: 'flex-end',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  castCap: { backgroundColor: 'rgba(9,5,16,0.72)', paddingHorizontal: SPACE.xs, paddingVertical: SPACE.xs },
+  castName: { color: '#FFFFFF', fontSize: 13, fontFamily: FONTS.bold },
+  castRole: { color: 'rgba(255,255,255,0.82)', fontSize: 10.5, fontFamily: FONTS.bold, letterSpacing: 0.3, marginTop: 1 },
+  recoCard: {
+    width: 132,
+    aspectRatio: 2 / 3,
+    borderRadius: RADIUS.poster,
+    overflow: 'hidden',
+    backgroundColor: COLORS.imagePlaceholder,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  recoBadge: { position: 'absolute', top: 0, right: SPACE.xs, width: 36, height: 32, backgroundColor: COLORS.yellow, borderBottomLeftRadius: RADIUS.small, borderBottomRightRadius: RADIUS.small, alignItems: 'center', justifyContent: 'center' },
+  seasonPickRow: {
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    alignSelf: 'flex-start',
+    marginTop: SPACE.xs,
+    marginBottom: SPACE.xs,
+    paddingHorizontal: SPACE.xs,
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  seasonPick: { color: COLORS.text, fontSize: 15, fontFamily: FONTS.bold },
+  dotsRow: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: SPACE.xs },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.chipSelected },
+  dotOn: { width: 20, backgroundColor: COLORS.primary },
+  commentsRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  commentsCount: { fontSize: 14, fontFamily: FONTS.bold, color: COLORS.secondary },
+  eprow: {
+    flexDirection: 'row',
+    minHeight: 96,
+    overflow: 'hidden',
+    marginBottom: SPACE.xs,
+    borderRadius: RADIUS.poster,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    backgroundColor: COLORS.white,
+    ...SHADOW.card,
+  },
+  epThumb: { width: 106, backgroundColor: COLORS.imagePlaceholder },
+  epCode: { color: COLORS.primary, fontSize: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.4 },
+  epRowTitle: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 13, lineHeight: 18, marginTop: 3 },
+  markAllBtn: { width: SIZES.touch, height: SIZES.touch, borderRadius: 22, borderWidth: 2, borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  season: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 80,
+    paddingHorizontal: SPACE.md,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    ...SHADOW.season,
+  },
+  seasonTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold },
+  seasonProg: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 14, marginRight: SPACE.xs },
+  daysWrap: { minWidth: SIZES.touch, minHeight: SIZES.touch, alignItems: 'center', justifyContent: 'center' },
+  daysNum: { color: COLORS.text, fontSize: 21, fontFamily: FONTS.extraBold, lineHeight: 24 },
+  daysLabel: { color: COLORS.textMuted, fontSize: 9.5, fontFamily: FONTS.bold, letterSpacing: 0.8 },
+  progressTrack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 5,
+    borderBottomLeftRadius: RADIUS.card,
+    borderBottomRightRadius: RADIUS.card,
+    overflow: 'hidden',
+    backgroundColor: YELLOW_TRACK,
+  },
+  progressFill: { position: 'absolute', left: 0, bottom: 0, top: 0, borderBottomLeftRadius: RADIUS.card },
+  unmarkBar: {
+    position: 'absolute',
+    left: SPACE.sm,
+    right: SPACE.sm,
+    bottom: SPACE.lg,
+    zIndex: 50,
+    minHeight: 58,
+    borderRadius: RADIUS.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOW.card,
+  },
+  unmarkText: { fontSize: 14, fontFamily: FONTS.bold, color: COLORS.text },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: COLORS.overlay },
+  sheetWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: SPACE.sm },
+  sheet: {
+    width: '100%',
+    maxWidth: 600,
+    maxHeight: '88%',
+    alignSelf: 'center',
+    overflow: 'hidden',
+    borderRadius: RADIUS.sheet,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOW.card,
+  },
+  listsSheet: { maxHeight: '82%' },
+  sheetHandle: { width: 42, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: SPACE.xs, marginBottom: SPACE.xs, backgroundColor: COLORS.border },
+  statusRow: { minHeight: 52, justifyContent: 'center', paddingHorizontal: SPACE.lg, backgroundColor: COLORS.surfaceMuted, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
+  statusText: { fontFamily: FONTS.extraBold, fontSize: 15, color: COLORS.text },
+  sheetItem: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: SPACE.sm, paddingHorizontal: SPACE.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.borderLight },
+  sheetItemPressed: { backgroundColor: COLORS.primarySoft },
+  sheetItemIcon: { width: 36, height: 36, borderRadius: RADIUS.control, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceMuted },
+  sheetLabel: { flex: 1, color: COLORS.text, fontSize: 16, fontFamily: FONTS.semiBold },
 });
-

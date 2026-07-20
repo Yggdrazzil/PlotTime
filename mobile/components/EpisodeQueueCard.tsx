@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import type { QueueItemDto } from '@/lib/types';
 import { episodeCode } from '@/lib/format';
 import { tmdbImage } from '@/lib/api';
-import { COLORS, SHADOW, FONTS } from '@/lib/theme';
+import { COLORS, SHADOW, FONTS, RADIUS, SPACE } from '@/lib/theme';
 import { ShowPill, Badge, CheckCircle } from './ui';
 
 const BADGE_MAP: Record<string, { label: string; variant: 'black' | 'yellow' }> = {
@@ -14,10 +14,9 @@ const BADGE_MAP: Record<string, { label: string; variant: 'black' | 'yellow' }> 
   PLUS_RECENT: { label: 'PLUS RÉCENT', variant: 'black' },
 };
 
-// `watched` : variante « Historique de visionnage » (façon TV Time) — carte
-// fondue (opacité réduite) avec coche verte ; le clic sur la coche décoche.
-// Navigation TV Time : la pastille du titre ouvre la FICHE de la série ; un
-// appui ailleurs sur la carte ouvre la FENÊTRE de l'épisode (`onOpenEpisode`).
+// `watched` distingue l'historique avec une surface apaisée et une coche verte.
+// La pastille du titre ouvre la fiche de la série ; un appui ailleurs sur la
+// carte ouvre la fiche de l'épisode (`onOpenEpisode`).
 export function EpisodeQueueCard({
   item,
   onCheck,
@@ -32,16 +31,28 @@ export function EpisodeQueueCard({
   const router = useRouter();
   const ep = item.nextEpisode;
   const openShow = () => router.push(`/show/${item.media.id}`);
-  // Vignette : image de l'épisode à voir, sinon affiche de la série.
   const thumbUri = tmdbImage(ep?.stillPath, 'w300') ?? tmdbImage(item.media.posterPath, 'w342');
+  const accessibilityLabel = ep
+    ? `${item.media.title}, ${episodeCode(ep.seasonNumber, ep.episodeNumber)}, ${ep.title}${
+        item.remainingCount > 0 ? `, plus ${item.remainingCount} épisode${item.remainingCount > 1 ? 's' : ''}` : ''
+      }`
+    : `${item.media.title}, aucun épisode à voir`;
 
   return (
-    <Pressable style={[styles.card, watched && styles.cardWatched]} onPress={ep && onOpenEpisode ? onOpenEpisode : openShow}>
+    <Pressable
+      style={({ pressed }) => [styles.card, watched && styles.cardWatched, pressed && styles.cardPressed]}
+      onPress={ep && onOpenEpisode ? onOpenEpisode : openShow}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={ep && onOpenEpisode ? "Ouvre le détail de l'épisode" : 'Ouvre la fiche de la série'}
+    >
       {thumbUri ? (
-        <Image source={{ uri: thumbUri }} style={styles.thumb} resizeMode="cover" />
+        <Image source={{ uri: thumbUri }} style={[styles.thumb, watched && styles.thumbWatched]} resizeMode="cover" />
       ) : (
         <View style={[styles.thumb, styles.thumbEmpty]}>
-          <Feather name="image" size={26} color="#9a9a9a" />
+          <View style={styles.thumbIcon}>
+            <Feather name="image" size={22} color={COLORS.textSoft} />
+          </View>
         </View>
       )}
       <View style={styles.body}>
@@ -52,7 +63,16 @@ export function EpisodeQueueCard({
               <Text style={styles.code} numberOfLines={1}>
                 {episodeCode(ep.seasonNumber, ep.episodeNumber)}
               </Text>
-              {item.remainingCount > 0 ? <Text style={styles.plus}>+{item.remainingCount}</Text> : null}
+              {item.remainingCount > 0 ? (
+                <Text
+                  style={styles.plus}
+                  accessibilityLabel={`${item.remainingCount} épisode${item.remainingCount > 1 ? 's' : ''} supplémentaire${
+                    item.remainingCount > 1 ? 's' : ''
+                  }`}
+                >
+                  +{item.remainingCount}
+                </Text>
+              ) : null}
             </View>
             <Text style={styles.epTitle} numberOfLines={1}>
               {ep.title}
@@ -86,23 +106,42 @@ export function EpisodeQueueCard({
 }
 
 const styles = StyleSheet.create({
-  // Densité recalée sur TV Time (comparaison px, même téléphone, captures
-  // 2026-07-15) : texte épisode plus petit (17), paddings resserrés — l'écran
-  // montre autant de cartes que TV Time, sans changer la structure.
   card: {
-    flexDirection: 'row', marginHorizontal: 12, marginBottom: 10, backgroundColor: COLORS.white,
-    borderRadius: 10, minHeight: 96, overflow: 'hidden', ...SHADOW.card,
+    flexDirection: 'row',
+    minHeight: 116,
+    marginHorizontal: SPACE.md,
+    marginBottom: SPACE.sm,
+    overflow: 'hidden',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    ...SHADOW.card,
   },
-  cardWatched: { opacity: 0.45 },
-  thumb: { width: 92, backgroundColor: COLORS.imagePlaceholder },
+  cardPressed: { opacity: 0.9 },
+  cardWatched: { backgroundColor: COLORS.surfaceMuted, borderColor: COLORS.success },
+  thumb: { width: 104, alignSelf: 'stretch', backgroundColor: COLORS.imagePlaceholder },
+  thumbWatched: { opacity: 0.68 },
   thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
-  body: { flex: 1, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 5 },
-  // Le code (S03 | E02) reste sur UNE ligne ; « +N » (restants) ne le pousse jamais.
-  codeRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  code: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.bold, flexShrink: 1 },
-  // Rose du logo en thème Nuit, gris discret dans les autres thèmes.
-  plus: { fontSize: 12, fontFamily: FONTS.bold, color: COLORS.plusCount, flexShrink: 0 },
-  epTitle: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 12.5 },
-  badges: { flexDirection: 'row', gap: 6 },
-  checkWrap: { justifyContent: 'center', paddingRight: 12 },
+  thumbIcon: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  body: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: SPACE.sm,
+    gap: SPACE.xxs,
+  },
+  codeRow: { flexDirection: 'row', alignItems: 'baseline', gap: SPACE.xs },
+  code: { color: COLORS.text, fontSize: 18, lineHeight: 23, fontFamily: FONTS.extraBold, flexShrink: 1 },
+  plus: { fontSize: 12, lineHeight: 18, fontFamily: FONTS.extraBold, color: COLORS.plusCount, flexShrink: 0 },
+  epTitle: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 13, lineHeight: 18 },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.xxs, marginTop: 2 },
+  checkWrap: { width: 56, justifyContent: 'center', alignItems: 'center', paddingRight: SPACE.sm },
 });

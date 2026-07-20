@@ -1,14 +1,13 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Image } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { goBack } from '@/lib/nav';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import type { MediaDto } from '@/lib/types';
-import { COLORS, FONTS, YELLOW_TRACK } from '@/lib/theme';
-import { CELL_W, type LibraryShow } from '@/components/library';
+import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE, YELLOW_TRACK } from '@/lib/theme';
+import { CELL_W, DRAG_GRID_MAX_WIDTH, LibHeader, type LibraryShow } from '@/components/library';
 import { DragGrid } from '@/components/DragGrid';
 import { AnimatedFill, Pop } from '@/components/anim';
 import { GridSkeleton } from '@/components/skeletons';
@@ -17,13 +16,10 @@ import { useFavoritesData, sortFavorites } from '@/components/favorites';
 
 const CELL_H = CELL_W * 1.5;
 
-// Écran « Faites glisser et déposez pour réorganiser votre liste » (TV Time).
-// L'ordre est sauvegardé à chaque dépôt ; « Terminé » referme l'écran.
+// L'ordre est sauvegardé à chaque dépôt ; l'action de validation referme l'écran.
 export default function ReorderFavoritesScreen() {
   const { type } = useLocalSearchParams<{ type?: string }>();
   const kind = type === 'movie' ? 'movie' : 'show';
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const scrollRef = useRef<ScrollView>(null);
   const scrollOffset = useRef(0);
@@ -64,15 +60,21 @@ export default function ReorderFavoritesScreen() {
   });
 
   return (
-    <Pop style={{ backgroundColor: COLORS.white }}>
-      <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
-        <Pressable onPress={() => goBack('/profile')} hitSlop={10} style={styles.topBtn} accessibilityRole="button" accessibilityLabel="Retour">
-          <Feather name="chevron-left" size={28} color={COLORS.black} />
-        </Pressable>
-        <Pressable onPress={() => goBack('/profile')} hitSlop={10}>
-          <Text style={styles.done}>Terminé</Text>
-        </Pressable>
-      </View>
+    <Pop style={styles.screen}>
+      <LibHeader
+        title="Réorganiser"
+        right={
+          <Pressable
+            style={({ pressed }) => [styles.doneBtn, pressed && styles.controlPressed]}
+            onPress={() => goBack('/profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Terminer le réordonnancement"
+            accessibilityHint="Enregistre l'ordre courant et revient au profil"
+          >
+            <Feather name="check" size={20} color={COLORS.onPrimary} />
+          </Pressable>
+        }
+      />
       {isLoading ? (
         <GridSkeleton />
       ) : isError && !hasData ? (
@@ -83,23 +85,37 @@ export default function ReorderFavoritesScreen() {
           scrollEnabled={!scrollLocked}
           scrollEventThrottle={16}
           onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}
-          contentContainerStyle={{ paddingBottom: 32 }}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.title}>Faites glisser et déposez pour réorganiser votre liste</Text>
-          <View style={styles.divider} />
+          <View style={styles.instruction}>
+            <View style={styles.instructionIcon}>
+              <Feather name="move" size={21} color={COLORS.primary} />
+            </View>
+            <View style={styles.instructionCopy}>
+              <Text accessibilityRole="header" style={styles.title}>
+                Organisez vos {kind === 'movie' ? 'films' : 'séries'} préférés
+              </Text>
+              <Text style={styles.subtitle}>
+                Maintenez une affiche, puis faites-la glisser jusqu'à sa nouvelle position.
+              </Text>
+            </View>
+          </View>
           {initial.length === 0 ? (
             <EmptyState title="Aucun favori à réorganiser" />
           ) : (
-            <DragGrid
-              data={initial}
-              keyOf={(m) => m.id}
-              cellHeight={CELL_H}
-              renderItem={(m) => <ReorderCell media={m} isShow={kind === 'show'} />}
-              onReorder={(items) => save.mutate(items.map((m) => m.id))}
-              onDragStateChange={setScrollLocked}
-              scrollRef={scrollRef}
-              scrollOffsetRef={scrollOffset}
-            />
+            <View style={styles.dragCanvas}>
+              <DragGrid
+                data={initial}
+                keyOf={(m) => m.id}
+                cellHeight={CELL_H}
+                renderItem={(m) => <ReorderCell media={m} isShow={kind === 'show'} />}
+                onReorder={(items) => save.mutate(items.map((m) => m.id))}
+                onDragStateChange={setScrollLocked}
+                scrollRef={scrollRef}
+                scrollOffsetRef={scrollOffset}
+              />
+            </View>
           )}
         </ScrollView>
       )}
@@ -107,8 +123,7 @@ export default function ReorderFavoritesScreen() {
   );
 }
 
-// Affiche seule (avec barre de progression pour les séries) : pas de tap fiche
-// ici, l'écran est dédié au glisser-déposer.
+// Affiche seule : l'écran est dédié au glisser-déposer.
 function ReorderCell({ media, isShow }: { media: MediaDto; isShow: boolean }) {
   const uri = tmdbImage(media.posterPath);
   const progress = (media as LibraryShow).progress;
@@ -116,33 +131,106 @@ function ReorderCell({ media, isShow }: { media: MediaDto; isShow: boolean }) {
   const done = started && progress.total > 0 && progress.watched >= progress.total;
   const pct = started && progress.total > 0 ? Math.min(100, (progress.watched / progress.total) * 100) : 0;
   return (
-    <View style={styles.posterBox}>
-      {uri ? (
-        <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-      ) : (
-        <View style={styles.posterEmpty}>
-          <Feather name={isShow ? 'tv' : 'film'} size={22} color="#b4b4b4" />
-          <Text style={styles.posterTitle} numberOfLines={3}>{media.title}</Text>
-        </View>
-      )}
-      {started ? (
-        <View style={styles.barTrack}>
-          <AnimatedFill pct={pct} color={done ? COLORS.green : COLORS.yellow} style={styles.barFill} />
-        </View>
-      ) : null}
+    <View
+      style={styles.posterFrame}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={media.title}
+      accessibilityHint="Maintenez puis faites glisser pour déplacer ce favori"
+    >
+      <View style={styles.posterBox}>
+        {uri ? (
+          <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <View style={styles.posterEmpty}>
+            <Feather name={isShow ? 'tv' : 'film'} size={24} color={COLORS.primary} />
+            <Text style={styles.posterTitle} numberOfLines={3}>{media.title}</Text>
+          </View>
+        )}
+        {started ? (
+          <View style={styles.barTrack}>
+            <AnimatedFill pct={pct} color={done ? COLORS.green : COLORS.yellow} style={styles.barFill} />
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 2, paddingRight: 16 },
-  topBtn: { width: 46, paddingVertical: 8, justifyContent: 'center' },
-  done: { color: COLORS.blue, fontSize: 17, fontFamily: FONTS.regular },
-  title: { color: COLORS.text, fontSize: 19, fontFamily: FONTS.extraBold, lineHeight: 26, paddingHorizontal: 16, marginTop: 6, marginBottom: 14 },
-  divider: { height: 1, backgroundColor: COLORS.borderLight, marginBottom: 12 },
-  posterBox: { flex: 1, borderRadius: 6, overflow: 'hidden', backgroundColor: COLORS.imagePlaceholder },
-  posterEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, gap: 6 },
-  posterTitle: { fontSize: 11, fontFamily: FONTS.bold, color: COLORS.textMuted, textAlign: 'center' },
-  barTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: YELLOW_TRACK },
+  screen: { backgroundColor: COLORS.bg },
+  doneBtn: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.primary,
+  },
+  controlPressed: { opacity: 0.8, transform: [{ scale: 0.96 }] },
+  scrollContent: { flexGrow: 1, paddingBottom: SPACE.xl },
+  instruction: {
+    width: 'auto',
+    maxWidth: SIZES.contentMax - SPACE.md * 2,
+    minHeight: 96,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    margin: SPACE.md,
+    padding: SPACE.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.surface,
+    ...SHADOW.card,
+  },
+  instructionIcon: {
+    width: SIZES.touchComfortable,
+    height: SIZES.touchComfortable,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.primarySoft,
+  },
+  instructionCopy: { flex: 1, minWidth: 0 },
+  title: { color: COLORS.text, fontSize: 17, lineHeight: 23, fontFamily: FONTS.extraBold },
+  subtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19, fontFamily: FONTS.regular, marginTop: 3 },
+  dragCanvas: {
+    width: '100%',
+    maxWidth: DRAG_GRID_MAX_WIDTH,
+    alignSelf: 'center',
+  },
+  posterFrame: {
+    flex: 1,
+    borderRadius: RADIUS.poster,
+    backgroundColor: COLORS.surface,
+    ...SHADOW.card,
+  },
+  posterBox: {
+    flex: 1,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.poster,
+    backgroundColor: COLORS.imagePlaceholder,
+  },
+  posterEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACE.xs,
+    gap: SPACE.xs,
+    backgroundColor: COLORS.primarySoft,
+  },
+  posterTitle: {
+    color: COLORS.text,
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: FONTS.bold,
+    textAlign: 'center',
+  },
+  barTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 6, backgroundColor: YELLOW_TRACK },
   barFill: { position: 'absolute', left: 0, bottom: 0, top: 0 },
 });

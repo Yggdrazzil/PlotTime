@@ -7,37 +7,28 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import type { EpisodeDto, MediaDto, QueueItemDto, UpcomingItemDto } from '@/lib/types';
 import { queueGroupLabel, episodeCode, airTimeLabel } from '@/lib/format';
-import { COLORS, SHADOW, FONTS } from '@/lib/theme';
-import { PillHeader, TopTabs, EmptyState, LoadError, ShowPill, Badge, CheckCircle } from '@/components/ui';
+import { COLORS, SHADOW, FONTS, RADIUS, SPACE, SIZES } from '@/lib/theme';
+import { PillHeader, EmptyState, LoadError, ShowPill, Badge, CheckCircle } from '@/components/ui';
 import { EpisodeQueueCard } from '@/components/EpisodeQueueCard';
 import { EpisodeSheet, type EpisodeSheetTarget } from '@/components/EpisodeSheet';
 import { useTabResetSeq } from '@/lib/tabReset';
-import { AppearItem, FadeSwitch } from '@/components/anim';
+import { AppearItem } from '@/components/anim';
 import { useFloatingSection, FloatingSectionPill } from '@/components/FloatingSection';
+import { TabHeader } from '@/components/prisme';
 import { QueueSkeleton } from '@/components/skeletons';
 import { usePullRefresh } from '@/lib/usePullRefresh';
 
 export default function ShowsScreen() {
   const insets = useSafeAreaInsets();
-  // Re-clic sur l'onglet « Séries » (barre du bas) : le remontage par `key`
-  // ramène l'onglet haut par défaut (À VOIR) et rejoue le scroll initial.
+  // Re-clic sur Accueil : le remontage rejoue le scroll initial de la file.
   const resetSeq = useTabResetSeq('index');
   return (
     <View key={resetSeq} style={{ flex: 1, backgroundColor: COLORS.pageMuted }}>
-      <ShowsScreenInner insets={insets} />
-    </View>
-  );
-}
-
-function ShowsScreenInner({ insets }: { insets: { top: number } }) {
-  const [tab, setTab] = useState('À VOIR');
-  return (
-    <>
-      <View style={{ paddingTop: insets.top, backgroundColor: COLORS.white }}>
-        <TopTabs tabs={['À VOIR', 'À VENIR']} active={tab} onChange={setTab} />
+      <View style={[styles.homeHeader, { paddingTop: insets.top }]}>
+        <TabHeader title="À voir" />
       </View>
-      <FadeSwitch trigger={tab}>{tab === 'À VOIR' ? <QueueView /> : <UpcomingView />}</FadeSwitch>
-    </>
+      <QueueView />
+    </View>
   );
 }
 
@@ -163,14 +154,15 @@ function QueueView() {
       // Masqué SEULEMENT quand un historique est rendu sans être encore calé :
       // pendant son chargement, la file « À voir » s'affiche normalement.
       style={{ opacity: settled || historyItems.length === 0 ? 1 : 0 }}
-      contentContainerStyle={{ paddingBottom: 16 }}
+      contentContainerStyle={styles.queueContent}
       onScroll={onListScroll}
       scrollEventThrottle={16}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.yellow} colors={[COLORS.yellow]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} />}
     >
       {historyItems.length > 0 ? (
         <View
           ref={historyWrapRef}
+          style={styles.queueColumn}
           onLayout={(e) => {
             registerSection('Historique de visionnage')(e);
             // Une fois l'historique mesuré, on cale le scroll juste en dessous
@@ -202,7 +194,7 @@ function QueueView() {
         // Index continu à travers les groupes pour une entrée en cascade.
         let n = -1;
         return [...groups.entries()].map(([group, items]) => (
-          <View key={group} onLayout={registerSection(queueGroupLabel(group))}>
+          <View key={group} style={styles.queueColumn} onLayout={registerSection(queueGroupLabel(group))}>
             <PillHeader label={queueGroupLabel(group)} />
             {items.map((item) => {
               n += 1;
@@ -240,7 +232,7 @@ function QueueView() {
   );
 }
 
-function UpcomingView() {
+export function UpcomingView() {
   // Historique des sorties (HIER, AVANT-HIER…) masqué au-dessus de la liste,
   // comme l'historique de visionnage de « À voir » : le scroll initial se cale
   // sur AUJOURD'HUI, on remonte pour rattraper une sortie manquée.
@@ -287,12 +279,13 @@ function UpcomingView() {
     <ScrollView
       ref={scrollRef}
       style={{ opacity: settled || pastGroups.length === 0 ? 1 : 0 }}
-      contentContainerStyle={{ paddingBottom: 16 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.yellow} colors={[COLORS.yellow]} />}
+      contentContainerStyle={styles.agendaContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} />}
     >
       {pastGroups.length > 0 ? (
         <View
           ref={pastWrapRef}
+          style={styles.agendaPastWrap}
           onLayout={(e) => {
             const h = e.nativeEvent.layout.height;
             if (!didInitialScroll.current && h > 0) {
@@ -303,17 +296,17 @@ function UpcomingView() {
           }}
         >
           {pastGroups.map((g) => (
-            <View key={`p-${g.label}`} style={{ opacity: 0.82 }}>
+            <View key={`p-${g.label}`} style={styles.agendaGroup}>
               <PillHeader label={g.label} />
               {g.items.map((item) => (
-                <UpcomingCard key={`${item.media.id}-${item.date}`} item={item} />
+                <UpcomingCard key={`${item.media.id}-${item.date}`} item={item} past />
               ))}
             </View>
           ))}
         </View>
       ) : null}
       {data.groups.map((g) => (
-        <View key={g.label}>
+        <View key={g.label} style={styles.agendaGroup}>
           <PillHeader label={g.label} />
           {g.items.map((item) => (
             <UpcomingCard key={`${item.media.id}-${item.date}`} item={item} />
@@ -324,20 +317,37 @@ function UpcomingView() {
   );
 }
 
-function UpcomingCard({ item }: { item: UpcomingItemDto }) {
+function UpcomingCard({ item, past = false }: { item: UpcomingItemDto; past?: boolean }) {
   const router = useRouter();
   const ep = item.episodes[0];
   if (!ep) return null;
   const isPremiere = ep.seasonNumber >= 1 && ep.episodeNumber === 1;
   // Vignette : image de l'épisode si déjà publiée, sinon affiche de la série.
   const thumbUri = tmdbImage(ep.stillPath, 'w300') ?? tmdbImage(item.media.posterPath, 'w342');
+  const air = airTimeLabel(ep.airDate);
+  const accessibilityLabel = [
+    item.media.title,
+    episodeCode(ep.seasonNumber, ep.episodeNumber),
+    ep.title,
+    air ? `à ${air}` : null,
+    ep.network ?? null,
+    isPremiere ? 'Première' : null,
+    item.episodes.length > 1 ? `${item.episodes.length} épisodes` : null,
+  ].filter(Boolean).join(', ');
+
   return (
-    <Pressable style={styles.upcard} onPress={() => router.push(`/show/${item.media.id}`)}>
+    <Pressable
+      style={({ pressed }) => [styles.upcard, past && styles.upcardPast, pressed && styles.upcardPressed]}
+      onPress={() => router.push(`/show/${item.media.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={"Ouvre la fiche de la s\u00e9rie"}
+    >
       {thumbUri ? (
-        <Image source={{ uri: thumbUri }} style={styles.thumb} resizeMode="cover" />
+        <Image source={{ uri: thumbUri }} style={[styles.thumb, past && styles.thumbPast]} resizeMode="cover" accessible={false} />
       ) : (
-        <View style={styles.thumb}>
-          <Feather name="image" size={28} color="#9a9a9a" />
+        <View style={[styles.thumb, past && styles.thumbPast]} accessible={false}>
+          <Feather name="image" size={26} color={COLORS.textSoft} />
         </View>
       )}
       <View style={styles.body}>
@@ -345,22 +355,19 @@ function UpcomingCard({ item }: { item: UpcomingItemDto }) {
           <View style={{ flexShrink: 1 }}>
             <ShowPill label={item.media.title} onPress={() => router.push(`/show/${item.media.id}`)} />
           </View>
-          {(() => {
-            const air = airTimeLabel(ep.airDate);
-            return air || ep.network ? (
-              <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
-                {air ? <Text style={styles.time}>{air}</Text> : null}
-                {ep.network ? <Text style={styles.ch}>{ep.network}</Text> : null}
-              </View>
-            ) : null;
-          })()}
+          {air || ep.network ? (
+            <View style={styles.schedule}>
+              {air ? <Text style={styles.time}>{air}</Text> : null}
+              {ep.network ? <Text style={styles.ch}>{ep.network}</Text> : null}
+            </View>
+          ) : null}
         </View>
         <Text style={styles.code}>{episodeCode(ep.seasonNumber, ep.episodeNumber)}</Text>
         <Text style={styles.epTitle} numberOfLines={1}>
           {ep.title}
         </Text>
         {isPremiere ? (
-          <View style={{ flexDirection: 'row', marginTop: 2 }}>
+          <View style={styles.badgeRow}>
             <Badge label="PREMIERE" variant="black" />
           </View>
         ) : null}
@@ -372,18 +379,63 @@ function UpcomingCard({ item }: { item: UpcomingItemDto }) {
   );
 }
 
-// Cotes TV Time, identiques à EpisodeQueueCard (code 20, titre 13, rayon 10).
+// Carte chronologique compacte : hiérarchie Studio dans le shell Prisme.
 const styles = StyleSheet.create({
-  upcard: {
-    flexDirection: 'row', marginHorizontal: 12, marginBottom: 12, backgroundColor: COLORS.white,
-    borderRadius: 10, minHeight: 96, overflow: 'hidden', ...SHADOW.card,
+  homeHeader: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.borderLight,
   },
-  thumb: { width: 92, backgroundColor: COLORS.imagePlaceholder, alignItems: 'center', justifyContent: 'center' },
-  body: { flex: 1, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 5 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' },
-  time: { color: COLORS.text, fontSize: 12.5, fontFamily: FONTS.bold },
-  ch: { color: COLORS.text, fontSize: 10.5, fontFamily: FONTS.bold, textTransform: 'uppercase' },
-  code: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.bold },
-  epTitle: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 12.5 },
-  multi: { color: COLORS.blue, fontFamily: FONTS.regular, fontSize: 13, marginTop: 4 },
+  // File « À voir » : contenu centré et borné à contentMax comme l'agenda et la
+  // bibliothèque (les cartes ne s'étirent plus bord à bord sur web/tablette).
+  queueContent: { alignItems: 'center', paddingBottom: 16 },
+  queueColumn: { width: '100%', maxWidth: SIZES.contentMax },
+  agendaContent: {
+    alignItems: 'center',
+    paddingTop: SPACE.xxs,
+    paddingBottom: SPACE.lg,
+  },
+  agendaPastWrap: { width: '100%', maxWidth: SIZES.contentMax },
+  agendaGroup: { width: '100%', maxWidth: SIZES.contentMax },
+  upcard: {
+    flexDirection: 'row',
+    minHeight: 112,
+    marginHorizontal: SPACE.md,
+    marginBottom: SPACE.sm,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    overflow: 'hidden',
+    ...SHADOW.card,
+  },
+  upcardPast: { backgroundColor: COLORS.surfaceMuted, borderColor: COLORS.border },
+  upcardPressed: { opacity: 0.84 },
+  thumb: {
+    width: 112,
+    minHeight: 112,
+    backgroundColor: COLORS.imagePlaceholder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbPast: { opacity: 0.82 },
+  body: { flex: 1, justifyContent: 'center', paddingHorizontal: SPACE.sm, paddingVertical: SPACE.sm, gap: SPACE.xxs },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', gap: SPACE.xs, alignItems: 'flex-start' },
+  schedule: { alignItems: 'flex-end', flexShrink: 0, minHeight: SIZES.touch },
+  time: { color: COLORS.text, fontSize: 13, lineHeight: 17, fontFamily: FONTS.extraBold },
+  ch: {
+    maxWidth: 96,
+    color: COLORS.textMuted,
+    fontSize: 10,
+    lineHeight: 14,
+    fontFamily: FONTS.bold,
+    textTransform: 'uppercase',
+    textAlign: 'right',
+  },
+  code: { color: COLORS.text, fontSize: 17, lineHeight: 22, fontFamily: FONTS.extraBold },
+  epTitle: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13, lineHeight: 18 },
+  badgeRow: { flexDirection: 'row', marginTop: 2 },
+  multi: { color: COLORS.secondary, fontFamily: FONTS.bold, fontSize: 12, lineHeight: 16, marginTop: SPACE.xxs },
 });

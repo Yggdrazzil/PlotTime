@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import type { MediaDto } from '@/lib/types';
-import { COLORS } from '@/lib/theme';
-import { PillHeader, TopTabs, EmptyState, Loading, LoadError, Poster } from '@/components/ui';
-import { AppearItem, FadeSwitch } from '@/components/anim';
+import { RADIUS, SPACE, SIZES } from '@/lib/theme';
+import { EmptyState, LoadError, Poster } from '@/components/ui';
+import { ScreenShell, SectionHeader, SegmentedFilter, TabHeader } from '@/components/prisme';
+import { AppearItem, FadeSwitch, Skeleton } from '@/components/anim';
 import { useTabResetSeq } from '@/lib/tabReset';
 
 type MoviesResponse = { toWatch: MediaDto[]; upcoming: { media: MediaDto; releaseDate: string }[] };
+type MovieTab = 'to_watch' | 'upcoming';
+
+const TAB_OPTIONS = [
+  { value: 'to_watch', label: 'À voir' },
+  { value: 'upcoming', label: 'À venir' },
+] as const;
+
 
 export default function MoviesScreen() {
   // Re-clic sur l'onglet « Films » : remontage complet (état + scroll par défaut).
@@ -19,62 +26,87 @@ export default function MoviesScreen() {
 }
 
 function MoviesScreenInner() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [tab, setTab] = useState('À VOIR');
+  const { width } = useWindowDimensions();
+  const [tab, setTab] = useState<MovieTab>('to_watch');
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['movies'],
     queryFn: () => api.get<MoviesResponse>('/api/movies'),
   });
 
+  const availableWidth = Math.min(width, SIZES.contentMax) - SPACE.md * 2;
+  const columns = availableWidth >= 640 ? 5 : availableWidth >= 480 ? 4 : 3;
+  const posterWidth = Math.max(76, (availableWidth - SPACE.sm * (columns - 1)) / columns);
+
   const grid = (items: MediaDto[]) => (
     <View style={styles.grid}>
       {items.map((m, i) => (
-        // Cascade d'apparition des affiches (délai plafonné dans AppearItem).
-        <AppearItem key={m.id} index={i} style={styles.cell}>
-          <Poster title={m.title} uri={tmdbImage(m.posterPath)} onPress={() => router.push(`/show/${m.id}?type=movie`)} />
+        <AppearItem key={m.id} index={i} style={{ width: posterWidth }}>
+          <Poster
+            title={m.title}
+            uri={tmdbImage(m.posterPath)}
+            width={posterWidth}
+            onPress={() => router.push(`/show/${m.id}?type=movie`)}
+          />
         </AppearItem>
       ))}
     </View>
   );
 
+  const activeItems = tab === 'to_watch' ? data?.toWatch ?? [] : data?.upcoming.map((item) => item.media) ?? [];
+  const activeTitle = tab === 'to_watch' ? 'À regarder' : 'Prochainement';
+  const activeSubtitle = tab === 'to_watch'
+    ? `${activeItems.length} film${activeItems.length !== 1 ? 's' : ''} dans ta sélection`
+    : `${activeItems.length} sortie${activeItems.length !== 1 ? 's' : ''} à venir`;
+
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
-      <View style={{ paddingTop: insets.top, backgroundColor: COLORS.white }}>
-        <TopTabs tabs={['À VOIR', 'À VENIR']} active={tab} onChange={setTab} />
-      </View>
+    <ScreenShell contentContainerStyle={styles.content}>
+      <TabHeader title="Films" />
+      <SegmentedFilter
+        options={TAB_OPTIONS}
+        value={tab}
+        onChange={setTab}
+        accessibilityLabel="Filtrer les films"
+      />
       {isLoading ? (
-        <Loading />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <View
+            style={styles.grid}
+            accessibilityRole="progressbar"
+            accessibilityLabel="Chargement des films"
+          >
+            {Array.from({ length: 9 }).map((_, index) => (
+              <Skeleton key={index} style={[styles.posterSkeleton, { width: posterWidth }]} />
+            ))}
+          </View>
+        </ScrollView>
       ) : isError && !data ? (
         <LoadError onRetry={refetch} busy={isRefetching} />
       ) : (
         <FadeSwitch trigger={tab}>
-        <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-          {tab === 'À VOIR' ? (
-            <>
-              <PillHeader label="À VOIR" />
-              {data && data.toWatch.length > 0 ? grid(data.toWatch) : <EmptyState title="Aucun film à voir" />}
-            </>
-          ) : (
-            <>
-              {data && data.upcoming.length > 0 ? (
-                <>
-                  <PillHeader label="À VENIR" />
-                  {grid(data.upcoming.map((u) => u.media))}
-                </>
-              ) : (
-                <EmptyState title="Aucun film à venir" />
-              )}
-            </>
-          )}
-        </ScrollView>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            <SectionHeader title={activeTitle} eyebrow={activeSubtitle} />
+            {activeItems.length > 0 ? (
+              grid(activeItems)
+            ) : (
+              <EmptyState
+                title={tab === 'to_watch' ? 'Aucun film à voir' : 'Aucun film à venir'}
+                message={tab === 'to_watch' ? 'Ajoute des films depuis Explorer.' : 'Les prochaines sorties apparaîtront ici.'}
+              />
+            )}
+          </ScrollView>
         </FadeSwitch>
       )}
-    </View>
+    </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 4, gap: 4 },
-  cell: { width: '32.5%' },
+  content: { paddingBottom: 0 },
+  scrollContent: { paddingTop: SPACE.xs, paddingBottom: SIZES.tabBar + SPACE.xl },
+  posterSkeleton: { aspectRatio: 2 / 3, borderRadius: RADIUS.poster },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.sm },
 });

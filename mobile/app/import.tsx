@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Platform } from 'react-native';
-import { COLORS, FONTS } from '@/lib/theme';
-import { PageHeader } from '@/components/PageHeader';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { COLORS, FONTS, RADIUS, SIZES, SPACE } from '@/lib/theme';
+import { goBack } from '@/lib/nav';
+import { ScreenShell, ScreenHeader, PrismeCard, ProgressBar, IconAction } from '@/components/prisme';
 import { api, ApiError } from '@/lib/api';
 
 // Résumé renvoyé par /analyze (sous-ensemble utile côté écran).
@@ -152,37 +154,54 @@ export default function ImportScreen() {
   const pct = prog && prog.total > 0 ? Math.round((prog.done / prog.total) * 100) : 0;
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
-      <PageHeader title="Importer TV Time" />
-      <ScrollView contentContainerStyle={{ padding: 24 }}>
-        <Text style={styles.lead}>
-          Récupère ton archive TV Time (dans l’app TV Time : Réglages → demande d’export de tes données ; tu reçois un
-          fichier .zip par mail), puis importe-le ici.
-        </Text>
-        {/* Mention légale (cf. docs/STORES.md / avis PI) : l'import du nom
-            « TV Time » est purement descriptif, pas une affiliation. */}
-        <Text style={styles.disclaimer}>
-          PlotTime est un service indépendant, non affilié à TV Time ni à Whip Media. L’import ne concerne que vos
-          propres données, exportées par vous.
-        </Text>
-
-        {step === 'idle' || step === 'analyzed' || step === 'done' ? (
-          <Pressable style={styles.btnYellow} onPress={pickFile}>
-            <Text style={styles.btnYellowText}>{summary ? 'CHOISIR UN AUTRE .ZIP' : 'CHOISIR UN FICHIER .ZIP'}</Text>
-          </Pressable>
-        ) : null}
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        {step === 'uploading' || step === 'analyzing' ? (
-          <View style={styles.centerRow}>
-            <ActivityIndicator color={COLORS.black} />
-            <Text style={styles.muted}>{step === 'uploading' ? 'Envoi du fichier…' : 'Analyse de l’archive…'}</Text>
+    <ScreenShell scroll>
+      <ScreenHeader
+        title="Importer TV Time"
+        leading={<IconAction icon="chevron-left" label="Retour" onPress={() => goBack('/profile')} />}
+      />
+      <View style={styles.list}>
+        <PrismeCard elevated>
+          <View style={styles.cardHead}>
+            <View style={styles.cardIcon}>
+              <Feather name="download-cloud" size={16} color={COLORS.primary} />
+            </View>
+            <Text style={styles.cardTitle}>Importer ton archive</Text>
           </View>
-        ) : null}
+          <Text style={styles.lead}>
+            Récupère ton archive TV Time (dans l’app TV Time : Réglages → demande d’export de tes données ; tu reçois un
+            fichier .zip par mail), puis importe-le ici.
+          </Text>
+          {/* Mention légale (cf. docs/STORES.md / avis PI) : l'import du nom
+              « TV Time » est purement descriptif, pas une affiliation. */}
+          <Text style={styles.disclaimer}>
+            PlotTime est un service indépendant, non affilié à TV Time ni à Whip Media. L’import ne concerne que vos
+            propres données, exportées par vous.
+          </Text>
+
+          {step === 'idle' || step === 'analyzed' || step === 'done' ? (
+            <Pressable style={({ pressed }) => [styles.btnYellow, pressed && styles.btnPressed]} onPress={pickFile} accessibilityRole="button">
+              <Feather name="upload" size={16} color={COLORS.onAccent} />
+              <Text style={styles.btnYellowText}>{summary ? 'CHOISIR UN AUTRE .ZIP' : 'CHOISIR UN FICHIER .ZIP'}</Text>
+            </Pressable>
+          ) : null}
+
+          {error ? (
+            <View style={styles.errorRow}>
+              <Feather name="alert-triangle" size={16} color={COLORS.danger} />
+              <Text style={styles.error}>{error}</Text>
+            </View>
+          ) : null}
+
+          {step === 'uploading' || step === 'analyzing' ? (
+            <View style={styles.centerRow}>
+              <ActivityIndicator color={COLORS.primary} />
+              <Text style={styles.muted}>{step === 'uploading' ? 'Envoi du fichier…' : 'Analyse de l’archive…'}</Text>
+            </View>
+          ) : null}
+        </PrismeCard>
 
         {summary && (step === 'analyzed' || step === 'importing') ? (
-          <View style={{ marginTop: 28 }}>
+          <PrismeCard elevated>
             <Text style={styles.reportTitle}>Archive analysée</Text>
             <Row label="Séries détectées" value={summary.showsDetected} />
             <Row label="Films détectés" value={summary.moviesDetected} />
@@ -195,34 +214,43 @@ export default function ImportScreen() {
             <Row label="Doublons ignorés" value={summary.duplicatesIgnored} />
 
             {step === 'analyzed' ? (
-              <Pressable style={styles.btnYellow} onPress={startImport}>
+              <Pressable style={({ pressed }) => [styles.btnYellow, pressed && styles.btnPressed]} onPress={startImport} accessibilityRole="button">
                 <Text style={styles.btnYellowText}>IMPORTER</Text>
               </Pressable>
             ) : null}
-          </View>
+          </PrismeCard>
         ) : null}
 
         {step === 'importing' ? (
-          <View style={{ marginTop: 24 }}>
+          <PrismeCard elevated>
             <Text style={styles.muted}>{PHASE_LABEL[prog?.phase ?? 'apply']}</Text>
-            <View style={styles.barTrack}>
-              <View style={[styles.barFill, { width: `${pct}%` }]} />
-            </View>
+            <ProgressBar
+              value={prog?.done ?? 0}
+              max={prog?.total ?? 0}
+              label={PHASE_LABEL[prog?.phase ?? 'apply']}
+              color={COLORS.yellow}
+              trackColor={COLORS.surfaceMuted}
+              height={12}
+              style={styles.progressBar}
+            />
             <Text style={styles.progText}>
               {prog ? `${prog.done} / ${prog.total}` : '…'} {pct ? `(${pct}%)` : ''}
             </Text>
             <Text style={styles.hint}>Tu peux fermer cette page, l’import continue en arrière-plan.</Text>
-          </View>
+          </PrismeCard>
         ) : null}
 
         {step === 'done' ? (
-          <View style={styles.doneBox}>
+          <PrismeCard elevated style={styles.doneBox}>
+            <View style={styles.doneIcon}>
+              <Feather name="check" size={24} color={COLORS.onAccent} />
+            </View>
             <Text style={styles.doneTitle}>Import terminé 🎉</Text>
             <Text style={styles.muted}>Tes séries, ta progression et tes favoris sont dans l’app.</Text>
-          </View>
+          </PrismeCard>
         ) : null}
-      </ScrollView>
-    </View>
+      </View>
+    </ScreenShell>
   );
 }
 
@@ -230,28 +258,37 @@ function Row({ label, value, strong }: { label: string; value: number; strong?: 
   return (
     <View style={styles.row}>
       <Text style={[styles.rowLabel, strong && { color: COLORS.text, fontFamily: FONTS.bold }]}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+      <Text style={[styles.rowValue, strong && { color: COLORS.primary }]}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  lead: { fontFamily: FONTS.regular, fontSize: 16, color: COLORS.textMuted, lineHeight: 23 },
-  disclaimer: { fontFamily: FONTS.regular, fontSize: 11.5, color: COLORS.textSoft, marginTop: 10, lineHeight: 16 },
-  btnYellow: { backgroundColor: COLORS.yellow, borderRadius: 999, paddingVertical: 15, marginTop: 24, alignItems: 'center' },
+  list: { gap: SPACE.sm, paddingBottom: SPACE.xl },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: SPACE.xs, marginBottom: SPACE.sm },
+  cardIcon: {
+    width: 32, height: 32, flexShrink: 0, borderRadius: RADIUS.control,
+    backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center',
+  },
+  cardTitle: { flex: 1, color: COLORS.text, fontSize: 17, fontFamily: FONTS.extraBold },
+  lead: { fontFamily: FONTS.regular, fontSize: 15, color: COLORS.textMuted, lineHeight: 22 },
+  disclaimer: { fontFamily: FONTS.regular, fontSize: 11.5, color: COLORS.textSoft, marginTop: SPACE.sm, lineHeight: 16 },
+  btnYellow: { minHeight: SIZES.touchComfortable, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACE.xs, backgroundColor: COLORS.yellow, borderRadius: RADIUS.pill, paddingVertical: SPACE.sm, marginTop: SPACE.md },
   btnYellowText: { color: COLORS.onAccent, fontSize: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.6 },
-  error: { marginTop: 18, color: COLORS.red, fontFamily: FONTS.bold, fontSize: 15 },
-  centerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 24 },
-  muted: { fontFamily: FONTS.regular, fontSize: 16, color: COLORS.textMuted },
-  reportTitle: { color: COLORS.text, fontSize: 20, fontFamily: FONTS.extraBold },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, marginTop: 4 },
-  rowLabel: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 16 },
+  btnPressed: { opacity: 0.86, transform: [{ scale: 0.99 }] },
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.xs, marginTop: SPACE.md },
+  error: { flex: 1, color: COLORS.danger, fontFamily: FONTS.bold, fontSize: 14 },
+  centerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.sm, marginTop: SPACE.md },
+  muted: { flex: 1, fontFamily: FONTS.regular, fontSize: 15, color: COLORS.textMuted, lineHeight: 21 },
+  reportTitle: { color: COLORS.text, fontSize: 18, fontFamily: FONTS.extraBold, marginBottom: SPACE.xs },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
+  rowLabel: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 15 },
   rowValue: { color: COLORS.text, fontSize: 16, fontFamily: FONTS.extraBold },
-  divider: { height: 1, backgroundColor: COLORS.borderLight, marginVertical: 10 },
-  barTrack: { height: 12, borderRadius: 999, backgroundColor: COLORS.chipGrey, marginTop: 12, overflow: 'hidden' },
-  barFill: { height: 12, borderRadius: 999, backgroundColor: COLORS.yellow },
-  progText: { color: COLORS.text, marginTop: 8, fontFamily: FONTS.bold, fontSize: 15 },
-  hint: { marginTop: 10, fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textSoft },
-  doneBox: { marginTop: 28, gap: 8 },
-  doneTitle: { color: COLORS.text, fontSize: 19, fontFamily: FONTS.extraBold },
+  divider: { height: 1, backgroundColor: COLORS.borderLight, marginVertical: SPACE.sm },
+  progressBar: { marginTop: SPACE.sm },
+  progText: { color: COLORS.text, marginTop: SPACE.xs, fontFamily: FONTS.bold, fontSize: 15 },
+  hint: { marginTop: SPACE.sm, fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textSoft, lineHeight: 20 },
+  doneBox: { alignItems: 'center', gap: SPACE.xs },
+  doneIcon: { width: SIZES.touch, height: SIZES.touch, borderRadius: RADIUS.control, backgroundColor: COLORS.success, alignItems: 'center', justifyContent: 'center', marginBottom: SPACE.xxs },
+  doneTitle: { color: COLORS.text, fontSize: 19, fontFamily: FONTS.extraBold, textAlign: 'center' },
 });

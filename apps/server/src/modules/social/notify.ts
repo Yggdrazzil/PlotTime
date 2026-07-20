@@ -9,14 +9,21 @@ type NotifPayload = {
   commentId?: string;
 };
 
-// Type du média concerné (pour que l'app ouvre la bonne fiche : série vs film).
-async function mediaTypeOf(mediaId?: string): Promise<'show' | 'movie' | undefined> {
-  if (!mediaId) return undefined;
-  const m = await prisma.media.findUnique({ where: { id: mediaId }, select: { type: true } });
-  return (m?.type as 'show' | 'movie' | undefined) ?? undefined;
+export type NotificationMediaType = 'show' | 'movie' | 'game';
+
+export function notificationMediaType(type: string | null | undefined): NotificationMediaType | undefined {
+  if (type === 'show' || type === 'movie' || type === 'game') return type;
+  return undefined;
 }
 
-function meta(actorId: string, p: NotifPayload, mediaType?: 'show' | 'movie'): string {
+// Type du média concerné (pour que l'app ouvre la bonne fiche).
+async function mediaTypeOf(mediaId?: string): Promise<NotificationMediaType | undefined> {
+  if (!mediaId) return undefined;
+  const m = await prisma.media.findUnique({ where: { id: mediaId }, select: { type: true } });
+  return notificationMediaType(m?.type);
+}
+
+function meta(actorId: string, p: NotifPayload, mediaType?: NotificationMediaType): string {
   return JSON.stringify({ actorId, mediaId: p.mediaId, mediaType, commentId: p.commentId });
 }
 

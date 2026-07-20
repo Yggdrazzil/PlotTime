@@ -3,9 +3,10 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 
-// Runtimes de repli quand la donnée manque (mêmes hypothèses que le calcul du profil).
-const EP_FALLBACK_MIN = 42;
-const MOVIE_FALLBACK_MIN = 115;
+// Runtimes de repli quand la donnée manque (mêmes hypothèses que le calcul du
+// profil). Exportés : réutilisés par le défi hebdo (social/routes.ts).
+export const EP_FALLBACK_MIN = 42;
+export const MOVIE_FALLBACK_MIN = 115;
 
 const DAY = 86_400_000;
 const WEEKS = 12;

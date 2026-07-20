@@ -1,9 +1,9 @@
-// Design tokens PlotTime (spec §10) — thèmes Clair / Sombre / Sunset.
+// Socle visuel PlotTime — identité Prisme et thèmes Clair / Sombre / Sunset / Nuit.
 import { Appearance, Platform } from 'react-native';
 
-// Police unique de l'app (native + web) : Mulish — sans-serif humaniste fine,
-// choisie pour coller au rendu net et léger de TV Time (Rubik, plus ronde et
-// large, paraissait trop « grosse »). Les styles utilisent une famille par
+// Police unique de l'app (native + web) : Mulish — sans-serif humaniste,
+// choisie pour rester lisible dans les interfaces denses comme dans les grands
+// titres. Une famille est déclarée par
 // graisse (pas de fontWeight : Android ne synthétise pas les graisses embarquées).
 export const FONTS = {
   regular: 'Mulish_400Regular',
@@ -14,7 +14,9 @@ export const FONTS = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Thèmes. Les clés sont des RÔLES (héritées du thème clair d'origine) :
+// Les clés historiques restent disponibles pendant la migration. Les nouveaux
+// écrans utilisent en priorité les rôles sémantiques (`primary`, `secondary`,
+// `surfaceMuted`, etc.) :
 //  - `white`  = surface (pages, cartes)      - `black` = texte fort / éléments
 //  - `pageMuted` = fond derrière les cartes  - `yellow` = accent de marque
 //  - `onAccent` = texte posé SUR l'accent    - `imagePlaceholder` = vignettes vides
@@ -25,39 +27,47 @@ export type ThemePreference = 'system' | 'light' | 'dark' | 'sunset' | 'midnight
 export type ThemeName = 'light' | 'dark' | 'sunset' | 'midnight';
 
 const LIGHT = {
-  bg: '#FFFFFF',
-  pageMuted: '#F2F2F2',
+  bg: '#F7F5FA',
+  pageMuted: '#F1EDF4',
   surface: '#FFFFFF',
-  text: '#000000',
-  textMuted: '#808080',
-  textSoft: '#A0A0A0',
-  border: '#D6D6D6',
-  borderLight: '#E8E8E8',
-  yellow: '#FFD400',
-  yellowSoft: '#FFE873',
-  black: '#000000',
+  surfaceMuted: '#F1EDF4',
+  text: '#201A24',
+  textMuted: '#736B78',
+  textSoft: '#9A929E',
+  border: '#DED7E2',
+  borderLight: '#EDE8EF',
+  primary: '#6D4ED1',
+  onPrimary: '#FFFFFF',
+  primarySoft: '#EEE8FF',
+  secondary: '#EF5BA8',
+  tertiary: '#F3C54F',
+  success: '#2E9A62',
+  warning: '#B66C0E',
+  danger: '#C83F60',
+  info: '#2E71B8',
+  focus: '#6D4ED1',
+  yellow: '#F3C54F',
+  yellowSoft: '#FFF2C4',
+  black: '#201A24',
   white: '#FFFFFF',
-  pillGrey: '#858585',
-  chipGrey: '#EFEFEF',
-  chipSelected: '#CFCFCF',
-  blue: '#0075D9',
-  red: '#C7222A',
-  green: '#62D600',
-  checkBg: '#F7F7F7',
-  overlay: 'rgba(0,0,0,0.58)',
-  provider: '#00A8E1',
+  pillGrey: '#736B78',
+  chipGrey: '#F1EDF4',
+  chipSelected: '#DED7E2',
+  blue: '#2E71B8',
+  red: '#C83F60',
+  green: '#2E9A62',
+  checkBg: '#F1EDF4',
+  overlay: 'rgba(32,26,36,0.58)',
+  provider: '#6D4ED1',
   // Texte/icônes posés sur l'accent (boutons jaunes/terracotta, FAB, badges).
   onAccent: '#000000',
-  // Pastilles de section / points de notification / compteur « +N » : rôles
-  // séparés car le ROSE du logo ne s'applique QU'AU THÈME NUIT (demande
-  // produit 16/07) — les autres thèmes gardent les couleurs TV Time.
-  pillBg: '#858585',
+  // Rôles visuels conservés pour les sections, notifications et compteurs.
+  pillBg: '#6D4ED1',
   pillFg: '#FFFFFF',
-  notif: '#C7222A',
-  plusCount: '#808080',
-  // Navigation ACTIVE (onglet du bas + soulignement des onglets hauts) :
-  // couleur du texte fort partout, JAUNE du logo en thème Nuit.
-  navActive: '#000000',
+  notif: '#EF5BA8',
+  plusCount: '#EF5BA8',
+  // Accent de navigation actif.
+  navActive: '#6D4ED1',
   // Vignettes/affiches en attente d'image.
   imagePlaceholder: '#E5E5E5',
 };
@@ -70,11 +80,22 @@ const DARK: Palette = {
   bg: '#121217',
   pageMuted: '#0C0C10',
   surface: '#1B1B22',
+  surfaceMuted: '#24242C',
   text: '#F1F1F4',
   textMuted: '#9C9CA8',
   textSoft: '#6E6E7A',
   border: '#3A3A45',
   borderLight: '#2A2A33',
+  primary: '#A58EF4',
+  onPrimary: '#17131E',
+  primarySoft: '#30294F',
+  secondary: '#F47FBC',
+  tertiary: '#F4CC65',
+  success: '#66C58F',
+  warning: '#F3B85B',
+  danger: '#F07C94',
+  info: '#73A7E8',
+  focus: '#C0AEFF',
   // JAUNE DU LOGO (#FBAE00) pour tout l'accent jaune du thème Sombre —
   // uniformisé avec les pastilles de section (demande produit 17/07, Sombre
   // uniquement : Clair/Sunset gardent le #FFD400 historique).
@@ -110,11 +131,22 @@ const SUNSET: Palette = {
   pageMuted: '#F1E9DD',
   surface: '#FDFAF4',
   text: '#40332A',
+  surfaceMuted: '#F1E9DD',
   textMuted: '#8D7B6C',
   textSoft: '#B5A494',
   border: '#DECFBD',
   borderLight: '#ECE1D2',
   yellow: '#E2854F',
+  primary: '#A84F35',
+  onPrimary: '#FFF9F2',
+  primarySoft: '#F6D7C2',
+  secondary: '#B8436D',
+  tertiary: '#D69938',
+  success: '#648642',
+  warning: '#A96716',
+  danger: '#B8433C',
+  info: '#316F8D',
+  focus: '#8E3F2A',
   yellowSoft: '#F6D7C2',
   black: '#40332A',
   white: '#FDFAF4',
@@ -146,11 +178,22 @@ const MIDNIGHT: Palette = {
   surface: '#160F73',
   text: '#F3F1FF',
   textMuted: '#A9A3E0',
+  surfaceMuted: '#1E1780',
   textSoft: '#7D76C2',
   border: '#3A32A8',
   borderLight: '#251D8C',
   yellow: '#FBAE00',
   yellowSoft: 'rgba(251,174,0,0.28)',
+  primary: '#B39DFF',
+  onPrimary: '#0B075A',
+  primarySoft: '#30279A',
+  secondary: '#FF71B4',
+  tertiary: '#FBC34B',
+  success: '#72D69A',
+  warning: '#FBC34B',
+  danger: '#FF71A5',
+  info: '#7EC2FF',
+  focus: '#D1C5FF',
   black: '#F3F1FF',
   white: '#160F73',
   pillGrey: '#5C55B4',
@@ -262,26 +305,55 @@ export const STATUS_BAR = {
 // suit le jaune du thème (Sombre = jaune logo, ailleurs jaune historique).
 export const YELLOW_TRACK = THEME === 'dark' ? 'rgba(251,174,0,0.30)' : 'rgba(255,212,0,0.30)';
 
-// Rayons calqués sur TV Time (cartes et affiches nettement arrondies).
+// Échelle Prisme partagée par les écrans refondus.
+export const SPACE = {
+  xxs: 4,
+  xs: 8,
+  sm: 12,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
+} as const;
+
+export const SIZES = {
+  touch: 44,
+  touchComfortable: 48,
+  header: 56,
+  tabBar: 68,
+  contentMax: 760,
+} as const;
+
+export const MOTION = {
+  fast: 160,
+  standard: 200,
+  slow: 280,
+  easing: [0.2, 0, 0, 1] as const,
+  easingCss: 'cubic-bezier(0.2, 0, 0, 1)',
+} as const;
+
 export const RADIUS = {
-  card: 8,
-  poster: 6,
+  small: 8,
+  control: 12,
+  poster: 14,
+  card: 18,
+  sheet: 24,
   pill: 999,
-};
+} as const;
 
 export const SHADOW = {
   card: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: IS_DARK ? 0.5 : 0.16,
-    shadowRadius: 14,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: IS_DARK ? 0.32 : 0.08,
+    shadowRadius: 18,
+    elevation: 3,
   },
   season: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: IS_DARK ? 0.45 : 0.14,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOpacity: IS_DARK ? 0.28 : 0.07,
+    shadowRadius: 20,
+    elevation: 3,
   },
 };

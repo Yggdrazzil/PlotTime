@@ -1,5 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator, Keyboard, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  Image,
+  ActivityIndicator,
+  Keyboard,
+  Platform,
+  useWindowDimensions,
+} from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import type { Href } from 'expo-router';
@@ -7,9 +19,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import { useDebounced } from '@/lib/useDebounced';
-import { COLORS, FONTS } from '@/lib/theme';
-import { EmptyState, Loading } from '@/components/ui';
-import { AppearItem, FadeSwitch, PopIn } from '@/components/anim';
+import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
+import { EmptyState, LoadError } from '@/components/ui';
+import { TabHeader } from '@/components/prisme';
+import { AppearItem, FadeSwitch, PopIn, Skeleton } from '@/components/anim';
 import { useTabResetSeq } from '@/lib/tabReset';
 import { TikTokFeed } from '@/components/explore/TikTokFeed';
 
@@ -48,6 +61,7 @@ export default function ExploreScreen() {
 
 function ExploreScreenInner() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [tab, setTab] = useState<'media' | 'users' | 'games'>('media');
@@ -55,6 +69,7 @@ function ExploreScreenInner() {
   const debouncedQuery = useDebounced(query.trim(), 300);
 
   const searching = query.trim().length > 1;
+  const compact = width < 420;
   const cancel = () => {
     setQuery('');
     setTab('media');
@@ -62,37 +77,59 @@ function ExploreScreenInner() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white, paddingTop: insets.top }}>
-      {/* Barre façon TV Time : icône + champ, simple soulignement sous toute la
-          rangée (pas d'encadré — on neutralise aussi le focus-ring du navigateur
-          sur la web app). Placeholder court au repos, complet une fois le champ actif. */}
-      <View style={styles.searchbar}>
-        <Feather name="search" size={20} color={searching ? COLORS.black : COLORS.textMuted} />
-        <TextInput
-          style={[styles.input, Platform.OS === 'web' && ({ outlineStyle: 'none' } as never)]}
-          placeholder={focused || query ? 'Rechercher des séries et films' : 'Rechercher'}
-          placeholderTextColor={COLORS.textMuted}
-          value={query}
-          onChangeText={setQuery}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          autoCapitalize="none"
-        />
-        {query ? (
-          <Pressable onPress={cancel} hitSlop={8}>
-            <Text style={styles.cancel}>Annuler</Text>
-          </Pressable>
-        ) : null}
+    <View style={styles.screen}>
+      <View style={[styles.header, { paddingTop: insets.top + SPACE.sm }]}>
+        <View style={styles.headerContent}>
+          <TabHeader title="Explorer" />
+
+          <View style={[styles.searchbar, focused && styles.searchbarFocused]}>
+            <View style={[styles.searchIcon, focused && styles.searchIconFocused]} accessible={false}>
+              <Feather name="search" size={18} color={focused ? COLORS.onPrimary : COLORS.primary} />
+            </View>
+            <TextInput
+              style={[styles.input, Platform.OS === 'web' && ({ outlineStyle: 'none' } as never)]}
+              placeholder="Séries, films, jeux, profils…"
+              placeholderTextColor={COLORS.textMuted}
+              value={query}
+              onChangeText={setQuery}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              accessibilityLabel="Rechercher dans PlotTime"
+            />
+            {query ? (
+              <Pressable
+                style={({ pressed }) => [styles.cancel, pressed && styles.cancelPressed]}
+                onPress={cancel}
+                accessibilityRole="button"
+                accessibilityLabel="Effacer la recherche"
+              >
+                <Feather name="x" size={19} color={COLORS.text} />
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
       </View>
 
-      {/* Fondu à l'entrée/sortie du mode recherche, puis entre les deux onglets. */}
-      <FadeSwitch trigger={searching ? 'search' : 'feed'}>
+      <FadeSwitch trigger={searching ? 'search' : 'feed'} style={styles.mode}>
         {searching ? (
-          <>
+          <View style={styles.resultsFrame}>
             <View style={styles.tabs}>
-              <SearchTab label="SÉRIES ET FILMS" active={tab === 'media'} onPress={() => setTab('media')} />
-              <SearchTab label="JEUX" active={tab === 'games'} onPress={() => setTab('games')} />
-              <SearchTab label="UTILISATEURS" active={tab === 'users'} onPress={() => setTab('users')} />
+              <SearchTab
+                icon="film"
+                label={compact ? 'MÉDIAS' : 'SÉRIES & FILMS'}
+                active={tab === 'media'}
+                onPress={() => setTab('media')}
+              />
+              <SearchTab icon="command" label="JEUX" active={tab === 'games'} onPress={() => setTab('games')} />
+              <SearchTab
+                icon="users"
+                label={compact ? 'PROFILS' : 'UTILISATEURS'}
+                active={tab === 'users'}
+                onPress={() => setTab('users')}
+              />
             </View>
             <FadeSwitch trigger={tab}>
               {tab === 'media' ? (
@@ -103,24 +140,61 @@ function ExploreScreenInner() {
                 <UserResults query={debouncedQuery} />
               )}
             </FadeSwitch>
-          </>
+          </View>
         ) : (
-          <TikTokFeed />
+          <View style={styles.feedFrame}>
+            <TikTokFeed />
+          </View>
         )}
       </FadeSwitch>
     </View>
   );
 }
 
-function SearchTab({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function SearchTab({
+  icon,
+  label,
+  active,
+  onPress,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
   return (
-    <Pressable style={[styles.tab, active && styles.tabActive]} onPress={onPress}>
-      {/* Une seule ligne, toujours : « SÉRIES ET FILMS » ne doit jamais se
-          replier (rangée bancale, soulignement décalé). */}
+    <Pressable
+      style={({ pressed }) => [styles.tab, active && styles.tabActive, pressed && styles.tabPressed]}
+      onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+    >
+      <Feather name={icon} size={15} color={active ? COLORS.onPrimary : COLORS.textMuted} />
       <Text style={[styles.tabText, active && styles.tabTextActive]} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+function SearchResultsSkeleton() {
+  return (
+    <ScrollView
+      contentContainerStyle={styles.resultsContent}
+      showsVerticalScrollIndicator={false}
+      accessibilityLabel="Chargement des résultats"
+    >
+      {[0, 1, 2, 3].map((item) => (
+        <View key={item} style={styles.resultRow}>
+          <Skeleton style={styles.resultPoster} />
+          <View style={styles.resultBody}>
+            <Skeleton style={styles.skeletonTitle} />
+            <Skeleton style={styles.skeletonMeta} />
+          </View>
+          <Skeleton style={styles.skeletonAction} />
+        </View>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -187,72 +261,88 @@ function MediaResults({ query, rawQuery }: { query: string; rawQuery: string }) 
     }
   };
 
-  if (search.isLoading) return <Loading />;
+  if (query.length <= 1 || search.isLoading) return <SearchResultsSkeleton />;
+  if (search.isError && !search.data) {
+    return <LoadError onRetry={() => void search.refetch()} busy={search.isFetching} />;
+  }
   const results = search.data?.results;
   const sources = search.data?.sources;
   if (!results || results.length === 0) {
     if (sources && !sources.tmdb && !sources.tvdb) {
       return (
         <EmptyState
-          title="Recherche externe non configurée"
-          message={
-            'Le serveur n’a aucune source de contenu active.\n' +
-            'Renseignez TVDB_ENABLED=true et TVDB_API_KEY (ou une clé TMDb) dans apps/server/.env, puis redémarrez le serveur.'
-          }
+          title="Recherche momentanément indisponible"
+          message="Les sources de séries et de films ne répondent pas pour le moment. Réessayez un peu plus tard."
         />
       );
     }
-    return <EmptyState title="Toutes nos excuses" message={`Nous n'avons trouvé aucun résultat pour « ${rawQuery.trim()} »`} />;
+    return <EmptyState title="Aucun résultat" message={`Aucune série ni aucun film ne correspond à « ${rawQuery.trim()} ».`} />;
   }
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 24, paddingTop: 6 }} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.resultsContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       {results.map((r, i) => {
         const key = `${r.type}-${r.id ?? r.tvdbId ?? r.tmdbId}`;
         const poster = tmdbImage(r.posterPath, 'w185');
         const isFollowed = followed[key] || r.inLibrary;
         return (
           <AppearItem key={key} index={i}>
-          <Pressable style={styles.resultRow} onPress={() => open(r, key)}>
-            {poster ? (
-              <Image source={{ uri: poster }} style={styles.resultPoster} resizeMode="cover" />
-            ) : (
-              <View style={[styles.resultPoster, styles.posterEmpty]}>
-                <Feather name="image" size={18} color="#b4b4b4" />
-              </View>
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.resultTitle} numberOfLines={1}>
-                {r.title}
-              </Text>
-              <View style={styles.resultMetaRow}>
-                <Feather name={r.type === 'show' ? 'tv' : 'film'} size={14} color={COLORS.textMuted} />
-                <Text style={styles.resultMeta}>
-                  {[r.type === 'show' ? 'Série' : 'Film', r.year].filter(Boolean).join(' · ')}
+            <Pressable
+              style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
+              onPress={() => open(r, key)}
+              accessibilityRole="button"
+              accessibilityLabel={`Ouvrir la fiche de ${r.title}`}
+            >
+              {poster ? (
+                <Image source={{ uri: poster }} style={styles.resultPoster} resizeMode="cover" accessible={false} />
+              ) : (
+                <View style={[styles.resultPoster, styles.posterEmpty]} accessible={false}>
+                  <Feather name="image" size={20} color={COLORS.textSoft} />
+                </View>
+              )}
+              <View style={styles.resultBody}>
+                <Text style={styles.resultTitle} numberOfLines={2}>
+                  {r.title}
                 </Text>
+                <View style={styles.resultMetaRow}>
+                  <Feather name={r.type === 'show' ? 'tv' : 'film'} size={14} color={COLORS.primary} />
+                  <Text style={styles.resultMeta}>
+                    {[r.category === 'anime' ? 'Animé' : r.type === 'show' ? 'Série' : 'Film', r.year]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </Text>
+                </View>
               </View>
-            </View>
-            {openingKey === key || addingKey === key ? (
-              <View style={styles.addSquareGhost}>
-                <ActivityIndicator color={COLORS.black} size="small" />
-              </View>
-            ) : isFollowed ? (
-              // La coche « ajouté » arrive avec un petit rebond (feedback du +).
-              <PopIn style={styles.addedSquare}>
-                <Feather name="check" size={20} color={COLORS.textMuted} />
-              </PopIn>
-            ) : (
-              <Pressable
-                style={styles.addSquare}
-                onPress={() => add(r, key)}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityLabel="Ajouter à ma bibliothèque"
-              >
-                <Feather name="plus" size={22} color="#E6B800" />
-              </Pressable>
-            )}
-          </Pressable>
+              {openingKey === key || addingKey === key ? (
+                <View style={styles.addSquareGhost} accessibilityLabel="Action en cours">
+                  <ActivityIndicator color={COLORS.primary} size="small" />
+                </View>
+              ) : isFollowed ? (
+                <View accessible accessibilityLabel="Déjà dans votre bibliothèque">
+                  <PopIn style={styles.addedSquare}>
+                    <Feather name="check" size={20} color={COLORS.success} />
+                  </PopIn>
+                </View>
+              ) : (
+                <Pressable
+                  style={({ pressed }) => [styles.addSquare, pressed && styles.addSquarePressed]}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    void add(r, key);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    r.type === 'movie' ? `Ajouter ${r.title} à voir` : `Suivre ${r.title}`
+                  }
+                >
+                  <Feather name="plus" size={20} color={COLORS.onPrimary} />
+                </Pressable>
+              )}
+            </Pressable>
           </AppearItem>
         );
       })}
@@ -310,55 +400,70 @@ function GameResults({ query, rawQuery }: { query: string; rawQuery: string }) {
     }
   };
 
-  if (search.isLoading) return <Loading />;
+  if (query.length <= 1 || search.isLoading) return <SearchResultsSkeleton />;
+  if (search.isError && !search.data) {
+    return <LoadError onRetry={() => void search.refetch()} busy={search.isFetching} />;
+  }
   const results = search.data?.results ?? [];
   if (results.length === 0) {
-    return <EmptyState title="Toutes nos excuses" message={`Nous n'avons trouvé aucun résultat pour « ${rawQuery.trim()} »`} />;
+    return <EmptyState title="Aucun résultat" message={`Aucun jeu ne correspond à « ${rawQuery.trim()} ».`} />;
   }
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 24, paddingTop: 6 }} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.resultsContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       {results.map((r, i) => {
         const poster = tmdbImage(r.posterPath, 'w185');
         const key = keyOf(r);
         const isFollowed = followed[key] || r.inLibrary;
         return (
           <AppearItem key={key} index={i}>
-            <Pressable style={styles.resultRow} onPress={() => open(r)}>
+            <Pressable
+              style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
+              onPress={() => open(r)}
+              accessibilityRole="button"
+              accessibilityLabel={`Ouvrir la fiche de ${r.title}`}
+            >
               {poster ? (
-                <Image source={{ uri: poster }} style={styles.resultPoster} resizeMode="cover" />
+                <Image source={{ uri: poster }} style={styles.resultPoster} resizeMode="cover" accessible={false} />
               ) : (
-                <View style={[styles.resultPoster, styles.posterEmpty]}>
-                  <Feather name="image" size={18} color="#b4b4b4" />
+                <View style={[styles.resultPoster, styles.posterEmpty]} accessible={false}>
+                  <Feather name="image" size={20} color={COLORS.textSoft} />
                 </View>
               )}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.resultTitle} numberOfLines={1}>
+              <View style={styles.resultBody}>
+                <Text style={styles.resultTitle} numberOfLines={2}>
                   {r.title}
                 </Text>
                 <View style={styles.resultMetaRow}>
-                  <Ionicons name="game-controller" size={14} color={COLORS.textMuted} />
+                  <Ionicons name="game-controller" size={14} color={COLORS.primary} />
                   <Text style={styles.resultMeta}>{['Jeu', r.year].filter(Boolean).join(' · ')}</Text>
                 </View>
               </View>
               {openingKey === key || addingKey === key ? (
-                <View style={styles.addSquareGhost}>
-                  <ActivityIndicator color={COLORS.black} size="small" />
+                <View style={styles.addSquareGhost} accessibilityLabel="Action en cours">
+                  <ActivityIndicator color={COLORS.primary} size="small" />
                 </View>
               ) : isFollowed ? (
-                // La coche « ajouté » arrive avec un petit rebond (feedback du +).
-                <PopIn style={styles.addedSquare}>
-                  <Feather name="check" size={20} color={COLORS.textMuted} />
-                </PopIn>
+                <View accessible accessibilityLabel="Déjà dans votre bibliothèque">
+                  <PopIn style={styles.addedSquare}>
+                    <Feather name="check" size={20} color={COLORS.success} />
+                  </PopIn>
+                </View>
               ) : (
                 <Pressable
-                  style={styles.addSquare}
-                  onPress={() => add(r)}
-                  hitSlop={6}
+                  style={({ pressed }) => [styles.addSquare, pressed && styles.addSquarePressed]}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    void add(r);
+                  }}
                   accessibilityRole="button"
-                  accessibilityLabel="Ajouter à ma bibliothèque"
+                  accessibilityLabel={`Ajouter ${r.title} aux jeux voulus`}
                 >
-                  <Feather name="plus" size={22} color="#E6B800" />
+                  <Feather name="plus" size={20} color={COLORS.onPrimary} />
                 </Pressable>
               )}
             </Pressable>
@@ -401,27 +506,65 @@ function UserResults({ query }: { query: string }) {
     }
   };
 
-  if (search.isLoading) return <Loading />;
+  if (query.length <= 1 || search.isLoading) return <SearchResultsSkeleton />;
+  if (search.isError && !search.data) {
+    return <LoadError onRetry={() => void search.refetch()} busy={search.isFetching} />;
+  }
   const users = search.data?.users ?? [];
   if (users.length === 0)
-    return <EmptyState title="Toutes nos excuses" message={`Aucun utilisateur trouvé pour « ${query} »`} />;
+    return <EmptyState title="Aucun profil" message={`Aucun profil ne correspond à « ${query} ».`} />;
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 24, paddingTop: 6 }} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.resultsContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       {users.map((u, i) => {
         const following = overrides[u.id] ?? u.isFollowing ?? false;
+        const avatar = u.avatarUrl ? tmdbImage(u.avatarUrl, 'w185') ?? u.avatarUrl : null;
+        const busy = busyId === u.id;
         return (
           <AppearItem key={u.id} index={i} style={styles.userRow}>
-            <Pressable style={styles.userTap} onPress={() => router.push(`/user/${u.id}`)}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarInit}>{u.displayName.slice(0, 1).toUpperCase()}</Text>
-              </View>
+            <Pressable
+              style={({ pressed }) => [styles.userTap, pressed && styles.userTapPressed]}
+              onPress={() => router.push(`/user/${u.id}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`Ouvrir le profil de ${u.displayName}`}
+            >
+              {avatar ? (
+                <Image source={{ uri: avatar }} style={styles.avatar} resizeMode="cover" accessible={false} />
+              ) : (
+                <View style={styles.avatar} accessible={false}>
+                  <Text style={styles.avatarInit}>{u.displayName.slice(0, 1).toUpperCase()}</Text>
+                </View>
+              )}
               <Text style={styles.userName} numberOfLines={1}>
                 {u.displayName}
               </Text>
             </Pressable>
-            <Pressable style={[styles.followBtn, following && styles.followingBtn]} onPress={() => toggle(u)} disabled={busyId === u.id}>
-              <Text style={[styles.followText, following && styles.followingText]}>{following ? 'ABONNÉ' : 'SUIVRE'}</Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.followBtn,
+                following && styles.followingBtn,
+                pressed && styles.followBtnPressed,
+              ]}
+              onPress={() => toggle(u)}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={following ? `Ne plus suivre ${u.displayName}` : `Suivre ${u.displayName}`}
+              accessibilityState={{ selected: following, busy, disabled: busy }}
+            >
+              {busy ? (
+                <ActivityIndicator size="small" color={following ? COLORS.primary : COLORS.onPrimary} />
+              ) : (
+                <>
+                  <Feather name={following ? 'check' : 'user-plus'} size={15} color={following ? COLORS.primary : COLORS.onPrimary} />
+                  <Text style={[styles.followText, following && styles.followingText]}>
+                    {following ? 'SUIVI' : 'SUIVRE'}
+                  </Text>
+                </>
+              )}
             </Pressable>
           </AppearItem>
         );
@@ -431,37 +574,228 @@ function UserResults({ query }: { query: string }) {
 }
 
 const styles = StyleSheet.create({
-  // Cotes TV Time (comparaison px sur captures, même téléphone) : rangée ~56dp,
-  // saisie 17, soulignement sous icône + champ (pas d'encadré).
-  // Barre de recherche recalée sur TV Time (comparaison px) : rangée 44dp,
-  // icône 20, texte 15.5 — nettement plus compacte qu'avant.
-  searchbar: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 18, height: 44, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  input: { color: COLORS.text, flex: 1, fontFamily: FONTS.regular, fontSize: 15.5, borderWidth: 0, paddingVertical: 6 },
-  cancel: { color: COLORS.blue, fontFamily: FONTS.regular, fontSize: 16 },
-  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  // Onglets répartis sur toute la largeur, comme TV Time.
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 2, borderBottomWidth: 3, borderBottomColor: 'transparent', marginBottom: -1 },
-  tabActive: { borderBottomColor: COLORS.black },
-  // 12.5 : « SÉRIES ET FILMS » tient sur UNE ligne dans son tiers d'écran
-  // (à 14, il se repliait sur deux lignes et cassait la rangée).
-  tabText: { fontSize: 12.5, fontFamily: FONTS.extraBold, letterSpacing: 0.3, color: COLORS.textSoft },
-  tabTextActive: { color: COLORS.black },
-  resultRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.borderLight },
-  resultPoster: { width: 56, aspectRatio: 2 / 3, borderRadius: 4, backgroundColor: COLORS.imagePlaceholder },
+  screen: { flex: 1, backgroundColor: COLORS.pageMuted },
+  header: {
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACE.md,
+    paddingBottom: SPACE.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.borderLight,
+    zIndex: 2,
+  },
+  headerContent: {
+    width: '100%',
+    maxWidth: SIZES.contentMax,
+    alignSelf: 'center',
+    gap: SPACE.sm,
+  },
+  searchbar: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.xs,
+    paddingHorizontal: 5,
+    backgroundColor: COLORS.surfaceMuted,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.control,
+  },
+  searchbarFocused: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.focus,
+    borderWidth: 2,
+    paddingHorizontal: 4,
+  },
+  searchIcon: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: RADIUS.small,
+  },
+  searchIconFocused: { backgroundColor: COLORS.primary },
+  input: {
+    minHeight: SIZES.touch,
+    flex: 1,
+    paddingVertical: SPACE.xs,
+    color: COLORS.text,
+    fontFamily: FONTS.regular,
+    fontSize: 16,
+    borderWidth: 0,
+  },
+  cancel: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.pill,
+  },
+  cancelPressed: { backgroundColor: COLORS.borderLight },
+  mode: { flex: 1 },
+  feedFrame: {
+    flex: 1,
+    width: '100%',
+    maxWidth: SIZES.contentMax,
+    alignSelf: 'center',
+    overflow: 'hidden',
+    backgroundColor: '#0D0A14',
+  },
+  resultsFrame: {
+    flex: 1,
+    width: '100%',
+    maxWidth: SIZES.contentMax,
+    alignSelf: 'center',
+    backgroundColor: COLORS.pageMuted,
+  },
+  tabs: {
+    flexDirection: 'row',
+    gap: 4,
+    marginHorizontal: SPACE.md,
+    marginTop: SPACE.md,
+    padding: 4,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    ...SHADOW.card,
+  },
+  tab: {
+    minHeight: SIZES.touch,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 4,
+    borderRadius: RADIUS.control,
+  },
+  tabActive: { backgroundColor: COLORS.primary },
+  tabPressed: { opacity: 0.78 },
+  tabText: {
+    flexShrink: 1,
+    color: COLORS.textMuted,
+    fontSize: 10.5,
+    fontFamily: FONTS.extraBold,
+    letterSpacing: 0.35,
+  },
+  tabTextActive: { color: COLORS.onPrimary },
+  resultsContent: {
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.md,
+    paddingTop: SPACE.md,
+    paddingBottom: SPACE.xl,
+  },
+  resultRow: {
+    minHeight: 112,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    padding: SPACE.sm,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    ...SHADOW.card,
+  },
+  resultRowPressed: { opacity: 0.82 },
+  resultPoster: {
+    width: 64,
+    aspectRatio: 2 / 3,
+    borderRadius: RADIUS.poster,
+    backgroundColor: COLORS.imagePlaceholder,
+  },
   posterEmpty: { alignItems: 'center', justifyContent: 'center' },
-  resultTitle: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.bold },
-  resultMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
-  resultMeta: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textMuted },
-  addSquare: { width: 40, height: 40, borderRadius: 10, borderWidth: 2.5, borderColor: COLORS.yellow, alignItems: 'center', justifyContent: 'center' },
-  addSquareGhost: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  addedSquare: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  userRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 10 },
-  userTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#20202a', alignItems: 'center', justifyContent: 'center' },
-  avatarInit: { color: '#fff', fontSize: 17, fontFamily: FONTS.extraBold },
-  userName: { color: COLORS.text, flex: 1, fontSize: 16, fontFamily: FONTS.bold },
-  followBtn: { minWidth: 96, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: COLORS.black, alignItems: 'center' },
-  followingBtn: { backgroundColor: COLORS.chipGrey },
-  followText: { color: COLORS.white, fontFamily: FONTS.extraBold, fontSize: 13, letterSpacing: 0.4 },
-  followingText: { color: COLORS.black },
+  resultBody: { flex: 1, minWidth: 0 },
+  resultTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    lineHeight: 21,
+    fontFamily: FONTS.extraBold,
+  },
+  resultMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  resultMeta: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13, lineHeight: 18 },
+  addSquare: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
+  },
+  addSquarePressed: { opacity: 0.78 },
+  addSquareGhost: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addedSquare: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surfaceMuted,
+    borderWidth: 1,
+    borderColor: COLORS.success,
+    borderRadius: RADIUS.pill,
+  },
+  skeletonTitle: { width: '74%', height: 17, borderRadius: RADIUS.small },
+  skeletonMeta: { width: '48%', height: 13, marginTop: SPACE.sm, borderRadius: RADIUS.small },
+  skeletonAction: { width: SIZES.touch, height: SIZES.touch, borderRadius: RADIUS.pill },
+  userRow: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    padding: SPACE.sm,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    ...SHADOW.card,
+  },
+  userTap: {
+    minHeight: SIZES.touch,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACE.sm,
+    borderRadius: RADIUS.control,
+  },
+  userTapPressed: { opacity: 0.72 },
+  avatar: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: 24,
+  },
+  avatarInit: { color: COLORS.onPrimary, fontSize: 18, fontFamily: FONTS.extraBold },
+  userName: { flex: 1, color: COLORS.text, fontSize: 15.5, fontFamily: FONTS.extraBold },
+  followBtn: {
+    minWidth: 100,
+    minHeight: SIZES.touch,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: SPACE.sm,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.pill,
+  },
+  followingBtn: {
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  followBtnPressed: { opacity: 0.78 },
+  followText: {
+    color: COLORS.onPrimary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 11.5,
+    letterSpacing: 0.35,
+  },
+  followingText: { color: COLORS.primary },
 });

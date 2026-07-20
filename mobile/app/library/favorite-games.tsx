@@ -1,70 +1,105 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
-import { goBack } from '@/lib/nav';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
 import type { MediaDto } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
-import { COLORS, FONTS } from '@/lib/theme';
-import { EmptyState, Loading, Poster } from '@/components/ui';
+import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
+import { EmptyState, LoadError, Poster } from '@/components/ui';
 import { SORT_OPTIONS, SortSheet, sortFavorites } from '@/components/favorites';
+import { Grid, LibHeader, LibraryGridCell } from '@/components/library';
+import { Pop } from '@/components/anim';
+import { GridSkeleton } from '@/components/skeletons';
+import { usePullRefresh } from '@/lib/usePullRefresh';
 
-// Jeux préférés (profil → « Jeux préférés ») : grille simple, tap = fiche jeu.
+// Jeux préférés (profil → « Jeux préférés ») : grille, tap = fiche jeu.
 // Le favori se bascule depuis le menu « ⋯ » de la fiche ; pas de drag & drop
-// ici en V1 (contrairement aux séries/films). Rangée TRIER PAR comme les
+// ici en V1 (contrairement aux séries/films). La rangée de tri reprend les
 // pages séries/films — le tri choisi est persisté et repris sur le profil.
 export default function FavoriteGamesScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [sortOpen, setSortOpen] = useState(false);
   const sort = useAppStore((s) => s.favSort.game);
   const setFavSort = useAppStore((s) => s.setFavSort);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['profile', 'favorites', 'game'],
     queryFn: () => api.get<{ favorites: MediaDto[] }>('/api/profile/favorites?type=game'),
   });
   const favs = useMemo(() => sortFavorites(data?.favorites ?? [], sort), [data, sort]);
+  const { refreshing, onRefresh } = usePullRefresh([refetch]);
+  const sortLabel = SORT_OPTIONS.find((option) => option.key === sort)?.label ?? '';
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      tintColor={COLORS.primary}
+      colors={[COLORS.primary]}
+    />
+  );
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.white, paddingTop: insets.top }}>
-      <View style={styles.header}>
-        <Pressable onPress={() => goBack('/profile')} hitSlop={10} style={styles.headSide} accessibilityRole="button" accessibilityLabel="Retour">
-          <Feather name="chevron-left" size={26} color={COLORS.black} />
-        </Pressable>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Ionicons name="game-controller-outline" size={18} color={COLORS.black} />
-          <Text style={styles.title}>Jeux préférés</Text>
-        </View>
-        <View style={styles.headSide} />
-      </View>
+    <Pop style={styles.screen}>
+      <LibHeader
+        title="Jeux préférés"
+        right={
+          <View style={styles.gameIcon} accessible={false}>
+            <Ionicons name="game-controller-outline" size={20} color={COLORS.primary} />
+          </View>
+        }
+      />
       {isLoading ? (
-        <Loading />
+        <GridSkeleton />
+      ) : isError && !data ? (
+        <LoadError onRetry={refetch} busy={isRefetching} />
       ) : favs.length === 0 ? (
-        <EmptyState
-          title="Aucun jeu en favori"
-          message="Ajoute tes jeux préférés depuis le menu « ⋯ » d'une fiche jeu."
-        />
+        <ScrollView
+          refreshControl={refreshControl}
+          contentContainerStyle={styles.emptyScroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <EmptyState
+            title="Aucun jeu en favori"
+            message="Ajoutez vos jeux préférés depuis le menu d'une fiche jeu."
+          />
+        </ScrollView>
       ) : (
-        <>
-          <Pressable style={styles.sortRow} onPress={() => setSortOpen(true)}>
-            <Text style={styles.sortLabel}>TRIER PAR</Text>
-            <Text style={styles.sortValue}>{SORT_OPTIONS.find((o) => o.key === sort)?.label ?? ''}</Text>
+        <View style={styles.body}>
+          <Pressable
+            style={({ pressed }) => [styles.sortRow, pressed && styles.sortPressed]}
+            onPress={() => setSortOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Trier les jeux. Tri actuel : ${sortLabel}`}
+            accessibilityHint="Ouvre les options de tri"
+          >
+            <View style={styles.sortIcon}>
+              <Feather name="list" size={18} color={COLORS.primary} />
+            </View>
+            <View style={styles.sortCopy}>
+              <Text style={styles.sortLabel}>TRIER PAR</Text>
+              <Text style={styles.sortValue} numberOfLines={1}>{sortLabel}</Text>
+            </View>
+            <Feather name="chevron-down" size={19} color={COLORS.primary} />
           </Pressable>
-          <ScrollView contentContainerStyle={styles.grid}>
+          <ScrollView
+            refreshControl={refreshControl}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <Grid>
             {favs.map((g) => (
-              <View key={g.id} style={styles.cell}>
+              <LibraryGridCell key={g.id}>
                 <Poster
                   title={g.title}
                   uri={tmdbImage(g.posterPath)}
                   onPress={() => router.push(`/game/${g.id}` as Href)}
                 />
-              </View>
+              </LibraryGridCell>
             ))}
+            </Grid>
           </ScrollView>
-        </>
+        </View>
       )}
 
       <SortSheet
@@ -73,26 +108,60 @@ export default function FavoriteGamesScreen() {
         onClose={() => setSortOpen(false)}
         onApply={(key) => { setFavSort('game', key); setSortOpen(false); }}
       />
-    </View>
+    </Pop>
   );
 }
 
 const styles = StyleSheet.create({
-  // Rangée TRIER PAR : mêmes cotes que les pages séries/films préférés.
-  sortRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
-  sortLabel: { fontSize: 11, fontFamily: FONTS.extraBold, color: COLORS.textMuted, letterSpacing: 0.5 },
-  sortValue: { fontSize: 16, fontFamily: FONTS.semiBold, color: COLORS.blue },
-  header: {
+  screen: { backgroundColor: COLORS.bg },
+  body: { flex: 1 },
+  emptyScroll: { flexGrow: 1, justifyContent: 'center' },
+  scrollContent: { paddingBottom: SPACE.xl },
+  gameIcon: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.primarySoft,
+  },
+  sortRow: {
+    width: 'auto',
+    maxWidth: SIZES.contentMax - SPACE.md * 2,
+    minHeight: 68,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: SPACE.sm,
+    marginHorizontal: SPACE.md,
+    marginTop: SPACE.md,
+    marginBottom: SPACE.xs,
+    paddingHorizontal: SPACE.md,
+    borderWidth: 1,
     borderBottomColor: COLORS.borderLight,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.surface,
+    ...SHADOW.card,
   },
-  headSide: { width: 40, alignItems: 'center' },
-  title: { color: COLORS.text, fontSize: 17, fontFamily: FONTS.extraBold },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 10 },
-  cell: { width: '31%' },
+  sortPressed: { opacity: 0.86, transform: [{ scale: 0.99 }] },
+  sortIcon: {
+    width: SIZES.touch,
+    height: SIZES.touch,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.primarySoft,
+  },
+  sortCopy: { flex: 1, minWidth: 0 },
+  sortLabel: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    lineHeight: 14,
+    fontFamily: FONTS.extraBold,
+    letterSpacing: 0.7,
+  },
+  sortValue: { color: COLORS.text, fontSize: 15, lineHeight: 21, fontFamily: FONTS.bold },
 });

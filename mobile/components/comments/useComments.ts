@@ -5,6 +5,10 @@ import { api, ApiError } from '@/lib/api';
 import type { CommentDto } from './types';
 
 const BLOCKED_FALLBACK = 'Ce commentaire enfreint les règles de la communauté et ne peut pas être publié.';
+const POST_FALLBACK = 'Votre commentaire n’a pas pu être publié. Vérifiez votre connexion puis réessayez.';
+const REPLY_FALLBACK = 'Votre réponse n’a pas pu être publiée. Vérifiez votre connexion puis réessayez.';
+const REACTION_FALLBACK = 'La réaction n’a pas pu être enregistrée. Réessayez dans un instant.';
+const DELETE_FALLBACK = 'Le commentaire n’a pas pu être supprimé. Réessayez dans un instant.';
 
 // Traduit une erreur de publication en message affichable, ou la relaie.
 // Renvoie le message de modération (serveur) quand le commentaire est bloqué.
@@ -16,7 +20,7 @@ function moderationMessage(e: unknown): string | null {
 export type SortKey = 'pertinents' | 'recents';
 export const SORT_LABEL: Record<SortKey, string> = { pertinents: 'Les plus pertinents', recents: 'Les plus récents' };
 
-// Logique partagée « Commentaires » (TV Time) : requête, tri, réponses,
+// Logique partagée « Commentaires » PlotTime : requête, tri, réponses,
 // cœur ❤️ optimiste, suppression optimiste, partage. Consommée par la page
 // plein écran (mobile/app/comments/[id].tsx) et par le bottom sheet TikTok
 // (mobile/components/explore/CommentsSheet.tsx) — même clé de requête
@@ -32,7 +36,13 @@ export function useComments(mediaId: string, title?: string) {
   // les réponses (même route serveur). null = pas d'erreur.
   const [postError, setPostError] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    isRefetching,
+  } = useQuery({
     queryKey: ['comments', mediaId],
     queryFn: () => api.get<{ comments: CommentDto[] }>(`/api/media/${mediaId}/comments`),
   });
@@ -58,12 +68,8 @@ export function useComments(mediaId: string, title?: string) {
       invalidate();
       return true;
     } catch (e) {
-      const msg = moderationMessage(e);
-      if (msg) {
-        setPostError(msg);
-        return false;
-      }
-      throw e;
+      setPostError(moderationMessage(e) ?? POST_FALLBACK);
+      return false;
     }
   };
   const postReply = async (parentId: string): Promise<boolean> => {
@@ -77,15 +83,11 @@ export function useComments(mediaId: string, title?: string) {
       invalidate();
       return true;
     } catch (e) {
-      const msg = moderationMessage(e);
-      if (msg) {
-        setPostError(msg);
-        return false;
-      }
-      throw e;
+      setPostError(moderationMessage(e) ?? REPLY_FALLBACK);
+      return false;
     }
   };
-  // Cœur TV Time : bascule OPTIMISTE de la réaction ❤️ — le cœur se remplit au
+  // Bascule OPTIMISTE de la réaction ❤️ — le cœur se remplit au
   // doigt, le serveur confirme derrière (rollback si échec).
   const heart = async (c: CommentDto) => {
     const mine = c.reactions.mine.includes('❤️');
@@ -109,6 +111,7 @@ export function useComments(mediaId: string, title?: string) {
       invalidate();
     } catch {
       if (prev) qc.setQueryData(['comments', mediaId], prev);
+      setPostError(REACTION_FALLBACK);
     }
   };
   // Suppression OPTIMISTE : la carte disparaît immédiatement.
@@ -129,6 +132,7 @@ export function useComments(mediaId: string, title?: string) {
       invalidate();
     } catch {
       if (prev) qc.setQueryData(['comments', mediaId], prev);
+      setPostError(DELETE_FALLBACK);
     }
   };
   const shareComment = (c: CommentDto) => {
@@ -146,6 +150,10 @@ export function useComments(mediaId: string, title?: string) {
     comments,
     total,
     isLoading,
+    isError,
+    hasData: !!data,
+    refetch,
+    isRefetching,
     sort,
     setSort,
     openReplies,
