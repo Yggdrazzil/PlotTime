@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-21** (Claude/Étienne) — Explorer sans point rouge, héro « À regarder maintenant » intégré à la section « À voir » de l'Accueil, et retour arrière du navigateur qui ferme les feuilles au lieu de quitter la web app
+Dernière mise à jour : **2026-07-21** (Claude/Étienne) — resync globale des métadonnées (script one-shot serveur) pour nettoyer à la source les fiches (années aberrantes, données périmées), sans toucher aux affiches/personnalisations
 
 ---
 
@@ -90,6 +90,72 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-21 — Claude/Étienne : resync globale des métadonnées (nettoyage à la source)
+- **Objectif** : nettoyer durablement les copies locales des œuvres (années
+  aberrantes, données périmées) plutôt que de seulement masquer le symptôme à
+  l'affichage. Complète le garde-fou `plausibleYear` (affichage) par une remise
+  au propre de la base elle-même, depuis la source (TMDb/TheTVDB).
+- **`refreshMediaMetadata(media)`** (`services/tmdb/enrich.ts`) : re-télécharge
+  et met à jour les données FACTUELLES d'une fiche existante — année (recalculée
+  depuis la vraie date), dates, durée, genres, notes, statut, langue, ids
+  externes, + sous-champs série (saisons/épisodes, en production, chaîne, dates
+  d'épisodes). Source respectée : TMDb pour films et séries à tmdbId, TheTVDB
+  pour séries à tvdbId seul, jeux IGDB hors périmètre. **Ne touche pas** aux
+  affiches/bannières (personnalisables), titres, résumés, traductions, épisodes
+  ni aux données utilisateur.
+- **Script one-shot** `apps/server/scripts/resync-metadata.ts` (npm
+  `resync:metadata`) : parcourt toutes les séries/films par lots (concurrence 4,
+  pause entre lots), journalise l'avancement, idempotent. Deux modes :
+  `pnpm --filter @serietime/server resync:metadata` (global) ou
+  `… resync:metadata -- --bad-years-only` (uniquement les fiches à année
+  absente/aberrante). À lancer par Benjamin sur le serveur (clés API en env).
+- Tests : `resync-metadata.test.ts` (garde-fous : jeux/fiches sans id → skipped,
+  pas de crash) ; suite serveur au vert.
+
+
+### 2026-07-21 — Claude/Étienne : année « Film · 1 » corrigée + faute « jeus »
+- **Bug « Film · 1 »** (années aberrantes) : certains médias portent en base une
+  année invalide (`1`, `0`…), héritée d'anciens imports/versions, affichée telle
+  quelle dans la recherche et ailleurs. Cause : les chemins d'écriture actuels
+  calculent bien l'année (TMDb `release_date`), mais rien ne validait la valeur
+  **lue**. Nouveau garde-fou serveur `plausibleYear()`
+  (`apps/server/src/modules/media/serialize.ts`) : ne renvoie l'année stockée que
+  si elle est plausible (1888…année+10), sinon la **récupère depuis la vraie date
+  de sortie/diffusion** (qui, elle, est correcte), sinon `null` (l'UI n'affiche
+  alors pas d'année). Appliqué au sérialiseur média central (donc partout :
+  fiches, listes, profil…) et à la recherche locale. Corrige toute la classe de
+  bug, pas seulement Transformers ; répare aussi d'éventuels doublons de
+  recherche (année 1 vs année réelle). Test `plausible-year.test.ts` (5 cas) ;
+  suite serveur 252/252.
+- **Faute « 3 jeus »** (`mobile/app/(tabs)/index.tsx`) : `GroupHead` ajoutait
+  naïvement un « s » ; ajout d'un `unitPlural` pour les pluriels irréguliers
+  (« jeu » → **« jeux »**).
+
+
+### 2026-07-21 — Claude/Étienne : icônes Android « dézoomées » (plus de bleu de fond)
+- **Icônes maskable de la PWA** (`mobile/public/maskable-512.png` &
+  `maskable-192.png`) : le logo passe de ~53 % à **~42 %** du canvas sur fond
+  bleu plein. Le lanceur Android (Samsung One UI) « zoome » les icônes maskable
+  via la zone de sécurité ; avec plus de marge, le bleu de marque redevient
+  visible autour du logo sur l'écran d'accueil (cf. retour PJ). L'icône `any`
+  (`icon-*`, vue dans le multitâche) est inchangée.
+- **Adaptive icon native** (`assets/branding/android-adaptive-foreground-1024.png`
+  + `android-monochrome-1024.png`) : logo réduit de 58 % à **45 %** pour le même
+  effet sur un build natif (EAS).
+- ⚠️ Prise en compte : re-export web (Benjamin) pour la PWA ; l'icône d'une PWA
+  DÉJÀ installée est mise en cache par Android → il faut la retirer puis la
+  réajouter à l'écran d'accueil pour voir la nouvelle icône. L'adaptive native
+  ne change qu'au prochain build natif.
+
+
+### 2026-07-21 — Claude/Étienne : retrait total de la section « Contenu 18+ »
+- **Section « Suggestions / Contenu 18+ » supprimée** de Paramètres > Application
+  (`mobile/app/settings.tsx`). Elle n'était que masquée sur natif mais restait
+  visible sur la web app ; elle est désormais retirée partout, avec la mutation
+  `adultMut` devenue inutile. Le filtrage adulte reste actif par défaut côté
+  serveur (aucun contenu 18+ dans les suggestions).
+
 
 ### 2026-07-21 — Claude/Étienne : point rouge Explorer, héro dans « À voir », retour arrière ferme les feuilles
 - **Point rouge de l'onglet Explorer supprimé** (`components/TabBar.tsx`) : la

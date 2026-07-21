@@ -341,15 +341,26 @@ function QueueView() {
 }
 
 // En-tête de section de la file (maquette : libellé + compteur — épisodes par
-// défaut, films/jeux dans les sous-onglets de l'Accueil).
-function GroupHead({ label, count, unit = 'épisode' }: { label: string; count: number; unit?: string }) {
+// défaut, films/jeux dans les sous-onglets de l'Accueil). `unitPlural` gère les
+// pluriels irréguliers (« jeu » → « jeux », pas « jeus »).
+function GroupHead({
+  label,
+  count,
+  unit = 'épisode',
+  unitPlural,
+}: {
+  label: string;
+  count: number;
+  unit?: string;
+  unitPlural?: string;
+}) {
   return (
     <View style={styles.groupHead}>
       <Text accessibilityRole="header" style={styles.groupHeadLabel}>
         {label}
       </Text>
       <Text style={styles.groupHeadCount}>
-        {count} {unit}{count > 1 ? 's' : ''}
+        {count} {count > 1 ? unitPlural ?? `${unit}s` : unit}
       </Text>
     </View>
   );
@@ -422,7 +433,7 @@ function GamesWishlistView() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} />}
     >
       <View style={styles.queueColumn}>
-        <GroupHead label="Voulus" count={items.length} unit="jeu" />
+        <GroupHead label="Voulus" count={items.length} unit="jeu" unitPlural="jeux" />
         {items.map((game, i) => (
           <AppearItem key={game.id} index={i}>
             <ToWatchRow
