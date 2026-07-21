@@ -8,6 +8,16 @@ module.exports = ({ config }) => ({
   ...config,
   extra: {
     ...config.extra,
+    // Code-splitting web (Async Routes d'expo-router) : chaque route devient un
+    // chunk chargé à la demande au lieu d'un bundle monolithique. Web uniquement
+    // (natif : non supporté en production, comportement inchangé). NB : c'est la
+    // forme supportée par expo-router 6 / SDK 54 — le plugin « expo-router »
+    // fusionne ses options dans `extra.router`, que lit @expo/cli
+    // (getAsyncRoutesFromExpoConfig) ; il n'existe pas d'`experiments.asyncRoutes`.
+    router: {
+      ...(config.extra?.router ?? {}),
+      asyncRoutes: { web: true },
+    },
     serverUrl: process.env.SERIETIME_SERVER_URL ?? config.extra?.serverUrl ?? '',
   },
 });

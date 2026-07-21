@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Image, ActivityIndicator, RefreshControl, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
@@ -10,7 +10,7 @@ import type { EpisodeDto, MediaDto, QueueItemDto, UpcomingItemDto } from '@/lib/
 import { queueGroupLabel, episodeCode, episodeCodeCompact, airTimeLabel } from '@/lib/format';
 import { COLORS, SHADOW, FONTS, RADIUS, SPACE, SIZES } from '@/lib/theme';
 import { PillHeader, EmptyState, LoadError, ShowPill, Badge, CheckCircle } from '@/components/ui';
-import { EpisodeQueueCard, SeriesProgressBar } from '@/components/EpisodeQueueCard';
+import { EpisodeQueueCard } from '@/components/EpisodeQueueCard';
 import { EpisodeSheet, type EpisodeSheetTarget } from '@/components/EpisodeSheet';
 import { useTabResetSeq } from '@/lib/tabReset';
 import { AppearItem, PopIn } from '@/components/anim';
@@ -81,6 +81,45 @@ function HomeHeaderActions() {
 }
 
 type HistoryItem = { media: MediaDto; episode: EpisodeDto; watchedAt: string | null };
+
+// Rangée mémoïsée de la file : la file entière se re-rend à chaque changement
+// d'état de QueueView (pastille flottante au scroll, ouverture/fermeture de la
+// fiche épisode). Les fermetures par épisode sont reconstruites ICI à partir de
+// callbacks stables (useCallback côté parent) et d'un `item` stable (React
+// Query / useMemo) : les cartes inchangées sont sautées par React.memo.
+const QueueRow = React.memo(function QueueRow({
+  item,
+  watched,
+  onCheckEpisode,
+  onOpenSheet,
+}: {
+  item: QueueItemDto;
+  watched?: boolean;
+  onCheckEpisode: (episodeId: string) => void;
+  onOpenSheet: (target: EpisodeSheetTarget) => void;
+}) {
+  const ep = item.nextEpisode;
+  return (
+    <EpisodeQueueCard
+      item={item}
+      watched={watched}
+      onCheck={() => {
+        if (ep) onCheckEpisode(ep.id);
+      }}
+      onOpenEpisode={
+        ep
+          ? () =>
+              onOpenSheet({
+                mediaId: item.media.id,
+                mediaTitle: item.media.title,
+                posterPath: item.media.posterPath,
+                episode: ep,
+              })
+          : undefined
+      }
+    />
+  );
+});
 
 function QueueView() {
   const qc = useQueryClient();
@@ -154,6 +193,22 @@ function QueueView() {
 
   const { refreshing, onRefresh } = usePullRefresh([refetch, history.refetch]);
 
+  // Callbacks stables (mutate de React Query est stable) + rangées d'historique
+  // mémoïsées : props stables pour les QueueRow → React.memo effectif.
+  const checkEpisode = useCallback((episodeId: string) => mark.mutate(episodeId), [mark.mutate]);
+  const uncheckEpisode = useCallback((episodeId: string) => unmark.mutate(episodeId), [unmark.mutate]);
+  const openSheet = useCallback((target: EpisodeSheetTarget) => setSheet(target), []);
+  // Du plus ancien au plus récent : le dernier épisode coché juste au-dessus
+  // de la section « À voir » (cf. TV Time).
+  const historyRows = useMemo(
+    () =>
+      [...(history.data?.items ?? [])].reverse().map((it): { key: string; item: QueueItemDto } => ({
+        key: `h-${it.episode.id}`,
+        item: { group: 'a_voir', media: it.media, nextEpisode: it.episode, remainingCount: 0, badges: [] },
+      })),
+    [history.data],
+  );
+
   // Anti-flash : l'historique est rendu AU-DESSUS de « À voir » puis le scroll
   // se cale en dessous — entre les deux, l'utilisateur voyait l'historique une
   // fraction de seconde (persistait en prod : l'historique peut arriver du
@@ -186,10 +241,7 @@ function QueueView() {
 
   if (isLoading) return <QueueSkeleton />;
   if (isError && !data) return <LoadError onRetry={refetch} busy={isRefetching} />;
-  // Du plus ancien au plus récent : le dernier épisode coché juste au-dessus
-  // de la section « À voir » (cf. TV Time).
-  const historyItems = [...(history.data?.items ?? [])].reverse();
-  if ((!data || data.items.length === 0) && historyItems.length === 0)
+  if ((!data || data.items.length === 0) && historyRows.length === 0)
     return (
       <EmptyState
         title="Rien à voir pour le moment"
@@ -211,13 +263,13 @@ function QueueView() {
       ref={scrollRef}
       // Masqué SEULEMENT quand un historique est rendu sans être encore calé :
       // pendant son chargement, la file « À voir » s'affiche normalement.
-      style={{ opacity: settled || historyItems.length === 0 ? 1 : 0 }}
+      style={{ opacity: settled || historyRows.length === 0 ? 1 : 0 }}
       contentContainerStyle={styles.queueContent}
       onScroll={onListScroll}
       scrollEventThrottle={16}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} />}
     >
-      {historyItems.length > 0 ? (
+      {historyRows.length > 0 ? (
         <View
           ref={historyWrapRef}
           style={styles.queueColumn}
@@ -234,17 +286,9 @@ function QueueView() {
             }
           }}
         >
-          <GroupHead label="Historique de visionnage" count={historyItems.length} />
-          {historyItems.map((it) => (
-            <EpisodeQueueCard
-              key={`h-${it.episode.id}`}
-              item={{ group: 'a_voir', media: it.media, nextEpisode: it.episode, remainingCount: 0, badges: [] }}
-              watched
-              onCheck={() => unmark.mutate(it.episode.id)}
-              onOpenEpisode={() =>
-                setSheet({ mediaId: it.media.id, mediaTitle: it.media.title, posterPath: it.media.posterPath, episode: it.episode })
-              }
-            />
+          <GroupHead label="Historique de visionnage" count={historyRows.length} />
+          {historyRows.map(({ key, item }) => (
+            <QueueRow key={key} item={item} watched onCheckEpisode={uncheckEpisode} onOpenSheet={openSheet} />
           ))}
         </View>
       ) : null}
@@ -278,21 +322,7 @@ function QueueView() {
               n += 1;
               return (
                 <AppearItem key={item.media.id} index={n}>
-                  <EpisodeQueueCard
-                    item={item}
-                    onCheck={() => item.nextEpisode && mark.mutate(item.nextEpisode.id)}
-                    onOpenEpisode={
-                      item.nextEpisode
-                        ? () =>
-                            setSheet({
-                              mediaId: item.media.id,
-                              mediaTitle: item.media.title,
-                              posterPath: item.media.posterPath,
-                              episode: item.nextEpisode!,
-                            })
-                        : undefined
-                    }
-                  />
+                  <QueueRow item={item} onCheckEpisode={checkEpisode} onOpenSheet={openSheet} />
                 </AppearItem>
               );
             })}
@@ -646,7 +676,10 @@ export function UpcomingView() {
   );
 }
 
-function UpcomingCard({ item, past = false }: { item: UpcomingItemDto; past?: boolean }) {
+// Mémoïsée : `item` vient de React Query (référence stable entre re-rendus) et
+// `past` est un booléen — les cartes ne se re-rendent pas quand UpcomingView
+// change d'état (calage du scroll, pull-to-refresh).
+const UpcomingCard = React.memo(function UpcomingCard({ item, past = false }: { item: UpcomingItemDto; past?: boolean }) {
   const router = useRouter();
   const ep = item.episodes[0];
   if (!ep) return null;
@@ -706,7 +739,7 @@ function UpcomingCard({ item, past = false }: { item: UpcomingItemDto; past?: bo
       </View>
     </Pressable>
   );
-}
+});
 
 // Carte chronologique compacte : hiérarchie Studio dans le shell Prisme.
 const styles = StyleSheet.create({

@@ -16,8 +16,14 @@ services:
     environment:
       TZ: Europe/Paris
     restart: unless-stopped
-    mem_limit: 512m
-    cpus: "1.0"
+    # Débridé le 2026-07-22 (512m/1cpu → 2g/1.5cpu) : le VPS a 7,8 Go de RAM
+    # dont ~6,5 libres et tournait à vide — la DB (425 Mo) ne tenait même pas
+    # dans l'ancienne limite (cache SQLite étranglé). Le site photo (priorité
+    # absolue) consomme ~250 Mo + <1 % CPU : il garde 0,5 vCPU réservé et
+    # ~5 Go de marge. Les PRAGMA SQLite (cache 64 Mo + mmap 256 Mo) supposent
+    # cette limite à 2 Go.
+    mem_limit: 2g
+    cpus: "1.5"
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 30s

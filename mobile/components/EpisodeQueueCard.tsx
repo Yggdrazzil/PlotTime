@@ -43,7 +43,11 @@ export function SeriesProgressBar({ watched, total }: { watched: number; total: 
 // `watched` distingue l'historique avec une surface apaisée et une coche verte.
 // Le titre ouvre la fiche de la série ; un appui ailleurs sur la carte ouvre
 // la fiche de l'épisode (`onOpenEpisode`).
-export function EpisodeQueueCard({
+// Mémoïsée : la file se re-rend à chaque changement d'état de l'écran (pastille
+// flottante au scroll, ouverture de la fiche épisode…) — avec des props stables
+// (item de React Query + callbacks stables côté parent), les cartes inchangées
+// ne se re-rendent pas.
+export const EpisodeQueueCard = React.memo(function EpisodeQueueCard({
   item,
   onCheck,
   watched,
@@ -137,7 +141,7 @@ export function EpisodeQueueCard({
       ) : null}
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

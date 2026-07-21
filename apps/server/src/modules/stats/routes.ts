@@ -3,13 +3,9 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
 import { blockedIdSet } from '../social/blocks.js';
-import {
-  EP_FALLBACK_MIN,
-  MOVIE_FALLBACK_MIN,
-  episodeRuntimeMin,
-  movieRuntimeMin,
-} from '../../lib/runtimeFallbacks.js';
+import { EP_FALLBACK_MIN, MOVIE_FALLBACK_MIN } from '../../lib/runtimeFallbacks.js';
 import { dayKeyParis, weekStartParis } from '../../lib/parisTime.js';
+import { createTtlCache } from '../../lib/ttlCache.js';
 
 // Runtimes de repli centralisés dans lib/runtimeFallbacks.ts (mêmes valeurs et
 // même sémantique `runtime > 0` que le profil). Ré-exportés pour les
@@ -48,6 +44,31 @@ function splitGenres(raw: string | null | undefined): string[] {
   return (raw ?? '').split(',').map((g) => g.trim()).filter(Boolean);
 }
 
+// SQLite stocke les DateTime Prisma en millisecondes epoch : une colonne date
+// lue via $queryRaw peut revenir en Date, bigint ou number selon le decltype —
+// on normalise (Number(Date) vaut déjà les ms epoch).
+function rawDate(v: Date | bigint | number): Date {
+  return v instanceof Date ? v : new Date(Number(v));
+}
+
+// Classement Communauté : l'agrégation la plus lourde du serveur (3 GROUP BY
+// sur TOUT l'historique de moi + mes abonnements), rappelée par l'onglet
+// Communauté de chaque client. 2 min de cache par utilisateur suffisent — un
+// visionnage fraîchement coché apparaît au refresh suivant. Désactivé en test
+// (voir lib/ttlCache.ts).
+type LeaderboardEntry = {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  isMe: boolean;
+  minutes: number;
+};
+const leaderboardCache = createTtlCache<{
+  series: (LeaderboardEntry & { episodes: number })[];
+  movies: (LeaderboardEntry & { movies: number })[];
+  games: (LeaderboardEntry & { games: number })[];
+}>(120_000);
+
 export async function statsRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
 
@@ -58,32 +79,51 @@ export async function statsRoutes(app: FastifyInstance): Promise<void> {
     const now = new Date();
     const since = new Date(now.getTime() - WEEKS * 7 * DAY);
 
+    // Épisodes vus : SQL brut à PLAT (date + runtime résolu + série) au lieu du
+    // findMany avec select imbriqué episode→show→media — sur une bibliothèque à
+    // 20k épisodes, l'hydratation de 20k objets Prisma imbriqués dominait le
+    // coût de l'endpoint. Le runtime est résolu par le CASE (même sémantique
+    // `runtime > 0` que episodeRuntimeMin / le classement) ; les fenêtres
+    // Europe/Paris (semaines, marathons par jour) restent calculées en JS via
+    // lib/parisTime.ts — SQLite ne connaît pas les fuseaux, un date() UTC
+    // décalerait les journées.
     const [watchedEps, showLib, movieLib, watchedMovies, gameLib] = await Promise.all([
-      // Épisodes vus (dates + runtime + série) pour totaux, hebdo, marathons.
-      prisma.userEpisodeStatus.findMany({
-        where: { userId, status: 'watched', watchedAt: { not: null } },
-        select: {
-          watchedAt: true,
-          episode: { select: { runtime: true, showId: true, show: { select: { media: { select: { runtime: true, title: true, localizedTitle: true } } } } } },
-        },
-      }),
-      // Bibliothèque séries : genres, chaîne, en production.
-      prisma.userMediaStatus.findMany({
-        where: { userId, media: { type: 'show' } },
-        select: { media: { select: { genres: true } }, },
-      }),
+      prisma.$queryRaw<{ watchedAt: Date | bigint | number; showId: string; minutes: bigint | number; title: string }[]>`
+        SELECT ues.watchedAt AS watchedAt,
+               e.showId AS showId,
+               CASE WHEN e.runtime > 0 THEN e.runtime
+                    WHEN m.runtime > 0 THEN m.runtime
+                    ELSE ${EP_FALLBACK_MIN} END AS minutes,
+               COALESCE(m.localizedTitle, m.title) AS title
+        FROM "UserEpisodeStatus" ues
+        JOIN "Episode" e ON e.id = ues.episodeId
+        JOIN "Show" s ON s.id = e.showId
+        JOIN "Media" m ON m.id = s.mediaId
+        WHERE ues.status = 'watched' AND ues.watchedAt IS NOT NULL AND ues.userId = ${userId}`,
+      // Bibliothèque séries : genres + chaîne + en production, une seule
+      // requête plate (remplace les deux findMany show d'origine).
+      prisma.$queryRaw<{ genres: string | null; network: string | null; platform: string | null; inProduction: bigint | number | null }[]>`
+        SELECT m.genres AS genres, s.network AS network, s.platform AS platform, s.inProduction AS inProduction
+        FROM "UserMediaStatus" ums
+        JOIN "Media" m ON m.id = ums.mediaId
+        LEFT JOIN "Show" s ON s.mediaId = m.id
+        WHERE ums.userId = ${userId} AND m.type = 'show'`,
       // Bibliothèque films : genres.
-      prisma.userMediaStatus.findMany({
-        where: { userId, media: { type: 'movie' } },
-        select: { media: { select: { genres: true } } },
-      }),
-      // Films vus (date + runtime) pour totaux + hebdo.
-      prisma.userMediaStatus.findMany({
-        where: { userId, status: 'completed', media: { type: 'movie' } },
-        select: { completedAt: true, lastWatchedAt: true, media: { select: { runtime: true } } },
-      }),
+      prisma.$queryRaw<{ genres: string | null }[]>`
+        SELECT m.genres AS genres
+        FROM "UserMediaStatus" ums
+        JOIN "Media" m ON m.id = ums.mediaId
+        WHERE ums.userId = ${userId} AND m.type = 'movie'`,
+      // Films vus (date + runtime résolu) pour totaux + hebdo.
+      prisma.$queryRaw<{ completedAt: Date | bigint | number | null; lastWatchedAt: Date | bigint | number | null; minutes: bigint | number }[]>`
+        SELECT ums.completedAt AS completedAt, ums.lastWatchedAt AS lastWatchedAt,
+               CASE WHEN m.runtime > 0 THEN m.runtime ELSE ${MOVIE_FALLBACK_MIN} END AS minutes
+        FROM "UserMediaStatus" ums
+        JOIN "Media" m ON m.id = ums.mediaId
+        WHERE ums.userId = ${userId} AND ums.status = 'completed' AND m.type = 'movie'`,
       // Bibliothèque jeux : statuts, possession, temps déclaré, genres,
       // identité pour le « top par temps de jeu » (onglet Jeux des stats).
+      // Reste en Prisma : peu de lignes, beaucoup de champs identitaires.
       prisma.userMediaStatus.findMany({
         where: { userId, media: { type: 'game' }, isHidden: false },
         select: {
@@ -95,21 +135,15 @@ export async function statsRoutes(app: FastifyInstance): Promise<void> {
       }),
     ]);
 
-    // --- Réseaux/chaînes séries : via le show lié (requête légère séparée) ---
-    const showRows = await prisma.userMediaStatus.findMany({
-      where: { userId, media: { type: 'show' } },
-      select: { media: { select: { show: { select: { network: true, platform: true, inProduction: true } } } } },
-    });
-
     // ===== SÉRIES =====
     const epWeekly = new Map<number, { episodes: number; minutes: number }>();
     const marathonByShow = new Map<string, { title: string; perDay: Map<string, number>; minutes: number }>();
     let epLast7d = 0;
     let showMinutesTotal = 0;
     for (const e of watchedEps) {
-      const min = episodeRuntimeMin(e.episode.runtime, e.episode.show.media.runtime);
+      const min = Number(e.minutes);
       showMinutesTotal += min;
-      const w = e.watchedAt as Date;
+      const w = rawDate(e.watchedAt);
       if (now.getTime() - w.getTime() < 7 * DAY) epLast7d += 1;
       if (w >= since) {
         const k = weekStart(w);
@@ -118,13 +152,11 @@ export async function statsRoutes(app: FastifyInstance): Promise<void> {
         cur.minutes += min;
         epWeekly.set(k, cur);
       }
-      const showId = e.episode.showId;
-      const title = e.episode.show.media.localizedTitle ?? e.episode.show.media.title;
-      const m = marathonByShow.get(showId) ?? { title, perDay: new Map(), minutes: 0 };
+      const m = marathonByShow.get(e.showId) ?? { title: e.title, perDay: new Map(), minutes: 0 };
       const dk = dayKey(w);
       m.perDay.set(dk, (m.perDay.get(dk) ?? 0) + 1);
       m.minutes += min;
-      marathonByShow.set(showId, m);
+      marathonByShow.set(e.showId, m);
     }
 
     // Marathons : max d'épisodes d'une série vus le même jour.
@@ -133,21 +165,22 @@ export async function statsRoutes(app: FastifyInstance): Promise<void> {
       .sort((a, b) => b.episodes - a.episodes)
       .slice(0, 5);
 
-    const showGenres = topCounts(showLib.flatMap((s) => splitGenres(s.media.genres)), 6);
+    const showGenres = topCounts(showLib.flatMap((s) => splitGenres(s.genres)), 6);
     const showNetworks = topCounts(
-      showRows.map((r) => r.media.show?.network ?? r.media.show?.platform ?? '').filter(Boolean),
+      showLib.map((r) => r.network ?? r.platform ?? '').filter(Boolean),
       6,
     );
-    const showsInProduction = showRows.filter((r) => r.media.show?.inProduction).length;
+    const showsInProduction = showLib.filter((r) => Number(r.inProduction ?? 0)).length;
 
     // ===== FILMS =====
     const mvWeekly = new Map<number, { count: number; minutes: number }>();
     let mvLast7d = 0;
     let movieMinutesTotal = 0;
     for (const m of watchedMovies) {
-      const min = movieRuntimeMin(m.media.runtime);
+      const min = Number(m.minutes);
       movieMinutesTotal += min;
-      const w = (m.completedAt ?? m.lastWatchedAt) as Date | null;
+      const rawW = m.completedAt ?? m.lastWatchedAt;
+      const w = rawW == null ? null : rawDate(rawW);
       if (!w) continue;
       if (now.getTime() - w.getTime() < 7 * DAY) mvLast7d += 1;
       if (w >= since) {
@@ -188,7 +221,7 @@ export async function statsRoutes(app: FastifyInstance): Promise<void> {
         minutes: movieMinutesTotal,
         moviesAdded: movieLib.length,
         weekly: weeks.map((ts) => ({ label: label(ts), count: mvWeekly.get(ts)?.count ?? 0, hours: Math.round((mvWeekly.get(ts)?.minutes ?? 0) / 60) })),
-        genres: topCounts(movieLib.flatMap((m) => splitGenres(m.media.genres)), 6),
+        genres: topCounts(movieLib.flatMap((m) => splitGenres(m.genres)), 6),
       },
       // ===== JEUX (onglet Jeux des stats — temps 100 % déclaratif) =====
       games: {
@@ -220,6 +253,8 @@ export async function statsRoutes(app: FastifyInstance): Promise<void> {
   // indispensable pour rester rapide avec des bibliothèques à 20k épisodes.
   app.get('/api/stats/leaderboard', async (request) => {
     const userId = request.userId;
+    const cached = leaderboardCache.get(userId);
+    if (cached) return cached;
     const [following, blockedIds] = await Promise.all([
       prisma.follow.findMany({
         where: { followerId: userId },
@@ -287,7 +322,9 @@ export async function statsRoutes(app: FastifyInstance): Promise<void> {
     const games = users
       .map((u) => ({ ...entry(u), minutes: gm.get(u.id)?.minutes ?? 0, games: gm.get(u.id)?.count ?? 0 }))
       .sort((a, b) => b.minutes - a.minutes);
-    return { series, movies, games };
+    const result = { series, movies, games };
+    leaderboardCache.set(userId, result);
+    return result;
   });
 
   // Badges (Bloc 3) : calculés à la volée depuis l'état du compte — pas de table
