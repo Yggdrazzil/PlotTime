@@ -651,22 +651,6 @@ function AppTab() {
     onSettled: () => qc.invalidateQueries({ queryKey: ['settings'] }),
   });
   const s = data?.settings ?? {};
-  // Contenu 18+ : bascule optimiste sur /api/settings, puis on re-fetche les
-  // suggestions (Explorer) qui dépendent du réglage. Défaut : désactivé.
-  const adultMut = useMutation({
-    mutationFn: (v: boolean) => api.post('/api/settings', { allowAdultContent: v }),
-    onMutate: async (v: boolean) => {
-      await qc.cancelQueries({ queryKey: ['settings'] });
-      const prev = qc.getQueryData<{ settings: any }>(['settings']);
-      if (prev?.settings) qc.setQueryData(['settings'], { ...prev, settings: { ...prev.settings, allowAdultContent: v } });
-      return { prev };
-    },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(['settings'], ctx.prev); },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ['settings'] });
-      qc.invalidateQueries({ queryKey: ['explore'] });
-    },
-  });
   // Langue de contenu : la valeur courante vient du serveur (User.language) ;
   // sélection optimiste le temps de l'aller-retour.
   const [langSel, setLangSel] = useState<string | null>(null);
@@ -732,20 +716,6 @@ function AppTab() {
         ))}
         {langMsg ? <Text style={styles.note}>{langMsg}</Text> : null}
       </Section>
-
-      {/* Interrupteur 18+ MASQUÉ sur iOS ET Android (demande produit
-          2026-07-20 — conformité stores, cf. docs/STORES.md A7). Reste
-          disponible sur la web app uniquement. */}
-      {Platform.OS === 'web' ? (
-        <Section title="Suggestions">
-          <ToggleRow
-            label="Contenu 18+"
-            sub="Affiche le contenu réservé aux adultes dans les suggestions. Désactivé par défaut."
-            on={s.allowAdultContent ?? false}
-            onToggle={(v) => adultMut.mutate(v)}
-          />
-        </Section>
-      ) : null}
 
       <Section title="Cache">
         <View style={styles.block}>

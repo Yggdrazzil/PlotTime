@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-21** (Claude/Étienne) — Explorer sans point rouge, héro « À regarder maintenant » intégré à la section « À voir » de l'Accueil, et retour arrière du navigateur qui ferme les feuilles au lieu de quitter la web app
+Dernière mise à jour : **2026-07-21** (Claude/Étienne) — section « Contenu 18+ » retirée des Paramètres (partout, y compris web app)
 
 ---
 
@@ -90,6 +90,14 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-21 — Claude/Étienne : retrait total de la section « Contenu 18+ »
+- **Section « Suggestions / Contenu 18+ » supprimée** de Paramètres > Application
+  (`mobile/app/settings.tsx`). Elle n'était que masquée sur natif mais restait
+  visible sur la web app ; elle est désormais retirée partout, avec la mutation
+  `adultMut` devenue inutile. Le filtrage adulte reste actif par défaut côté
+  serveur (aucun contenu 18+ dans les suggestions).
+
 
 ### 2026-07-21 — Claude/Étienne : point rouge Explorer, héro dans « À voir », retour arrière ferme les feuilles
 - **Point rouge de l'onglet Explorer supprimé** (`components/TabBar.tsx`) : la
