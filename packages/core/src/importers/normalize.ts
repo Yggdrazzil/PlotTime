@@ -80,8 +80,15 @@ export function normalizeImportedMedia(record: RawRecord, fileKind: FileKind): N
     else if (isWatched === true) status = 'watched';
   }
   // TV Time n'exporte pas de colonne status pour « Arrêter de regarder » :
-  // c'est `active = 0` dans followed_tv_show.csv (vérifié sur un export réel).
-  if (!status && fileKind === 'shows' && parseBoolSafe(pickField(record, 'isActive')) === false) {
+  // dans followed_tv_show.csv c'est `archived = 1` (LE vrai signal du bouton
+  // « Stop watching » — 333/760 séries sur un export réel, vs 35 seulement pour
+  // `active = 0`, un signal distinct qu'on garde aussi par sûreté).
+  if (
+    !status &&
+    fileKind === 'shows' &&
+    (parseBoolSafe(pickField(record, 'isArchived')) === true ||
+      parseBoolSafe(pickField(record, 'isActive')) === false)
+  ) {
     status = 'stopped_watching';
   }
   const isFavorite =
