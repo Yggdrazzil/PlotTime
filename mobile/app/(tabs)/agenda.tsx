@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -58,29 +58,39 @@ function MoviesUpcoming() {
     queryFn: () => api.get<MoviesResponse>('/api/movies'),
   });
   const { refreshing, onRefresh } = usePullRefresh([refetch]);
+  // renderItem stable (le router l'est) : les rangées déjà montées ne sont pas
+  // re-rendues quand la liste se re-rend (virtualisation FlatList).
+  const renderMovie = useCallback(
+    ({ item: { media, releaseDate } }: { item: MoviesResponse['upcoming'][number] }) => (
+      <UpcomingRow
+        title={media.title}
+        sub={shortDateFr(releaseDate)}
+        uri={tmdbImage(media.posterPath, 'w342')}
+        onPress={() => router.push(`/show/${media.id}?type=movie`)}
+        hint="Ouvre la fiche du film"
+      />
+    ),
+    [router],
+  );
   if (isLoading) return <QueueSkeleton />;
   if (isError && !data) return <LoadError onRetry={refetch} busy={isRefetching} />;
   const items = data?.upcoming ?? [];
   if (items.length === 0)
     return <EmptyState title="Aucun film à venir" message="Les prochaines sorties des films de ta liste apparaîtront ici." />;
   return (
-    <ScrollView
+    <FlatList
+      data={items}
+      keyExtractor={movieKey}
+      renderItem={renderMovie}
+      initialNumToRender={10}
+      windowSize={7}
       contentContainerStyle={styles.listContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} />}
-    >
-      {items.map(({ media, releaseDate }) => (
-        <UpcomingRow
-          key={media.id}
-          title={media.title}
-          sub={shortDateFr(releaseDate)}
-          uri={tmdbImage(media.posterPath, 'w342')}
-          onPress={() => router.push(`/show/${media.id}?type=movie`)}
-          hint="Ouvre la fiche du film"
-        />
-      ))}
-    </ScrollView>
+    />
   );
 }
+
+const movieKey = (it: MoviesResponse['upcoming'][number]) => it.media.id;
 
 // --- Jeux à venir (sorties des jeux suivis, groupées par période) ---
 
@@ -94,34 +104,45 @@ function GamesUpcoming() {
     queryFn: () => api.get<GamesUpcomingResponse>('/api/games/upcoming'),
   });
   const { refreshing, onRefresh } = usePullRefresh([refetch]);
+  // FlatList par GROUPE (période) : même rendu qu'avant (bloc PillHeader +
+  // rangées), les groupes hors écran ne sont pas montés.
+  const renderGroup = useCallback(
+    ({ item: g }: { item: GamesUpcomingResponse['groups'][number] }) => (
+      <View style={styles.group}>
+        <PillHeader label={g.label} />
+        {g.items.map((it) => (
+          <UpcomingRow
+            key={it.id}
+            title={it.title}
+            sub={shortDateFr(it.releaseDate)}
+            uri={tmdbImage(it.posterPath, 'w342')}
+            onPress={() => router.push(`/game/${it.id}`)}
+            hint="Ouvre la fiche du jeu"
+          />
+        ))}
+      </View>
+    ),
+    [router],
+  );
   if (isLoading) return <QueueSkeleton />;
   if (isError && !data) return <LoadError onRetry={refetch} busy={isRefetching} />;
   const groups = data?.groups ?? [];
   if (groups.length === 0)
     return <EmptyState title="Aucun jeu à venir" message="Les sorties des jeux que tu suis apparaîtront ici." />;
   return (
-    <ScrollView
+    <FlatList
+      data={groups}
+      keyExtractor={gameGroupKey}
+      renderItem={renderGroup}
+      initialNumToRender={10}
+      windowSize={7}
       contentContainerStyle={styles.listContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} />}
-    >
-      {groups.map((g) => (
-        <View key={g.label} style={styles.group}>
-          <PillHeader label={g.label} />
-          {g.items.map((it) => (
-            <UpcomingRow
-              key={it.id}
-              title={it.title}
-              sub={shortDateFr(it.releaseDate)}
-              uri={tmdbImage(it.posterPath, 'w342')}
-              onPress={() => router.push(`/game/${it.id}`)}
-              hint="Ouvre la fiche du jeu"
-            />
-          ))}
-        </View>
-      ))}
-    </ScrollView>
+    />
   );
 }
+
+const gameGroupKey = (g: GamesUpcomingResponse['groups'][number]) => g.label;
 
 // --- Rangée commune films/jeux : affiche + titre + date de sortie ---
 

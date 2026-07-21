@@ -11,6 +11,7 @@ import { BADGES, findBlockedTerm, levelTitle, nextLevelXp } from '@serietime/cor
 import { scheduleRecompute } from '../gamification/service.js';
 import { EP_FALLBACK_MIN, MOVIE_FALLBACK_MIN } from '../../lib/runtimeFallbacks.js';
 import { dayKeyParis } from '../../lib/parisTime.js';
+import { createTtlCache } from '../../lib/ttlCache.js';
 
 // Ordre favoris (drag & drop) partagé avec /api/profile : positionnés d'abord,
 // puis les plus anciennement ajoutés.
@@ -114,6 +115,14 @@ export function mondayStartParis(now = new Date()): Date {
   const guess = Date.UTC(dayParts[0] ?? 1970, (dayParts[1] ?? 1) - 1, (dayParts[2] ?? 1) - idx);
   return new Date(guess - tzOffsetMs(new Date(guess), tz));
 }
+
+// Caches TTL des agrégations sociales lourdes (voir lib/ttlCache.ts — Map
+// bornée, désactivés en test). Clé = userId appelant : ces vues dépendent de
+// MES abonnements/blocages. TTL courts : la fraîcheur à la minute suffit pour
+// des recommandations et un défi hebdo, et ça absorbe les rafales de l'onglet
+// Communauté (chaque ouverture rejouait des scans complets de l'historique).
+const recommendationsCache = createTtlCache<unknown>(300_000);
+const weeklyChallengeCache = createTtlCache<unknown>(60_000);
 
 type FeedReactions = { total: number; mine: string[]; counts: Record<string, number> };
 
@@ -914,6 +923,8 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
   // Médias notés ≥ 8 par mes abonnements (Rating de média OU note du statut),
   // hors médias déjà dans MA bibliothèque et hors utilisateurs bloqués.
   app.get('/api/social/recommendations', async (request) => {
+    const cachedReco = recommendationsCache.get(request.userId);
+    if (cachedReco) return cachedReco;
     const lang = await getUserLang(request.userId);
     const [followingIds, blockedIds] = await Promise.all([
       followingIdSet(request.userId),
@@ -945,7 +956,11 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
     };
     for (const r of ratings) add(r.mediaId, r.userId, r.value);
     for (const s of statuses) add(s.mediaId, s.userId, s.rating ?? 0);
-    if (byMedia.size === 0) return { items: [] };
+    if (byMedia.size === 0) {
+      const empty = { items: [] };
+      recommendationsCache.set(request.userId, empty);
+      return empty;
+    }
 
     const fanIds = [...new Set([...byMedia.values()].flatMap((fans) => [...fans.keys()]))];
     const [medias, fanUsers] = await Promise.all([
@@ -983,7 +998,9 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
       })
       .sort((a, b) => b.fanCount - a.fanCount || b.avgRating - a.avgRating)
       .slice(0, 12);
-    return { items };
+    const result = { items };
+    recommendationsCache.set(request.userId, result);
+    return result;
   });
 
   // --- Défi hebdo ----------------------------------------------------------
@@ -996,6 +1013,8 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
   // UserEpisodeStatus.watchedAt, films via UserMediaStatus.completedAt (posé
   // par POST /api/movies/:id/watched, remis à null par /unwatched).
   app.get('/api/social/challenge/weekly', async (request) => {
+    const cachedWeekly = weeklyChallengeCache.get(request.userId);
+    if (cachedWeekly) return cachedWeekly;
     const weekStart = mondayStartParis();
     // Blocage : les comptes que j'ai bloqués sortent de MON défi hebdo (même
     // règle que gamification/routes.ts — un vieux follow peut subsister).
@@ -1046,7 +1065,9 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         isMe: u.id === request.userId,
       }))
       .sort((a, b) => b.minutes - a.minutes);
-    return { weekStart: weekStart.toISOString(), entries };
+    const result = { weekStart: weekStart.toISOString(), entries };
+    weeklyChallengeCache.set(request.userId, result);
+    return result;
   });
 
   // --- Confidentialité -----------------------------------------------------
@@ -1059,19 +1080,44 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
   // --- Commentaires (avec fils de discussion) + réactions -----------------
   app.get('/api/media/:id/comments', async (request) => {
     const { id } = request.params as { id: string };
-    const { episodeId } = z.object({ episodeId: z.string().optional() }).parse(request.query ?? {});
+    // `take` : borne le nombre de commentaires RACINES renvoyés (leurs réponses
+    // suivent toujours). Le mobile n'envoie rien → défaut 100 : un fil de
+    // discussion viral ne charge plus tout l'historique d'un coup. La forme de
+    // la réponse ({ comments: [...] }) est inchangée.
+    const { episodeId, take } = z
+      .object({
+        episodeId: z.string().optional(),
+        take: z.coerce.number().int().min(1).max(500).optional(),
+      })
+      .parse(request.query ?? {});
+    const rootTake = take ?? 100;
     // Blocage : les commentaires ET réponses des utilisateurs que j'ai bloqués
     // disparaissent de ma vue (un Set chargé une fois, pas de N+1).
     const blockedIds = await blockedIdSet(request.userId);
-    const all = (
+    // Racines d'abord (plus récentes en premier, bornées), puis LEURS réponses
+    // uniquement — au lieu de charger tous les commentaires du média. Comme
+    // avant, les réponses d'une racine bloquée disparaissent avec elle.
+    const roots = (
       await prisma.comment.findMany({
-        where: { mediaId: id, ...(episodeId ? { episodeId } : {}) },
+        where: { mediaId: id, parentId: null, ...(episodeId ? { episodeId } : {}) },
         include: { user: true, reactions: true },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
+        take: rootTake,
       })
     ).filter((c) => !blockedIds.has(c.userId));
+    const replies = roots.length
+      ? (
+          await prisma.comment.findMany({
+            // Même filtre episodeId que la requête d'origine (qui portait sur
+            // racines ET réponses) : le comportement visible ne change pas.
+            where: { parentId: { in: roots.map((c) => c.id) }, ...(episodeId ? { episodeId } : {}) },
+            include: { user: true, reactions: true },
+            orderBy: { createdAt: 'asc' },
+          })
+        ).filter((c) => !blockedIds.has(c.userId))
+      : [];
     const me = request.userId;
-    const serialize = (c: (typeof all)[number]) => ({
+    const serialize = (c: (typeof roots)[number]) => ({
       id: c.id,
       body: c.body,
       createdAt: c.createdAt.toISOString(),
@@ -1082,17 +1128,14 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
       reactions: summarizeReactions(c.reactions, me),
     });
     const repliesByParent = new Map<string, ReturnType<typeof serialize>[]>();
-    for (const c of all) {
+    for (const c of replies) {
       if (!c.parentId) continue;
       const arr = repliesByParent.get(c.parentId) ?? [];
       arr.push(serialize(c));
       repliesByParent.set(c.parentId, arr);
     }
     // Commentaires racines, plus récents d'abord ; réponses en ordre chronologique.
-    const comments = all
-      .filter((c) => !c.parentId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map((c) => ({ ...serialize(c), replies: repliesByParent.get(c.id) ?? [] }));
+    const comments = roots.map((c) => ({ ...serialize(c), replies: repliesByParent.get(c.id) ?? [] }));
     return { comments };
   });
 
