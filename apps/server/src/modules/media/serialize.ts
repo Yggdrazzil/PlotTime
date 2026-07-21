@@ -21,6 +21,25 @@ export function mediaTitle(media: TranslatableMedia, lang?: string | null): stri
   return translationFor(media, lang).title ?? media.localizedTitle ?? media.title;
 }
 
+// Année d'affichage FIABLE. D'anciennes données (imports / versions passées)
+// portent une année aberrante (`1`, `0`…) qui s'affichait telle quelle
+// (« Film · 1 »). On ne renvoie l'année stockée que si elle est plausible ;
+// sinon on la RÉCUPÈRE depuis la vraie date de sortie/diffusion (qui, elle, est
+// correcte), et en dernier recours `null` (l'UI n'affiche alors pas d'année).
+export function plausibleYear(
+  year?: number | null,
+  ...fallbackDates: (Date | null | undefined)[]
+): number | null {
+  const max = new Date().getFullYear() + 10; // laisse passer les sorties annoncées
+  const ok = (y?: number | null): y is number => typeof y === 'number' && Number.isFinite(y) && y >= 1888 && y <= max;
+  if (ok(year)) return year;
+  for (const d of fallbackDates) {
+    const y = d ? d.getFullYear() : null;
+    if (ok(y)) return y;
+  }
+  return null;
+}
+
 export function serializeMedia(media: Media, status?: UserMediaStatus | null, lang?: string | null): MediaDto {
   const translated = translationFor(media, lang);
   return {
@@ -31,7 +50,7 @@ export function serializeMedia(media: Media, status?: UserMediaStatus | null, la
     overview: translated.overview ?? media.localizedOverview ?? media.overview,
     posterPath: media.posterPath,
     backdropPath: media.backdropPath,
-    year: media.year,
+    year: plausibleYear(media.year, media.releaseDate, media.firstAirDate),
     firstAirDate: media.firstAirDate?.toISOString() ?? null,
     releaseDate: media.releaseDate?.toISOString() ?? null,
     status: media.status,

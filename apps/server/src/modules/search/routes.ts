@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../db/client.js';
 import { requireAuth } from '../auth/routes.js';
-import { mediaTitle, serializeMedia } from '../media/serialize.js';
+import { mediaTitle, plausibleYear, serializeMedia } from '../media/serialize.js';
 import { getUserLang } from '../media/userLang.js';
 import { parseTranslations, tmdbEnabled, tmdbKeywordNames, tmdbSearch, tmdbSearchPerson, tmdbTrending } from '../../services/tmdb/index.js';
 import { tvdbEnabled, tvdbLanguage, tvdbSearch } from '../../services/tvdb/index.js';
@@ -190,7 +190,9 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
         tvdbId: m.tvdbId,
         type: m.type as 'show' | 'movie',
         title: mediaTitle(m, lang),
-        year: m.year,
+        // Année validée / récupérée depuis la vraie date (données anciennes à
+        // année aberrante — ex. « Film · 1 » sur certains films Transformers).
+        year: plausibleYear(m.year, m.releaseDate, m.firstAirDate),
         posterPath: m.posterPath,
         backdropPath: m.backdropPath,
         overview: parseTranslations(m.translationsJson)[lang]?.overview ?? m.overview,

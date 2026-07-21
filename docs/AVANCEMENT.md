@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-21** (Claude/Étienne) — icônes Android « dézoomées » : logo réduit sur les icônes maskable de la PWA (et l'adaptive icon native) pour laisser voir le bleu de marque sur l'écran d'accueil
+Dernière mise à jour : **2026-07-21** (Claude/Étienne) — années aberrantes « Film · 1 » corrigées (garde-fou serveur plausibleYear, récupère l'année depuis la vraie date) + faute « 3 jeus » → « 3 jeux »
 
 ---
 
@@ -90,6 +90,25 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-21 — Claude/Étienne : année « Film · 1 » corrigée + faute « jeus »
+- **Bug « Film · 1 »** (années aberrantes) : certains médias portent en base une
+  année invalide (`1`, `0`…), héritée d'anciens imports/versions, affichée telle
+  quelle dans la recherche et ailleurs. Cause : les chemins d'écriture actuels
+  calculent bien l'année (TMDb `release_date`), mais rien ne validait la valeur
+  **lue**. Nouveau garde-fou serveur `plausibleYear()`
+  (`apps/server/src/modules/media/serialize.ts`) : ne renvoie l'année stockée que
+  si elle est plausible (1888…année+10), sinon la **récupère depuis la vraie date
+  de sortie/diffusion** (qui, elle, est correcte), sinon `null` (l'UI n'affiche
+  alors pas d'année). Appliqué au sérialiseur média central (donc partout :
+  fiches, listes, profil…) et à la recherche locale. Corrige toute la classe de
+  bug, pas seulement Transformers ; répare aussi d'éventuels doublons de
+  recherche (année 1 vs année réelle). Test `plausible-year.test.ts` (5 cas) ;
+  suite serveur 252/252.
+- **Faute « 3 jeus »** (`mobile/app/(tabs)/index.tsx`) : `GroupHead` ajoutait
+  naïvement un « s » ; ajout d'un `unitPlural` pour les pluriels irréguliers
+  (« jeu » → **« jeux »**).
+
 
 ### 2026-07-21 — Claude/Étienne : icônes Android « dézoomées » (plus de bleu de fond)
 - **Icônes maskable de la PWA** (`mobile/public/maskable-512.png` &
