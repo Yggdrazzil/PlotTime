@@ -160,6 +160,7 @@ const FIELD_ALIASES: Record<string, string[]> = {
   listName: ['list', 'list_name', 'list_title'],
   isWatched: ['is_watched', 'watched', 'seen'],
   isActive: ['active'],
+  isArchived: ['archived'],
   note: ['comment', 'private_comment', 'notes', 'personal_note'],
 };
 

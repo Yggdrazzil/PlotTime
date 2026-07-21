@@ -90,6 +90,26 @@ describe('normalizeImportedMedia', () => {
     const active = normalizeImportedMedia({ tv_show_name: 'Silo', tv_show_id: '456', active: '1' }, 'shows');
     expect(active?.status).toBeUndefined();
   });
+  it("archived=1 (followed_tv_show.csv) => série « arrêtée » — LE vrai signal Stop watching de TV Time", () => {
+    // Cas réel (export d'Étienne, 2026-07-21) : 333/760 séries arrêtées portent
+    // archived=1 avec active=1 — seule la colonne archived fait foi.
+    const archived = normalizeImportedMedia(
+      { tv_show_name: 'Lost', tv_show_id: '789', archived: '1', active: '1' },
+      'shows',
+    );
+    expect(archived?.status).toBe('stopped_watching');
+    const kept = normalizeImportedMedia(
+      { tv_show_name: 'Severance', tv_show_id: '790', archived: '0', active: '1' },
+      'shows',
+    );
+    expect(kept?.status).toBeUndefined();
+    // Un statut explicite (colonne status de NOTRE export) garde la priorité.
+    const paused = normalizeImportedMedia(
+      { tv_show_name: 'Dark', tv_show_id: '791', archived: '1', status: 'paused' },
+      'shows',
+    );
+    expect(paused?.status).toBe('paused');
+  });
 });
 
 describe('normalizeImportedEpisode', () => {
