@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-21** (Claude/Étienne) — Paramètres épurés (un seul titre par section), boutons jaunes (héritage TV Time) remplacés par le violet PlotTime, bouton « Modifier » du profil réduit à l'icône
+Dernière mise à jour : **2026-07-21** (Claude/Étienne) — en-tête de l'onglet Accueil aligné sur les en-têtes Agenda et Communauté (mêmes paddings)
 
 ---
 
@@ -90,6 +90,14 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-21 — Claude/Étienne : en-tête Accueil aligné sur Agenda/Communauté
+- **En-tête de l'onglet Accueil** (`mobile/app/(tabs)/index.tsx`) : mêmes
+  dimensions que les en-têtes Agenda et Communauté — `paddingHorizontal`
+  `20 → SPACE.md`, `paddingBottom` `16 → SPACE.sm`, et retrait du `marginTop`
+  des sous-onglets. Validé au pixel en Chromium (bas des deux en-têtes à la
+  même hauteur, diff 0).
+
 
 ### 2026-07-21 — Claude/Étienne : Paramètres épurés + fin des boutons jaunes (héritage TV Time)
 - **Profil — bouton « Modifier »** (`mobile/app/(tabs)/profile.tsx`) : réduit à
