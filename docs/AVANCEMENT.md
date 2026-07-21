@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-21** (Claude/Étienne) — Explorer : cartes du feed peaufinées (libellé « Fiche », invite de dépliage cliquable, overlay détails opaque en Glass sans trait rose, bouton « Accéder à la fiche »)
+Dernière mise à jour : **2026-07-21** (Claude/Étienne) — Explorer : arrière-plan figé au scroll, affiche pleine hauteur (sous la recherche → au-dessus de la nav), icône de navigation active lisible en Glass
 
 ---
 
@@ -90,6 +90,24 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-21 — Claude/Étienne : Explorer — fond figé, affiche pleine hauteur, icône nav Glass
+- **Arrière-plan figé** (`components/explore/TikTokFeed.tsx` + `TikTokCard.tsx`) :
+  le fond sombre + les formes Prisme passent dans une couche FIXE du feed,
+  derrière la liste — ils ne bougent plus au scroll. Chaque carte devient
+  transparente (plus de fond flouté/dim/prismes par carte) : seules les
+  affiches défilent au-dessus du fond immobile.
+- **Affiche pleine hauteur** : l'affiche s'étend en pleine largeur du bas de la
+  barre de recherche (`topInset`) jusqu'au-dessus de la barre de navigation
+  (`insets.bottom + NAV_CLEARANCE`) — plus de marges/cadre inséré. Validé au
+  pixel (cadre y≈48→802 sur 860, largeur pleine).
+- **Icône de navigation lisible en Glass** (`components/TabBar.tsx`) : l'icône
+  active (violet marque) se distinguait mal sur la barre translucide posée
+  au-dessus du feed sombre → halo clair (`textShadow`) autour de l'icône active
+  en Glass, lisible sur fond sombre et sans effet sur fond clair. Icône seule.
+- Validé en Chromium (thème Glass, 2 cartes : fond immobile confirmé) ;
+  `tsc --noEmit` + export web OK.
+
 
 ### 2026-07-21 — Claude/Étienne : Explorer — cartes & overlay détails peaufinés
 - **Libellé « Fiche »** sous la vignette-affiche du rail d'actions
