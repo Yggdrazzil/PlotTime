@@ -20,16 +20,18 @@ type AppState = {
   coverPick: string | null;
   // Tri choisi sur les pages « préférés » (persisté, comme TV Time).
   favSort: Record<MediaType, FavSortKey>;
-  // Affichage Accueil/Agenda : false = cartes (défaut), true = grille d'affiches.
-  // Préférence unique partagée par les deux onglets (un seul modèle mental).
-  gridView: boolean;
+  // Affichage cartes (false) / grille d'affiches (true), INDÉPENDANT par onglet
+  // (Accueil et Agenda ont chacun leur réglage). Persisté.
+  gridView: { home: boolean; agenda: boolean };
   setServerUrl: (url: string) => void;
   setAuth: (token: string, user: UserInfo) => void;
   setCoverPick: (url: string | null) => void;
   setFavSort: (kind: MediaType, sort: FavSortKey) => void;
-  setGridView: (on: boolean) => void;
+  setGridView: (tab: 'home' | 'agenda', on: boolean) => void;
   logout: () => void;
 };
+
+export type GridViewTab = 'home' | 'agenda';
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -40,12 +42,16 @@ export const useAppStore = create<AppState>()(
       hydrated: false,
       coverPick: null,
       favSort: { show: 'user', movie: 'user', game: 'user' },
-      gridView: false,
+      gridView: { home: false, agenda: false },
       setServerUrl: (url) => set({ serverUrl: url.replace(/\/+$/, '') }),
       setAuth: (token, user) => set({ token, user }),
       setCoverPick: (url) => set({ coverPick: url }),
       setFavSort: (kind, sort) => set((s) => ({ favSort: { ...s.favSort, [kind]: sort } })),
-      setGridView: (on) => set({ gridView: on }),
+      setGridView: (tab, on) =>
+        set((s) => ({
+          // Tolérant à un ancien réglage booléen persisté (auto-guérison).
+          gridView: { ...(s.gridView && typeof s.gridView === 'object' ? s.gridView : { home: false, agenda: false }), [tab]: on },
+        })),
       logout: () => set({ token: null, user: null }),
     }),
     {

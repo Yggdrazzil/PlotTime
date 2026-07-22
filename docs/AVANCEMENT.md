@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-21** (Claude/Étienne) — coche « ajouté » recherche (verte pleine) + bascule vue cartes / grille d'affiches dans Accueil et Agenda (3 sous-onglets, préférence partagée)
+Dernière mise à jour : **2026-07-21** (Claude/Étienne) — coche « ajouté » recherche (verte pleine) + bascule vue cartes / grille d'affiches dans Accueil et Agenda (3 sous-onglets, réglage indépendant par onglet)
 
 ---
 
@@ -106,9 +106,9 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
   chaque affiche (code épisode, heure, année, date de sortie). Taper une affiche
   ouvre la fiche.
   - Nouveau composant `mobile/components/PosterGrid.tsx` (`PosterGrid`,
-    `ViewModeToggle`, `useGridView`) ; préférence **unique partagée** par les deux
-    onglets, persistée (`gridView` dans le store) ; `TabHeader` gagne un slot
-    `leading`.
+    `ViewModeToggle`, `useGridView`) ; réglage **indépendant par onglet**
+    (`gridView.home` / `gridView.agenda`), persisté dans le store ; `TabHeader`
+    gagne un slot `leading`.
 - **Validation** : export web OK, puis rendu Playwright (données simulées) des 6
   vues en grille (Accueil + Agenda × Séries/Films/Jeux), bascule d'en-tête et
   préférence partagée vérifiées. Typecheck mobile OK.

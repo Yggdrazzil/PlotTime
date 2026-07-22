@@ -39,7 +39,7 @@ export default function ShowsScreen() {
   return (
     <View key={resetSeq} style={{ flex: 1, backgroundColor: COLORS.pageMuted }}>
       <View style={[styles.homeHeader, { paddingTop: insets.top }]}>
-        <TabHeader title="À voir" leading={<ViewModeToggle />} trailing={<HomeHeaderActions />} />
+        <TabHeader title="À voir" leading={<ViewModeToggle tab="home" />} trailing={<HomeHeaderActions />} />
         <SegmentedFilter
           options={HOME_TABS}
           value={tab}
@@ -125,7 +125,7 @@ const QueueRow = React.memo(function QueueRow({
 function QueueView() {
   const qc = useQueryClient();
   const router = useRouter();
-  const gridView = useGridView();
+  const gridView = useGridView('home');
   // L'historique est masqué au-dessus de la liste : on cale le scroll initial
   // juste en dessous, il se découvre en faisant défiler vers le haut (TV Time).
   const scrollRef = useRef<ScrollView>(null);
@@ -402,7 +402,7 @@ type MoviesResponse = { toWatch: MediaDto[]; upcoming: { media: MediaDto; releas
 
 function MoviesToWatchView() {
   const router = useRouter();
-  const gridView = useGridView();
+  const gridView = useGridView('home');
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['movies'],
     queryFn: () => api.get<MoviesResponse>('/api/movies'),
@@ -460,7 +460,7 @@ type HomeGameDto = { id: string; title: string; posterPath: string | null; year:
 
 function GamesWishlistView() {
   const router = useRouter();
-  const gridView = useGridView();
+  const gridView = useGridView('home');
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['games', 'library'],
     queryFn: () => api.get<{ wishlist: HomeGameDto[] }>('/api/games'),
@@ -671,7 +671,9 @@ function HeroCard({
 
 export function UpcomingView() {
   const router = useRouter();
-  const gridView = useGridView();
+  // UpcomingView est la vue « Séries » de l'AGENDA (bien que définie ici) → son
+  // réglage grille suit l'onglet Agenda, pas Accueil.
+  const gridView = useGridView('agenda');
   // Historique des sorties (HIER, AVANT-HIER…) masqué au-dessus de la liste,
   // comme l'historique de visionnage de « À voir » : le scroll initial se cale
   // sur AUJOURD'HUI, on remonte pour rattraper une sortie manquée.

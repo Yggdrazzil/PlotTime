@@ -12,25 +12,26 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { COLORS, FONTS, RADIUS, SIZES, SPACE } from '@/lib/theme';
-import { useAppStore } from '@/lib/store';
+import { useAppStore, type GridViewTab } from '@/lib/store';
 
 // Vue « grille d'affiches » (retour Étienne 2026-07-21) : alternative aux cartes
-// dans Accueil et Agenda, activée par le bouton d'en-tête (ViewModeToggle). Une
-// préférence UNIQUE partagée par les deux onglets, persistée dans le store.
+// dans Accueil et Agenda, activée par le bouton d'en-tête (ViewModeToggle). Un
+// réglage INDÉPENDANT par onglet ('home' / 'agenda'), persisté dans le store.
 
-// Bascule cartes ⇄ grille : lit/écrit la préférence partagée (persistée).
-export function useGridView(): boolean {
-  return useAppStore((s) => s.gridView);
+// Lit la préférence d'un onglet (tolérant à un ancien réglage booléen persisté).
+export function useGridView(tab: GridViewTab): boolean {
+  return useAppStore((s) => (s.gridView && typeof s.gridView === 'object' ? !!s.gridView[tab] : false));
 }
 
 // Bouton d'en-tête (posé à gauche via TabHeader.leading) : icône grille quand on
 // est en cartes (tap → grille), icône liste quand on est en grille (tap → cartes).
-export function ViewModeToggle() {
-  const grid = useAppStore((s) => s.gridView);
+// `tab` désigne l'onglet contrôlé — chaque onglet a son propre réglage.
+export function ViewModeToggle({ tab }: { tab: GridViewTab }) {
+  const grid = useGridView(tab);
   const setGrid = useAppStore((s) => s.setGridView);
   return (
     <Pressable
-      onPress={() => setGrid(!grid)}
+      onPress={() => setGrid(tab, !grid)}
       hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel={grid ? 'Afficher en liste de cartes' : "Afficher en grille d'affiches"}
