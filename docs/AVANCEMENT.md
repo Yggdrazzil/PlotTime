@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-22** (Codex/Étienne) — notifications allégées et icône manette dans le sélecteur Jeux
+Dernière mise à jour : **2026-07-22** (Codex/Étienne) — contenus suivis ou ajoutés replacés en tête des résultats Explorer
 
 ---
 
@@ -91,6 +91,19 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-22 — Codex/Étienne : contenus suivis en tête des résultats Explorer
+- **Recherche médias et jeux** (`mobile/app/(tabs)/explore.tsx`) : partition
+  stable des résultats en deux groupes — contenus déjà présents dans la
+  bibliothèque ou ajoutés pendant la recherche en premier, autres résultats
+  ensuite. L'ordre de pertinence renvoyé par l'API reste inchangé à l'intérieur
+  de chaque groupe.
+- **Interaction immédiate** : après succès du bouton `+`, la série, le film ou
+  le jeu remonte sans rechargement au sommet du groupe suivi grâce à l'état
+  local déjà utilisé pour afficher la coche.
+- **QA** : typecheck mobile réussi ; export Expo Web réussi (41 routes) ; test
+  Playwright mobile 390 px validant l'ordre initial puis le réordonnancement
+  après ajout d'un film, d'une série et d'un jeu, sans débordement horizontal.
 
 ### 2026-07-22 — Codex/Étienne : notifications allégées et manette dans Recherche
 - **Notifications** (`mobile/app/notifications.tsx`) : retrait de la carte

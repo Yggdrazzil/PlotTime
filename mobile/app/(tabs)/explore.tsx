@@ -52,6 +52,17 @@ type GameSearchResultDto = {
   inLibrary?: boolean;
 };
 
+function mediaResultKey(result: FeedItem) {
+  return `${result.type}-${result.id ?? result.tvdbId ?? result.tmdbId}`;
+}
+
+function prioritizeLibraryResults<T>(results: T[], isInLibrary: (result: T) => boolean) {
+  const inLibrary: T[] = [];
+  const others: T[] = [];
+  results.forEach((result) => (isInLibrary(result) ? inLibrary : others).push(result));
+  return [...inLibrary, ...others];
+}
+
 export default function ExploreScreen() {
   // Re-clic sur l'onglet « Explorer » : remontage complet (recherche + flux réinitialisés).
   const resetSeq = useTabResetSeq('explore');
@@ -298,6 +309,10 @@ function MediaResults({ query, rawQuery }: { query: string; rawQuery: string }) 
     }
     return <EmptyState title="Aucun résultat" message={`Aucune série ni aucun film ne correspond à « ${rawQuery.trim()} ».`} />;
   }
+  const prioritizedResults = prioritizeLibraryResults(
+    results,
+    (result) => followed[mediaResultKey(result)] || result.inLibrary,
+  );
 
   return (
     <ScrollView
@@ -305,8 +320,8 @@ function MediaResults({ query, rawQuery }: { query: string; rawQuery: string }) 
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      {results.map((r, i) => {
-        const key = `${r.type}-${r.id ?? r.tvdbId ?? r.tmdbId}`;
+      {prioritizedResults.map((r, i) => {
+        const key = mediaResultKey(r);
         const poster = tmdbImage(r.posterPath, 'w185');
         const isFollowed = followed[key] || r.inLibrary;
         return (
@@ -431,6 +446,10 @@ function GameResults({ query, rawQuery }: { query: string; rawQuery: string }) {
   if (results.length === 0) {
     return <EmptyState title="Aucun résultat" message={`Aucun jeu ne correspond à « ${rawQuery.trim()} ».`} />;
   }
+  const prioritizedResults = prioritizeLibraryResults(
+    results,
+    (result) => followed[keyOf(result)] || !!result.inLibrary,
+  );
 
   return (
     <ScrollView
@@ -438,7 +457,7 @@ function GameResults({ query, rawQuery }: { query: string; rawQuery: string }) {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      {results.map((r, i) => {
+      {prioritizedResults.map((r, i) => {
         const poster = tmdbImage(r.posterPath, 'w185');
         const key = keyOf(r);
         const isFollowed = followed[key] || r.inLibrary;
