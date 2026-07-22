@@ -8,20 +8,52 @@ import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
 // des bibliothèques (pilule flottante « FILTRER » + feuille tri + filtre unique).
 
 export type FilterOption = { key: string; label: string };
+// Filtre appliqué affiché en badge amovible au-dessus du bouton FILTRER.
+export type ActiveChip = { key: string; label: string; onRemove: () => void };
 
-// Pilule flottante « FILTRER » (violette). `bottom` doit dégager la barre de nav.
-export function FilterFab({ active, onPress, bottom }: { active: boolean; onPress: () => void; bottom: number }) {
+// Barre flottante : les badges des filtres actifs (chacun avec une croix pour le
+// retirer) empilés au-dessus de la pilule « FILTRER » (violette). `bottom` doit
+// dégager la barre de navigation.
+export function FilterBar({
+  active,
+  chips,
+  onOpen,
+  bottom,
+}: {
+  active: boolean;
+  chips: ActiveChip[];
+  onOpen: () => void;
+  bottom: number;
+}) {
   return (
-    <Pressable
-      style={({ pressed }) => [styles.fab, { bottom }, pressed && styles.fabPressed]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={active ? 'Filtres actifs. Modifier le tri et le filtre' : 'Filtrer et trier les résultats'}
-      accessibilityState={{ selected: active }}
-    >
-      <Feather name="sliders" size={18} color={COLORS.onPrimary} />
-      <Text style={styles.fabText}>{active ? 'FILTRES ACTIFS' : 'FILTRER'}</Text>
-    </Pressable>
+    <View style={[styles.bar, { bottom }]} pointerEvents="box-none">
+      {chips.length > 0 ? (
+        <View style={styles.chipsWrap}>
+          {chips.map((c) => (
+            <Pressable
+              key={c.key}
+              style={({ pressed }) => [styles.activeChip, pressed && styles.activeChipPressed]}
+              onPress={c.onRemove}
+              accessibilityRole="button"
+              accessibilityLabel={`Retirer le filtre : ${c.label}`}
+            >
+              <Text style={styles.activeChipText} numberOfLines={1}>{c.label}</Text>
+              <Feather name="x" size={14} color={COLORS.primary} />
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      <Pressable
+        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+        onPress={onOpen}
+        accessibilityRole="button"
+        accessibilityLabel={active ? 'Filtres actifs. Modifier le tri et le filtre' : 'Filtrer et trier les résultats'}
+        accessibilityState={{ selected: active }}
+      >
+        <Feather name="sliders" size={18} color={COLORS.onPrimary} />
+        <Text style={styles.fabText}>{active ? 'FILTRES ACTIFS' : 'FILTRER'}</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -146,8 +178,32 @@ export function SearchFilterSheet({
 }
 
 const styles = StyleSheet.create({
+  // Conteneur flottant (badges + pilule), centré, laisse défiler derrière.
+  bar: { position: 'absolute', left: 0, right: 0, alignItems: 'center', paddingHorizontal: SPACE.md },
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: SPACE.xs,
+    marginBottom: SPACE.xs,
+    maxWidth: SIZES.contentMax,
+  },
+  activeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 34,
+    paddingLeft: SPACE.sm,
+    paddingRight: SPACE.xs,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    ...SHADOW.card,
+  },
+  activeChipPressed: { opacity: 0.8, transform: [{ scale: 0.97 }] },
+  activeChipText: { color: COLORS.primary, fontSize: 12, fontFamily: FONTS.bold, maxWidth: 200 },
   fab: {
-    position: 'absolute',
     alignSelf: 'center',
     minHeight: SIZES.touchComfortable,
     flexDirection: 'row',

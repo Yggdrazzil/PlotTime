@@ -6,7 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
-Dernière mise à jour : **2026-07-21** (Claude/Étienne) — refonte recherche Explorer : type mémorisé, sélecteur au focus, croix qui n'efface que le texte, retour qui ferme la recherche, résultats jeux triés par popularité + exhaustifs, et filtre/tri des résultats (médias & jeux)
+Dernière mise à jour : **2026-07-21** (Claude/Étienne) — recherche Explorer : type mémorisé, sélecteur au focus, croix qui n'efface que le texte, retour qui ferme la recherche, jeux triés par popularité + exhaustifs, filtre/tri des résultats + badges de filtres actifs amovibles
 
 ---
 
@@ -113,6 +113,9 @@ Plusieurs retours Étienne sur l'onglet Explorer :
   Médias = tri (Pertinence / Plus récents / A→Z) + type (Séries / Films) ;
   Jeux = tri (Populaires / Mieux notés / Plus récents / A→Z) + plateforme
   (liste dynamique issue des résultats).
+- **Badges de filtres actifs** (retour Étienne) : chaque filtre appliqué (type,
+  plateforme, tri non-défaut) s'affiche en **badge amovible** au-dessus du bouton
+  FILTRER — une croix par badge retire ce filtre précis (`FilterBar` + `ActiveChip`).
 - **Validation** : tests serveur (290, dont un nouveau sur l'ordre de la
   recherche jeux) ; rendu Playwright des flux (sélecteur au focus, ordre jeux,
   feuilles de filtre médias & jeux, croix qui reste, retour qui ferme). Typecheck OK.

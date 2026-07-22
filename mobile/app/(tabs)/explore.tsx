@@ -26,7 +26,7 @@ import { EmptyState, LoadError } from '@/components/ui';
 import { AppearItem, FadeSwitch, PopIn, Skeleton } from '@/components/anim';
 import { useTabResetSeq } from '@/lib/tabReset';
 import { TikTokFeed } from '@/components/explore/TikTokFeed';
-import { FilterFab, SearchFilterSheet, type FilterOption } from '@/components/explore/SearchFilters';
+import { FilterBar, SearchFilterSheet, type ActiveChip, type FilterOption } from '@/components/explore/SearchFilters';
 
 type FeedItem = {
   id: string | null;
@@ -361,6 +361,12 @@ function MediaResults({ query, rawQuery }: { query: string; rawQuery: string }) 
 
   const shown = applyMediaFilter(results, sort, typeFilter);
   const filtersActive = sort !== 'relevance' || typeFilter !== 'all';
+  // Badges des filtres actifs (croix = retire ce filtre précis).
+  const activeChips: ActiveChip[] = [];
+  if (sort !== 'relevance')
+    activeChips.push({ key: 'sort', label: MEDIA_SORT_OPTS.find((o) => o.key === sort)!.label, onRemove: () => setSort('relevance') });
+  if (typeFilter !== 'all')
+    activeChips.push({ key: 'type', label: typeFilter === 'show' ? 'Séries' : 'Films', onRemove: () => setTypeFilter('all') });
 
   return (
     <View style={{ flex: 1 }}>
@@ -437,7 +443,7 @@ function MediaResults({ query, rawQuery }: { query: string; rawQuery: string }) 
           })
         )}
       </ScrollView>
-      <FilterFab active={filtersActive} onPress={() => setSheet(true)} bottom={insets.bottom + 58 + SPACE.sm} />
+      <FilterBar active={filtersActive} chips={activeChips} onOpen={() => setSheet(true)} bottom={insets.bottom + 58 + SPACE.sm} />
       <SearchFilterSheet
         visible={sheet}
         onClose={() => setSheet(false)}
@@ -546,6 +552,11 @@ function GameResults({ query, rawQuery }: { query: string; rawQuery: string }) {
   ];
   const shown = applyGameFilter(results, sort, platform);
   const filtersActive = sort !== 'popular' || platform !== 'all';
+  // Badges des filtres actifs (croix = retire ce filtre précis).
+  const activeChips: ActiveChip[] = [];
+  if (sort !== 'popular')
+    activeChips.push({ key: 'sort', label: GAME_SORT_OPTS.find((o) => o.key === sort)!.label, onRemove: () => setSort('popular') });
+  if (platform !== 'all') activeChips.push({ key: 'platform', label: platform, onRemove: () => setPlatform('all') });
 
   return (
     <View style={{ flex: 1 }}>
@@ -620,7 +631,7 @@ function GameResults({ query, rawQuery }: { query: string; rawQuery: string }) {
           })
         )}
       </ScrollView>
-      <FilterFab active={filtersActive} onPress={() => setSheet(true)} bottom={insets.bottom + 58 + SPACE.sm} />
+      <FilterBar active={filtersActive} chips={activeChips} onOpen={() => setSheet(true)} bottom={insets.bottom + 58 + SPACE.sm} />
       <SearchFilterSheet
         visible={sheet}
         onClose={() => setSheet(false)}
@@ -858,8 +869,9 @@ const styles = StyleSheet.create({
     gap: SPACE.sm,
     paddingHorizontal: SPACE.md,
     paddingTop: SPACE.md,
-    // Dégage la barre de navigation flottante + la pilule « FILTRER ».
-    paddingBottom: SIZES.tabBar + SPACE.xxl,
+    // Dégage la barre de navigation flottante + la pilule « FILTRER » et ses
+    // badges de filtres actifs empilés au-dessus.
+    paddingBottom: SIZES.tabBar + SPACE.xxl * 2,
   },
   filterEmpty: { paddingTop: SPACE.xl },
   resultRow: {
