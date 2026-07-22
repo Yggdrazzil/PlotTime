@@ -7,6 +7,7 @@
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
 Dernière mise à jour : **2026-07-22** (Claude/Benjamin) — écran bibliothèque Jeux (`/games`, ouvert depuis le Profil) : retrait des carrousels « Découverte » Populaires/À venir (redondants avec l'Explorer qui a déjà recherche + tri « Populaires ») ; l'état vide redirige vers l'Explorer. « Sorties à venir » (jeux suivis) conservé. −83 lignes, typecheck clean.
+Dernière mise à jour : **2026-07-22** (Claude/Étienne) — Profil : « Temps déclaré » → « Temps de jeu » et titre de section « Récompenses » au-dessus de la carte Trophées
 Dernière mise à jour : **2026-07-22** (Codex/Étienne) — résumé des statistiques du Profil rendu lisible et responsive
 Dernière mise à jour : **2026-07-22** (Claude/Étienne) — fiche jeu : refonte UX/UI de la carte d'identité (skill impeccable) — un seul format libellé/valeur, genres en tags + notes en **tuiles à dégradé vif** (façon carte « Temps devant des séries »), titre retiré du corps (bannière lisible sur tout fond)
 
@@ -93,6 +94,17 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-22 — Claude/Étienne : Profil — libellé « Temps de jeu » + section « Récompenses »
+- **`mobile/app/(tabs)/profile.tsx`** — deux retouches ciblées demandées par
+  Étienne :
+  1. la ligne « Jeux » du résumé des statistiques passe de **« Temps déclaré »**
+     à **« Temps de jeu »** (`durationLabel`) — libellé cohérent avec la fiche
+     jeu et l'écran Stats ;
+  2. nouveau **titre de section « Récompenses »** inséré entre le résumé des
+     statistiques et la carte Trophées/badges (streak → `/trophies`), pour
+     marquer la frontière entre données brutes et gamification (style
+     `sectHead`/`sectTitle` existant + `rewardsHead` pour l'espacement).
 
 ### 2026-07-22 — Codex/Étienne : statistiques du Profil clarifiées
 - **Hiérarchie remaniée** (`mobile/app/(tabs)/profile.tsx`) : les six tuiles
