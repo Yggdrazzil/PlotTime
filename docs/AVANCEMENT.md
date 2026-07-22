@@ -92,6 +92,19 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 
 ## Journal des modifications
 
+### 2026-07-22 — Codex/Étienne : notifications allégées et manette dans Recherche
+- **Notifications** (`mobile/app/notifications.tsx`) : retrait de la carte
+  introductive « Centre d'activité / Ce qui vient de se passer » afin d'afficher
+  directement la liste utile ; le bandeau d'erreur de synchronisation reste
+  disponible uniquement en cas d'échec.
+- **Recherche** (`mobile/app/(tabs)/explore.tsx`) : remplacement de l'icône
+  Feather « command » de la catégorie Jeux par la manette Ionicons
+  `game-controller-outline`, états actif et inactif conservés.
+- **QA** : export Expo Web réussi (41 routes) ; smoke Playwright mobile 390 px
+  sur `/notifications` et `/explore` sans débordement ni erreur d'exécution.
+  Le typecheck global reste bloqué par trois liens Expo préexistants vers
+  `/community` et `/user-library`, hors périmètre de ce lot.
+
 ### 2026-07-21 — Claude/Étienne : refonte de la recherche Explorer (UX + tri/filtre jeux)
 Plusieurs retours Étienne sur l'onglet Explorer :
 - **Dernier type mémorisé** : la recherche revenait toujours sur « médias ». Le
