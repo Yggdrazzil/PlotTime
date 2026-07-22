@@ -6,6 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
+Dernière mise à jour : **2026-07-22** (Claude/Étienne) — Explorer : clavier conservé au changement de catégorie ; fiche jeu : « Temps de jeu » dédoublonné + bouton refondu (icône chrono, sans sous-titre) ; recherche jeux : plateformes resynchronisées durablement en base
 Dernière mise à jour : **2026-07-22** (Claude/Étienne) — Recherche jeux : plateformes enrichies depuis IGDB sur les jeux locaux hérités (filtre « Plateforme » de nouveau exploitable)
 Dernière mise à jour : **2026-07-22** (Claude/Benjamin) — écran bibliothèque Jeux (`/games`, ouvert depuis le Profil) : retrait des carrousels « Découverte » Populaires/À venir (redondants avec l'Explorer qui a déjà recherche + tri « Populaires ») ; l'état vide redirige vers l'Explorer. « Sorties à venir » (jeux suivis) conservé. −83 lignes, typecheck clean.
 Dernière mise à jour : **2026-07-22** (Claude/Étienne) — Profil : « Temps déclaré » → « Temps de jeu » et titre de section « Récompenses » au-dessus de la carte Trophées
@@ -95,6 +96,29 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-22 — Claude/Étienne : Explorer (clavier) + fiche jeu (Temps de jeu) + plateformes durables
+- **Explorer — clavier conservé** (`mobile/app/(tabs)/explore.tsx`) : changer de
+  catégorie (Médias / Jeux / Profils) faisait perdre le focus au champ → le
+  clavier se rétractait. Le sélecteur d'onglet re-focalise désormais le champ
+  (`selectTab`), le clavier reste ouvert.
+- **Fiche jeu — « Temps de jeu » dédoublonné** (`mobile/app/game/[id].tsx`) : la
+  ligne « Temps de jeu » de la carte Informations est retirée ; seul le **bouton
+  dédié** sous « Je possède » subsiste. Bouton **refondu** : icône chronomètre
+  (`Ionicons stopwatch`, plus parlante que l'horloge), libellé « Temps de jeu »
+  seul (sous-titre « Déclarer mes heures » supprimé — l'icône crayon suffit). Le
+  bouton apparaît aussi si un temps existe sans suivi (import Steam).
+- **Recherche jeux — plateformes DURABLES** (`apps/server/.../games/routes.ts`) :
+  en plus de l'enrichissement de la réponse, un jeu local hérité sans plateformes
+  est **resynchronisé EN BASE** (plateformes, studios, modes) à partir du résultat
+  IGDB déjà récupéré par la recherche — sans appel réseau supplémentaire,
+  idempotent. Les badges plateformes s'affichent alors sur les cartes de résultats
+  **et** persistent pour la fiche/bibliothèque. Test étendu (persistance vérifiée).
+- **Vérifié** (Playwright web) : focus conservé au clic sur « Jeux » ; badges
+  plateformes visibles sur les cartes ; fiche sans doublon « Temps de jeu », bouton
+  refondu. Suite jeux+recherche verte (14 tests), typecheck mobile+serveur 0 erreur.
+- **NB déploiement** : la partie serveur (persist plateformes) exige le **redémarrage
+  de l'API** sur le VPS ; la partie mobile suit le rebuild web habituel.
 
 ### 2026-07-22 — Claude/Étienne : recherche jeux — filtre « Plateforme » réparé (enrichissement IGDB)
 - **Symptôme** (retour Étienne) : à la recherche de jeux, le filtre « Plateforme »
