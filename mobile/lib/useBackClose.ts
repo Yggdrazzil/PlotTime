@@ -38,9 +38,14 @@ export function useBackClose(visible: boolean, onClose: () => void) {
     window.addEventListener('popstate', onPop);
     return () => {
       window.removeEventListener('popstate', onPop);
-      // Fermé sans passer par le bouton précédent (X, fond) : le cran fantôme
-      // est encore là, on le retire pour ne pas laisser d'entrée parasite.
-      if (!poppedByBack) window.history.back();
+      // Retirer le cran fantôme SEULEMENT s'il est encore l'entrée courante —
+      // c.-à-d. fermeture en place (bouton X, tap sur le fond). Si l'overlay se
+      // démonte parce qu'on a navigué EN AVANT (ex. « Accéder à la fiche » →
+      // router.push), l'état courant n'est plus le nôtre : un history.back()
+      // annulerait la navigation et nous ramènerait à l'écran précédent
+      // (bug « ça remet direct dans l'Explorer », 2026-07-22).
+      const stillOurs = (window.history.state as { __overlay?: boolean } | null)?.__overlay === true;
+      if (!poppedByBack && stillOurs) window.history.back();
     };
   }, [visible]);
 }
