@@ -6,6 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
+Dernière mise à jour : **2026-07-22** (Claude/Étienne) — retour arrière corrigé (natif + PWA : la fiche ouverte depuis la recherche revient sur les résultats, plus sur le feed) + Agenda › Films groupé par mois comme les Jeux
 Dernière mise à jour : **2026-07-22** (Claude/Étienne) — recherche Jeux : filtre plateformes classé de la console la plus récente à la plus ancienne (Switch 2 → …), « Toutes les plateformes » en tête
 Dernière mise à jour : **2026-07-23** (Claude/Benjamin) — Lot QA 2 (« corrige tout ») : **Écran de connexion** — bouton Google en thème `filled_black` sur thèmes sombres (fini le bouton blanc), plus de scintillement (init une seule fois via ref), largeur alignée (≤400px GSI), placeholders lisibles (`textSoft`), en-tête condensé (sur-titre kicker retiré), messages erreur/succès colorés. **Explorer** — suivre depuis la recherche invalide aussi profil/classement/gamification (comme l'onglet Amis). **Fil social** — réactions ❤️ réconciliées avec la vérité serveur (plus de dérive du compteur). **Navigation** — retour des Notifications repointé vers l'Accueil (au lieu du Profil). **Accueil** — état vide en grille « Tout est à jour » quand on est à jour (au lieu de « ajoutez des séries »), rangée d'actions héro sans débordement. **Divers** — routes `library/favorite-games` & `reorder-favorites` déclarées. Reportés (notés) : puce « intérêt » de la fiche série (décision produit → Étienne), overlay busy SSO, code mort interne.
 Dernière mise à jour : **2026-07-23** (Claude/Benjamin) — Lot QA (retours testeurs) : **(1)** Déconnexion web réparée (`settings.tsx` : `signOut` vide le token **et** renvoie à `/setup` ; idem après suppression de compte — qui garde sa confirmation « taper SUPPRIMER »). **(2)** Explorer — « déjà vu » pris en compte instantanément : un titre suivi/vu depuis une fiche (même ouverte depuis un ami) est retiré du deck figé de l'Explorer sans re-fetch (`feedSession.tracked` + filtre `TikTokFeed` + effet fiches série/film/jeu). **(3)** Jeux « Sorties à venir » : grille d'affiches **avec date** (au lieu d'une carte-carrousel sans date), cohérente avec les autres catégories et l'Agenda ; + invalidation `['games','upcoming']` sur changement de statut. **(4)** Nettoyage `TabBar` (clause d'onglet Jeux masqué devenue morte après le passage en écran de pile). Écran de connexion (bouton Google blanc sur thème sombre + scintillement + surcharge) → findings transmis à Étienne (design).
@@ -100,6 +101,28 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-22 — Claude/Étienne : retour arrière fiabilisé + Agenda Films groupé par mois
+Deux retours Étienne (Android) :
+- **Retour arrière logique** (`mobile/lib/useBackClose.ts`) : depuis une fiche
+  ouverte via un résultat de recherche, le retour ramenait au feed TikTok au
+  lieu des résultats. Cause : le `useBackClose` de l'Explorer interceptait le
+  retour même quand la fiche était empilée par-dessus. Corrigé en **verrouillant
+  l'interception sur le focus** (`useIsFocused`) — l'overlay ne capture le retour
+  que si son écran est au premier plan ; sinon le routeur dépile la fiche et l'on
+  revient sur les résultats (recherche préservée). Corrigé pour le **natif**
+  (BackHandler) ET la **PWA web** (cran d'historique fantôme gardé par le focus,
+  avec garde anti-course : ne jamais `history.back()` lors d'une nav avant, ce
+  qui annulait l'ouverture de la fiche). Validé au rendu web : fiche → retour →
+  résultats de recherche (plus le feed).
+  Reste identifié (audit, à traiter ensuite) : plusieurs `<Modal>` web n'utilisent
+  pas encore `useBackClose` (retour navigateur qui saute l'étape) — cf. audit.
+- **Agenda › Films par période** (`mobile/app/(tabs)/agenda.tsx`) : les films à
+  venir étaient listés « en vrac ». Ils sont désormais **groupés par mois** avec
+  les mêmes badges `PillHeader` que le sous-onglet Jeux (groupage client par
+  « mois année », tri chronologique). Vue liste et vue grille. Logique de
+  groupage vérifiée (ordre chronologique, tri intra-mois) ; chemin de rendu
+  identique au sous-onglet Jeux.
 
 ### 2026-07-22 — Claude/Étienne : recherche Jeux — filtre plateformes classé par récence
 Retour Étienne : dans la feuille « Trier & filtrer » des résultats Jeux, les
