@@ -4,7 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, tmdbImage } from '@/lib/api';
-import { COLORS, FONTS, RADIUS, SHADOW, SIZES, SPACE } from '@/lib/theme';
+import { COLORS, FONTS, RADIUS, SIZES, SPACE } from '@/lib/theme';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, Loading, LoadError } from '@/components/ui';
 import { AppearItem, PressableScale } from '@/components/anim';
@@ -64,13 +64,8 @@ export default function ConnectionsScreen() {
             refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={COLORS.primary} />}
             contentContainerStyle={styles.list}
             ListHeaderComponent={
-              <View style={styles.intro}>
-                <View style={styles.eyebrow}>
-                  <Feather name={followers ? 'users' : 'user-check'} size={14} color={COLORS.primary} />
-                  <Text style={styles.eyebrowText}>{followers ? 'TA COMMUNAUTÉ' : 'TON RÉSEAU'}</Text>
-                </View>
-                <Text style={styles.introTitle}>{followers ? 'Les personnes qui te suivent' : 'Les personnes que tu suis'}</Text>
-                <Text style={styles.introBody}>
+              <View style={styles.summary}>
+                <Text style={styles.summaryText}>
                   {data?.users.length ?? 0} {followers ? 'abonné' : 'abonnement'}
                   {(data?.users.length ?? 0) > 1 ? 's' : ''}
                 </Text>
@@ -152,24 +147,13 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.pageMuted },
   canvas: { flex: 1, width: '100%', maxWidth: SIZES.contentMax, alignSelf: 'center' },
   list: { flexGrow: 1, paddingHorizontal: SPACE.md, paddingTop: SPACE.md, paddingBottom: SPACE.xl, gap: SPACE.sm },
-  intro: {
-    marginBottom: SPACE.xxs,
-    padding: SPACE.lg,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    borderRadius: RADIUS.card,
-    ...SHADOW.card,
-  },
-  eyebrow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: SPACE.xs },
-  eyebrowText: { color: COLORS.primary, fontSize: 11, lineHeight: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.8 },
-  introTitle: { color: COLORS.text, fontSize: 24, lineHeight: 30, fontFamily: FONTS.extraBold },
-  introBody: { marginTop: SPACE.xs, color: COLORS.textMuted, fontSize: 14, lineHeight: 20, fontFamily: FONTS.regular },
+  summary: { minHeight: 24, justifyContent: 'center', marginBottom: SPACE.xxs, paddingHorizontal: SPACE.xs },
+  summaryText: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18, fontFamily: FONTS.semiBold },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACE.xs,
-    marginTop: SPACE.md,
+    marginTop: SPACE.xs,
     padding: SPACE.sm,
     backgroundColor: COLORS.surfaceMuted,
     borderRadius: RADIUS.control,

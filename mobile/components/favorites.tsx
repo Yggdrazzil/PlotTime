@@ -162,8 +162,7 @@ export function FavoritesPage({ kind }: { kind: FavKind }) {
             <Text style={styles.addText}>{w.addBtn}</Text>
           </Pressable>
           <Pressable style={styles.sortRow} onPress={() => setSortOpen(true)}>
-            <Text style={styles.sortLabel}>TRIER PAR</Text>
-            <Text style={styles.sortValue}>{sortLabel(sort)}</Text>
+            <Text style={styles.sortValue}>Tri : {sortLabel(sort)}</Text>
           </Pressable>
           <View style={styles.divider} />
           {sorted.length === 0 ? (
@@ -430,12 +429,11 @@ function FavPicker({
 const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 2 },
   topBtn: { width: 46, paddingVertical: 8, justifyContent: 'center' },
-  bigTitle: { color: COLORS.text, fontSize: 21, fontFamily: FONTS.extraBold, paddingHorizontal: 16, marginTop: 6, marginBottom: 14 },
+  bigTitle: { color: COLORS.text, fontSize: 18, lineHeight: 24, fontFamily: FONTS.bold, paddingHorizontal: 16, marginTop: 6, marginBottom: 12 },
   addBtn: { backgroundColor: COLORS.yellow, borderRadius: 999, marginHorizontal: 12, paddingVertical: 10, alignItems: 'center' },
   addText: { color: COLORS.onAccent, fontSize: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.5 },
   sortRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
-  sortLabel: { fontSize: 11, fontFamily: FONTS.extraBold, color: COLORS.textMuted, letterSpacing: 0.5 },
-  sortValue: { fontSize: 16, fontFamily: FONTS.semiBold, color: COLORS.blue },
+  sortValue: { fontSize: 14, lineHeight: 20, fontFamily: FONTS.semiBold, color: COLORS.blue },
   divider: { height: 1, backgroundColor: COLORS.borderLight, marginBottom: 12 },
   // Feuilles basses
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },

@@ -169,7 +169,6 @@ export default function Social() {
               <Feather name="arrow-left" size={21} color={COLORS.text} />
             </Pressable>
             <View style={styles.heroCopy}>
-              <Text style={styles.eyebrow}>COMMUNAUTÉ</Text>
               <Text accessibilityRole="header" style={styles.heroTitle}>
                 Entre amis
               </Text>
@@ -178,9 +177,7 @@ export default function Social() {
               <Feather name="users" size={20} color={COLORS.onPrimary} />
             </View>
           </View>
-          <Text style={styles.heroSubtitle}>
-            Découvre les histoires que suit ta communauté.
-          </Text>
+
           <View style={styles.tabs} accessibilityRole="tablist">
             <Tab
               label="ACTIVITÉ"
@@ -791,18 +788,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceMuted,
   },
   heroCopy: { flex: 1 },
-  eyebrow: {
-    color: COLORS.primary,
-    fontSize: 10,
-    lineHeight: 14,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 1.3,
-  },
+
   heroTitle: {
     color: COLORS.text,
-    fontSize: 27,
-    lineHeight: 31,
-    fontFamily: FONTS.extraBold,
+    fontSize: 21,
+    lineHeight: 27,
+    fontFamily: FONTS.bold,
   },
   heroMark: {
     width: SIZES.touch,
@@ -812,14 +803,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: COLORS.primary,
   },
-  heroSubtitle: {
-    maxWidth: 520,
-    color: COLORS.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: FONTS.regular,
-    marginTop: SPACE.xxs,
-  },
+
   tabs: {
     flexDirection: 'row',
     gap: SPACE.xs,

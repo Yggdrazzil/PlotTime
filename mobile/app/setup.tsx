@@ -192,7 +192,6 @@ export default function Setup() {
                     <Feather name="link-2" size={20} color={COLORS.primary} />
                   </View>
                   <View style={styles.cardHeadingCopy}>
-                    <Text style={styles.cardEyebrow}>Étape de développement</Text>
                     <Text style={styles.cardTitle}>Connexion au serveur</Text>
                   </View>
                 </View>
@@ -515,21 +514,21 @@ const styles = StyleSheet.create({
   brandCopy: { flex: 1 },
   brand: {
     color: COLORS.text,
-    fontSize: 27,
-    lineHeight: 31,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.5,
+    fontSize: 24,
+    lineHeight: 29,
+    fontFamily: FONTS.bold,
+    letterSpacing: -0.3,
   },
   brandTagline: { color: COLORS.text, fontSize: 12, lineHeight: 17, fontFamily: FONTS.semiBold },
   hero: { marginTop: SPACE.xl, marginBottom: SPACE.lg },
   title: {
     color: COLORS.text,
-    fontFamily: FONTS.extraBold,
-    fontSize: 35,
-    lineHeight: 41,
-    letterSpacing: -1,
+    fontFamily: FONTS.bold,
+    fontSize: 30,
+    lineHeight: 36,
+    letterSpacing: -0.6,
   },
-  titleCompact: { fontSize: 31, lineHeight: 37 },
+  titleCompact: { fontSize: 28, lineHeight: 34 },
   lead: {
     color: COLORS.text,
     fontFamily: FONTS.regular,
@@ -557,14 +556,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primarySoft,
   },
   cardHeadingCopy: { flex: 1 },
-  cardEyebrow: {
-    color: COLORS.primary,
-    fontFamily: FONTS.bold,
-    fontSize: 10,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  cardTitle: { color: COLORS.text, fontFamily: FONTS.extraBold, fontSize: 20, lineHeight: 26, marginTop: 1 },
+
+  cardTitle: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 18, lineHeight: 24 },
   helper: {
     color: COLORS.text,
     fontFamily: FONTS.regular,

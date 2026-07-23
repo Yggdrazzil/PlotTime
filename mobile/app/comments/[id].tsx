@@ -135,7 +135,6 @@ export default function CommentsScreen() {
 
   const headerCopy = (
     <>
-      <Text style={styles.headEyebrow}>DISCUSSION</Text>
       <View style={styles.headTitleRow}>
         <Text accessibilityRole="header" style={styles.headTitle} numberOfLines={1}>{title ?? 'Commentaires'}</Text>
         {ficheHref ? (
@@ -190,8 +189,7 @@ export default function CommentsScreen() {
             <Feather name="sliders" size={17} color={COLORS.primary} />
           </View>
           <View style={styles.sortCopy}>
-            <Text style={styles.sortLabel}>TRIER PAR</Text>
-            <Text style={styles.sortValue}>{SORT_LABEL[sort]}</Text>
+            <Text style={styles.sortValue}>Tri : {SORT_LABEL[sort]}</Text>
           </View>
           <Feather name="repeat" size={17} color={COLORS.textMuted} />
         </Pressable>
@@ -301,7 +299,6 @@ export default function CommentsScreen() {
             <View style={styles.sheetHead}>
               <View style={styles.sheetHeading}>
                 <Text accessibilityRole="header" style={styles.sheetTitle}>Votre commentaire</Text>
-                <Text style={styles.sheetSubtitle}>Partagez votre avis avec la communauté.</Text>
               </View>
               <Pressable
                 style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
@@ -371,7 +368,7 @@ const styles = StyleSheet.create({
   headerInner: {
     width: '100%',
     maxWidth: SIZES.contentMax,
-    minHeight: 76,
+    minHeight: 68,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -387,14 +384,8 @@ const styles = StyleSheet.create({
   },
   headerCopy: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: SPACE.xs },
   headTitleRow: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 2 },
-  headEyebrow: {
-    color: COLORS.primary,
-    fontSize: 10.5,
-    lineHeight: 14,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 1.1,
-  },
-  headTitle: { flexShrink: 1, color: COLORS.text, fontSize: 19, lineHeight: 24, fontFamily: FONTS.extraBold },
+
+  headTitle: { flexShrink: 1, color: COLORS.text, fontSize: 17, lineHeight: 22, fontFamily: FONTS.bold },
   headCount: { marginTop: 1, color: COLORS.textMuted, fontSize: 12.5, lineHeight: 17, fontFamily: FONTS.regular },
   toolbar: {
     backgroundColor: COLORS.surface,
@@ -404,7 +395,7 @@ const styles = StyleSheet.create({
   sortRow: {
     width: '100%',
     maxWidth: SIZES.contentMax,
-    minHeight: 60,
+    minHeight: 52,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -421,7 +412,6 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.control,
   },
   sortCopy: { flex: 1, minWidth: 0 },
-  sortLabel: { color: COLORS.textMuted, fontSize: 10.5, lineHeight: 14, fontFamily: FONTS.extraBold, letterSpacing: 0.7 },
   sortValue: { color: COLORS.primary, fontSize: 15, lineHeight: 20, fontFamily: FONTS.bold },
   content: { flex: 1, backgroundColor: COLORS.pageMuted },
   list: { flex: 1 },
@@ -492,8 +482,7 @@ const styles = StyleSheet.create({
   },
   sheetHead: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.sm, marginBottom: SPACE.md },
   sheetHeading: { flex: 1, minWidth: 0 },
-  sheetTitle: { color: COLORS.text, fontSize: 20, lineHeight: 26, fontFamily: FONTS.extraBold },
-  sheetSubtitle: { marginTop: 2, color: COLORS.textMuted, fontSize: 13.5, lineHeight: 19, fontFamily: FONTS.regular },
+  sheetTitle: { color: COLORS.text, fontSize: 18, lineHeight: 24, fontFamily: FONTS.bold },
   closeButton: {
     width: SIZES.touch,
     height: SIZES.touch,
@@ -518,7 +507,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   sheetFooter: {
-    minHeight: 60,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

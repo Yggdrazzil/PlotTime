@@ -692,11 +692,7 @@ function EpisodePage({
           </View>
 
           <View style={styles.heroCaption}>
-            <Text style={styles.heroEyebrow}>
-              {episode.seasonNumber === 0
-                ? 'ÉPISODE SPÉCIAL'
-                : 'SAISON ' + episode.seasonNumber + ' · ÉPISODE ' + episode.episodeNumber}
-            </Text>
+
             <Text style={styles.heroCode}>
               {episodeCode(
                 episode.seasonNumber,
@@ -763,7 +759,6 @@ function EpisodePage({
       <View style={styles.sectionCard}>
         <SectionHeader
           icon="play-circle"
-          eyebrow="DISPONIBILITÉ"
           title="Où regarder"
         />
 
@@ -813,7 +808,6 @@ function EpisodePage({
         <View style={styles.sectionCard}>
           <SectionHeader
             icon="info"
-            eyebrow="ÉPISODE"
             title="À propos"
           />
           {typeof average === 'number' ? (
@@ -863,7 +857,6 @@ function EpisodePage({
           />
         </View>
         <View style={styles.commentsCopy}>
-          <Text style={styles.commentsEyebrow}>COMMUNAUTÉ</Text>
           <Text style={styles.commentsTitle}>Commentaires</Text>
         </View>
         <View style={styles.commentsAction}>
@@ -896,11 +889,9 @@ function EpisodePage({
 
 function SectionHeader({
   icon,
-  eyebrow,
   title,
 }: {
   icon: React.ComponentProps<typeof Feather>['name'];
-  eyebrow: string;
   title: string;
 }) {
   return (
@@ -909,7 +900,6 @@ function SectionHeader({
         <Feather name={icon} size={19} color={COLORS.primary} />
       </View>
       <View style={styles.sectionHeaderCopy}>
-        <Text style={styles.sectionEyebrow}>{eyebrow}</Text>
         <Text style={styles.sectionTitle} accessibilityRole="header">
           {title}
         </Text>
@@ -1123,19 +1113,12 @@ const styles = StyleSheet.create({
   heroCaption: {
     padding: SPACE.md,
   },
-  heroEyebrow: {
-    color: 'rgba(255,255,255,0.86)',
-    fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 1.2,
-    fontFamily: FONTS.extraBold,
-    marginBottom: 3,
-  },
+
   heroCode: {
     color: '#FFFFFF',
-    fontSize: 24,
-    lineHeight: 29,
-    fontFamily: FONTS.extraBold,
+    fontSize: 20,
+    lineHeight: 25,
+    fontFamily: FONTS.bold,
   },
   heroEpisodeTitle: {
     marginTop: 2,
@@ -1207,18 +1190,12 @@ const styles = StyleSheet.create({
   sectionHeaderCopy: {
     flex: 1,
   },
-  sectionEyebrow: {
-    color: COLORS.primary,
-    fontSize: 10,
-    lineHeight: 14,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 1,
-  },
+
   sectionTitle: {
     color: COLORS.text,
-    fontSize: 18,
-    lineHeight: 23,
-    fontFamily: FONTS.extraBold,
+    fontSize: 17,
+    lineHeight: 22,
+    fontFamily: FONTS.bold,
   },
   emptyLine: {
     minHeight: SIZES.touch,
@@ -1295,18 +1272,12 @@ const styles = StyleSheet.create({
   commentsCopy: {
     flex: 1,
   },
-  commentsEyebrow: {
-    color: COLORS.secondary,
-    fontSize: 10,
-    lineHeight: 14,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 1,
-  },
+
   commentsTitle: {
     color: COLORS.text,
-    fontSize: 17,
-    lineHeight: 22,
-    fontFamily: FONTS.extraBold,
+    fontSize: 16,
+    lineHeight: 21,
+    fontFamily: FONTS.bold,
   },
   commentsAction: {
     minWidth: SIZES.touch,

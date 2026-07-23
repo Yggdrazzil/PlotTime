@@ -263,7 +263,6 @@ export default function PersonScreen() {
               </View>
 
               <View style={[styles.identity, isWide && styles.identityWide]}>
-                <Text style={styles.eyebrow}>DISTRIBUTION</Text>
                 <Text style={styles.name} accessibilityRole="header">
                   {profile?.name ?? member.name}
                 </Text>
@@ -367,7 +366,7 @@ export default function PersonScreen() {
 
             {profile?.biography ? (
               <View style={styles.sectionCard}>
-                <SectionHeading eyebrow="À PROPOS" title="Son parcours" icon="book-open" />
+                <SectionHeading title="Son parcours" icon="book-open" />
                 <Text style={styles.biography} selectable>
                   {profile.biography}
                 </Text>
@@ -377,8 +376,8 @@ export default function PersonScreen() {
             {profile ? (
               <View style={styles.filmographySection}>
                 <SectionHeading
-                  eyebrow="FILMOGRAPHIE"
                   title={
+                    'Filmographie · ' +
                     profile.filmography.length +
                     ' œuvre' +
                     (profile.filmography.length > 1 ? 's' : '')
@@ -636,11 +635,9 @@ function SocialLink({
 }
 
 function SectionHeading({
-  eyebrow,
   title,
   icon,
 }: {
-  eyebrow: string;
   title: string;
   icon: React.ComponentProps<typeof Feather>['name'];
 }) {
@@ -650,7 +647,6 @@ function SectionHeading({
         <Feather name={icon} size={19} color={COLORS.primary} />
       </View>
       <View style={styles.sectionHeadingCopy}>
-        <Text style={styles.sectionEyebrow}>{eyebrow}</Text>
         <Text style={styles.sectionTitle} accessibilityRole="header">
           {title}
         </Text>
@@ -783,19 +779,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: SPACE.md,
   },
-  eyebrow: {
-    marginBottom: SPACE.xs,
-    color: COLORS.primary,
-    fontSize: 11,
-    lineHeight: 15,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 1.2,
-  },
+
   name: {
     color: COLORS.text,
-    fontSize: 30,
-    lineHeight: 36,
-    fontFamily: FONTS.extraBold,
+    fontSize: 26,
+    lineHeight: 32,
+    fontFamily: FONTS.bold,
   },
   character: {
     marginTop: SPACE.xs,
@@ -937,19 +926,12 @@ const styles = StyleSheet.create({
   sectionHeadingCopy: {
     flex: 1,
   },
-  sectionEyebrow: {
-    color: COLORS.primary,
-    fontSize: 10,
-    lineHeight: 14,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 1,
-  },
+
   sectionTitle: {
-    marginTop: 1,
     color: COLORS.text,
-    fontSize: 22,
-    lineHeight: 28,
-    fontFamily: FONTS.extraBold,
+    fontSize: 18,
+    lineHeight: 23,
+    fontFamily: FONTS.bold,
   },
   biography: {
     color: COLORS.text,

@@ -65,7 +65,6 @@ export function LibHeader({ title, right }: { title: string; right?: React.React
           <Feather name="chevron-left" size={24} color={COLORS.text} />
         </Pressable>
         <View style={styles.headerCopy}>
-          <Text style={styles.headerEyebrow}>Ma collection</Text>
           <Text accessibilityRole="header" style={styles.headerTitle} numberOfLines={1}>
             {title}
           </Text>
@@ -208,7 +207,7 @@ const styles = StyleSheet.create({
   headerCanvas: {
     width: '100%',
     maxWidth: SIZES.contentMax,
-    minHeight: 72,
+    minHeight: 64,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -225,20 +224,13 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.control,
   },
   headerCopy: { flex: 1, minWidth: 0 },
-  headerEyebrow: {
-    color: COLORS.primary,
-    fontSize: 10,
-    lineHeight: 14,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
-  },
+
   headerTitle: {
     color: COLORS.text,
-    fontSize: 26,
-    lineHeight: 32,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.4,
+    fontSize: 20,
+    lineHeight: 26,
+    fontFamily: FONTS.bold,
+    letterSpacing: -0.15,
   },
   controlPressed: { backgroundColor: COLORS.primarySoft, transform: [{ scale: 0.96 }] },
   pillWrap: {

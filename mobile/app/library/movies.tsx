@@ -169,7 +169,6 @@ function FilterSheet({
           <View style={styles.sheetHeader}>
             <View style={styles.sheetCopy}>
               <Text accessibilityRole="header" style={styles.sheetTitle}>Organiser les films</Text>
-              <Text style={styles.sheetSubtitle}>Ajustez l'ordre et l'avancement affiché.</Text>
             </View>
             <Pressable
               style={({ pressed }) => [styles.closeBtn, pressed && styles.controlPressed]}
@@ -316,8 +315,7 @@ const styles = StyleSheet.create({
   },
   sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.sm },
   sheetCopy: { flex: 1, minWidth: 0 },
-  sheetTitle: { color: COLORS.text, fontSize: 22, lineHeight: 28, fontFamily: FONTS.extraBold },
-  sheetSubtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19, fontFamily: FONTS.regular, marginTop: 2 },
+  sheetTitle: { color: COLORS.text, fontSize: 19, lineHeight: 25, fontFamily: FONTS.bold },
   closeBtn: {
     width: SIZES.touch,
     height: SIZES.touch,

@@ -477,8 +477,7 @@ function MediaResults({ query, rawQuery }: { query: string; rawQuery: string }) 
       <SearchFilterSheet
         visible={sheet}
         onClose={() => setSheet(false)}
-        title="Trier & filtrer"
-        subtitle="Séries et films"
+        title="Filtres séries et films"
         sortOptions={MEDIA_SORT_OPTS}
         sort={sort}
         filterTitle="Type"
@@ -681,8 +680,7 @@ function GameResults({ query, rawQuery }: { query: string; rawQuery: string }) {
       <SearchFilterSheet
         visible={sheet}
         onClose={() => setSheet(false)}
-        title="Trier & filtrer"
-        subtitle="Jeux"
+        title="Filtres jeux"
         sortOptions={GAME_SORT_OPTS}
         sort={sort}
         filterTitle="Plateforme"

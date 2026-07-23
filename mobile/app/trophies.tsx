@@ -143,7 +143,7 @@ function StreakCard({ data }: { data: GamificationMeDto }) {
 function ChallengesCard({ data }: { data: GamificationMeDto }) {
   return (
     <View>
-      <SectionHeader title="Défis du mois" eyebrow="Objectifs" />
+      <SectionHeader title="Défis du mois" />
       <PrismeCard elevated>
         <View style={{ gap: SPACE.md }}>
           {data.challenges.map((c) => {
@@ -185,7 +185,7 @@ function BadgesCard({ data, onOpenBadge }: { data: GamificationMeDto; onOpenBadg
   const unlocked = data.badges.filter((b) => b.tier > 0).length;
   return (
     <View>
-      <SectionHeader title="Badges" eyebrow={`${unlocked} / ${data.badges.length} débloqués`} />
+      <SectionHeader title="Badges" trailing={<Text style={styles.sectionMeta}>{unlocked} / {data.badges.length}</Text>} />
       <PrismeCard elevated>
         <View style={styles.badgeGrid}>
           {data.badges.map((b, i) => {
@@ -276,7 +276,7 @@ function LeaderboardCard({
 }) {
   return (
     <View>
-      <SectionHeader title="Classement de la semaine" eyebrow="Entre amis" />
+      <SectionHeader title="Classement de la semaine" />
       <PrismeCard elevated>
         {isLoading ? (
           <View style={{ gap: SPACE.xs }}>
@@ -347,15 +347,16 @@ const styles = StyleSheet.create({
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.md, padding: SPACE.md },
   heroCopy: { flex: 1, minWidth: 0 },
   heroEyebrow: { color: '#FBC34B', fontFamily: FONTS.bold, fontSize: 11, letterSpacing: 1.2 },
-  heroTitle: { color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 22, lineHeight: 28, marginTop: 2 },
+  heroTitle: { color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 20, lineHeight: 26, marginTop: 2 },
   heroXp: { color: 'rgba(255,255,255,0.85)', fontFamily: FONTS.semiBold, fontSize: 13, marginTop: 6 },
   heroTrack: { height: 8, borderRadius: RADIUS.pill, backgroundColor: 'rgba(255,255,255,0.22)', overflow: 'hidden', marginTop: 7 },
   heroFill: { height: '100%', borderRadius: RADIUS.pill },
   // Streak.
   streakCard: { flexDirection: 'row', alignItems: 'center', gap: SPACE.md },
   streakIcon: { width: 46, height: 46, borderRadius: RADIUS.control, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  streakMain: { fontSize: 16, fontFamily: FONTS.extraBold, color: COLORS.text },
+  streakMain: { fontSize: 16, fontFamily: FONTS.bold, color: COLORS.text },
   streakSub: { fontSize: 13, fontFamily: FONTS.regular, color: COLORS.textMuted, marginTop: 2 },
+  sectionMeta: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18, fontFamily: FONTS.semiBold },
   // Défis.
   challengeHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.sm },
   challengeLabel: { flex: 1, fontSize: 14, fontFamily: FONTS.semiBold, color: COLORS.text },

@@ -1194,17 +1194,15 @@ function useOpenRec(type: 'show' | 'movie') {
   };
   return { open, busyId };
 }
-// En-tête de section Prisme : pastille d'icône + sur-titre + titre (même recette
-// que la fiche épisode). `trailing` pour un compteur/chevron éventuel.
+// En-tête de section Prisme : une icône et un seul titre utile.
+// `trailing` accueille uniquement une métadonnée ou une action.
 function SectionHead({
   icon,
-  eyebrow,
   title,
   trailing,
   style,
 }: {
   icon: keyof typeof Feather.glyphMap;
-  eyebrow: string;
   title: string;
   trailing?: React.ReactNode;
   style?: any;
@@ -1215,7 +1213,6 @@ function SectionHead({
         <Feather name={icon} size={18} color={COLORS.primary} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.sectionEyebrow}>{eyebrow}</Text>
         <Text accessibilityRole="header" style={styles.sectionTitle} numberOfLines={2}>{title}</Text>
       </View>
       {trailing}
@@ -1227,7 +1224,7 @@ function SectionHead({
 function WhereToWatch({ providers }: { providers: { name: string }[] }) {
   return (
     <View style={styles.section}>
-      <SectionHead icon="play-circle" eyebrow="DISPONIBILITÉ" title="Où regarder" />
+      <SectionHead icon="play-circle" title="Où regarder" />
       {providers.length === 0 ? (
         <Text style={styles.muted}>Non disponible</Text>
       ) : (
@@ -1310,7 +1307,7 @@ function CastSection({ cast, mediaId, type }: { cast: any[]; mediaId: string; ty
   if (!cast.length) return null;
   return (
     <View style={[styles.section, { paddingHorizontal: 0 }]}>
-      <SectionHead icon="users" eyebrow="CASTING" title="Distribution" style={{ paddingHorizontal: 20 }} />
+      <SectionHead icon="users" title="Distribution" style={{ paddingHorizontal: 20 }} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 20, paddingTop: 14 }}>
         {cast.map((c, i) => (
           <PressableScale
@@ -1346,7 +1343,7 @@ function AlsoWatched({ items, type }: { items: any[]; type: 'show' | 'movie' }) 
   if (!items.length) return null;
   return (
     <View style={[styles.section, { paddingHorizontal: 0 }]}>
-      <SectionHead icon="eye" eyebrow="RECOMMANDÉ" title="Les utilisateurs ont également regardé" style={{ paddingHorizontal: 20 }} />
+      <SectionHead icon="eye" title="Également regardé" style={{ paddingHorizontal: 20 }} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 20, paddingTop: 14 }}>
         {items.map((r) => (
           <PressableScale
@@ -1411,7 +1408,7 @@ function CommunityRatings({ mediaId }: { mediaId: string }) {
   const pts = cur.points.map((p, i) => `${PAD.l + i * xs},${y(p.avg)}`).join(' ');
   return (
     <View style={styles.section}>
-      <SectionHead icon="trending-up" eyebrow="COMMUNAUTÉ" title="Notes de la communauté" />
+      <SectionHead icon="trending-up" title="Notes de la communauté" />
       <Pressable
         style={({ pressed }) => [styles.seasonPickRow, pressed && styles.pressed]}
         onPress={() => setSeason((idx + 1) % seasons.length)}
@@ -1476,7 +1473,6 @@ function CommentsRowLink({ mediaId, title, type }: { mediaId: string; title: str
     >
       <SectionHead
         icon="message-circle"
-        eyebrow="COMMUNAUTÉ"
         title="Commentaires"
         trailing={
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1507,7 +1503,7 @@ function AboutTab({ media, detail, mediaId, tracking, interest, setInterest, onS
       <WhereToWatch providers={detail.providers ?? []} />
 
       <View style={styles.section}>
-        <SectionHead icon="compass" eyebrow="VOTRE AVIS" title="Qu'est-ce qui vous intéresse ?" />
+        <SectionHead icon="compass" title="Ce qui vous intéresse" />
         <View style={styles.interestWrap}>
           {INTEREST.map((o) => (
             <Pressable
@@ -1529,7 +1525,7 @@ function AboutTab({ media, detail, mediaId, tracking, interest, setInterest, onS
       {detail.recommendations?.length ? <SimilarTo item={detail.recommendations[0]} isMovie={false} /> : null}
 
       <View style={styles.section}>
-        <SectionHead icon="info" eyebrow="FICHE" title="Informations sur la série" />
+        <SectionHead icon="info" title="Informations sur la série" />
         <Text style={styles.infoMeta}>
           {[yearRange(media, detail.endYear), genresFr(media.genres)].filter(Boolean).join(' • ')}
         </Text>
@@ -1557,7 +1553,7 @@ function MovieBody({ media, detail, mediaId, tracking, onScroll, topPad }: any) 
       {detail.recommendations?.length ? <SimilarTo item={detail.recommendations[0]} isMovie /> : null}
 
       <View style={styles.section}>
-        <SectionHead icon="info" eyebrow="FICHE" title="Informations sur le film" />
+        <SectionHead icon="info" title="Informations sur le film" />
         <Text style={styles.infoMeta}>{[media.year, genresFr(media.genres)].filter(Boolean).join(' • ')}</Text>
         {media.voteAverage ? <Stars rating10={media.voteAverage} size={17} /> : null}
         {media.overview ? <Text style={styles.overview}>{media.overview}</Text> : null}
@@ -2052,7 +2048,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACE.xs,
   },
   heroKindText: { color: '#FFFFFF', fontSize: 10, fontFamily: FONTS.extraBold, letterSpacing: 1.2 },
-  heroTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 29, fontFamily: FONTS.extraBold },
+  heroTitle: { color: '#FFFFFF', fontSize: 23, lineHeight: 27, fontFamily: FONTS.bold },
   heroSub: { color: 'rgba(255,255,255,0.86)', fontFamily: FONTS.semiBold, fontSize: 13, lineHeight: 18, marginTop: 3 },
   heroCollapsedTitle: {
     position: 'absolute',
@@ -2111,7 +2107,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginBottom: SPACE.xs,
   },
-  sectionTitle: { color: COLORS.text, fontSize: 17, lineHeight: 22, fontFamily: FONTS.extraBold },
+  sectionTitle: { color: COLORS.text, fontSize: 17, lineHeight: 22, fontFamily: FONTS.bold },
   // Légende « Numérotation : … » sous l'en-tête « Tous les épisodes ».
   orderLegend: {
     color: COLORS.textMuted,
@@ -2120,7 +2116,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     paddingHorizontal: SPACE.lg,
   },
-  // En-tête de section Prisme (pastille + sur-titre + titre).
+  // En-tête de section Prisme compact (pastille + titre unique).
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: SPACE.sm },
   sectionHeadIcon: {
     width: 38,
@@ -2131,7 +2127,6 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.control,
     backgroundColor: COLORS.primarySoft,
   },
-  sectionEyebrow: { color: COLORS.primary, fontSize: 10, lineHeight: 14, fontFamily: FONTS.extraBold, letterSpacing: 1 },
   muted: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13.5, lineHeight: 20, marginTop: SPACE.xs },
   overview: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14, lineHeight: 21, marginTop: SPACE.sm },
   infoMeta: { color: COLORS.textMuted, fontFamily: FONTS.semiBold, fontSize: 13, lineHeight: 18, marginTop: 5 },

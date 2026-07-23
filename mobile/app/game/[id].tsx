@@ -310,7 +310,7 @@ export default function GameDetail() {
             <View style={[styles.heroBtns, { top: insets.top + SPACE.sm }]}>
               <PressableScale
                 style={styles.heroAction}
-                onPress={() => goBack('/library/games')}
+                onPress={() => goBack('/library/games' as Href)}
                 accessibilityRole="button"
                 accessibilityLabel="Retour aux jeux"
                 accessibilityHint="Revient à l’écran précédent"
@@ -852,7 +852,6 @@ function TrailerPreview({ videoId }: { videoId: string }) {
         </View>
         <View style={styles.sectionHeadingCopy}>
           <Text style={styles.sectionTitle}>Bande-annonce</Text>
-          <Text style={styles.sectionSubtitle}>Découvre l’univers du jeu</Text>
         </View>
       </View>
       <View style={styles.trailerBox}>
@@ -1376,7 +1375,6 @@ function RelatedGamesRow({ items }: { items: RelatedGameDto[] }) {
         </View>
         <View style={styles.sectionHeadingCopy}>
           <Text style={styles.sectionTitle}>Éditions et extensions</Text>
-          <Text style={styles.sectionSubtitle}>Continue l’aventure avec les contenus liés</Text>
         </View>
       </View>
       {openError ? (
@@ -1563,10 +1561,10 @@ const styles = StyleSheet.create({
   heroTitle: {
     marginTop: SPACE.sm,
     color: '#FFFFFF',
-    fontFamily: FONTS.extraBold,
-    fontSize: 31,
-    lineHeight: 35,
-    letterSpacing: -0.5,
+    fontFamily: FONTS.bold,
+    fontSize: 27,
+    lineHeight: 32,
+    letterSpacing: -0.35,
     // Ombre portée : garde le titre lisible quelle que soit la couleur de la
     // bannière (image claire comme sombre), en plus du dégradé du bas.
     textShadowColor: 'rgba(0,0,0,0.55)',
@@ -1744,16 +1742,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: COLORS.text,
-    fontFamily: FONTS.extraBold,
-    fontSize: 18,
+    fontFamily: FONTS.bold,
+    fontSize: 17,
     lineHeight: 22,
-  },
-  sectionSubtitle: {
-    marginTop: 2,
-    color: COLORS.textMuted,
-    fontFamily: FONTS.regular,
-    fontSize: 12.5,
-    lineHeight: 17,
   },
   // Petit titre discret du bloc suivi compact.
   trackingTitle: {
