@@ -6,6 +6,7 @@
 > 2. ajouter une entrée datée en tête du « Journal des modifications » (date, auteur, résumé) ;
 > 3. déplacer les éléments terminés de « Prochaines étapes » vers le journal.
 
+Dernière mise à jour : **2026-07-23** (Codex/Étienne) — Passe globale de hiérarchie typographique : tailles de titres harmonisées et allégées, sur-titres/sous-titres redondants supprimés sur l’Accueil, le Profil, les bibliothèques, les fiches série/film/jeu/épisode/personne, Explorer, Communauté, commentaires, statistiques, trophées et onboarding. Les libellés informatifs utiles (compteurs, métriques, instructions) sont conservés. Validation : typecheck, export web statique, détecteur Impeccable et tests Playwright responsive 320/390 px sans débordement horizontal ni erreur console.
 Dernière mise à jour : **2026-07-23** (Claude/Benjamin) — Lot QA 2 (« corrige tout ») : **Écran de connexion** — bouton Google en thème `filled_black` sur thèmes sombres (fini le bouton blanc), plus de scintillement (init une seule fois via ref), largeur alignée (≤400px GSI), placeholders lisibles (`textSoft`), en-tête condensé (sur-titre kicker retiré), messages erreur/succès colorés. **Explorer** — suivre depuis la recherche invalide aussi profil/classement/gamification (comme l'onglet Amis). **Fil social** — réactions ❤️ réconciliées avec la vérité serveur (plus de dérive du compteur). **Navigation** — retour des Notifications repointé vers l'Accueil (au lieu du Profil). **Accueil** — état vide en grille « Tout est à jour » quand on est à jour (au lieu de « ajoutez des séries »), rangée d'actions héro sans débordement. **Divers** — routes `library/favorite-games` & `reorder-favorites` déclarées. Reportés (notés) : puce « intérêt » de la fiche série (décision produit → Étienne), overlay busy SSO, code mort interne.
 Dernière mise à jour : **2026-07-23** (Claude/Benjamin) — Lot QA (retours testeurs) : **(1)** Déconnexion web réparée (`settings.tsx` : `signOut` vide le token **et** renvoie à `/setup` ; idem après suppression de compte — qui garde sa confirmation « taper SUPPRIMER »). **(2)** Explorer — « déjà vu » pris en compte instantanément : un titre suivi/vu depuis une fiche (même ouverte depuis un ami) est retiré du deck figé de l'Explorer sans re-fetch (`feedSession.tracked` + filtre `TikTokFeed` + effet fiches série/film/jeu). **(3)** Jeux « Sorties à venir » : grille d'affiches **avec date** (au lieu d'une carte-carrousel sans date), cohérente avec les autres catégories et l'Agenda ; + invalidation `['games','upcoming']` sur changement de statut. **(4)** Nettoyage `TabBar` (clause d'onglet Jeux masqué devenue morte après le passage en écran de pile). Écran de connexion (bouton Google blanc sur thème sombre + scintillement + surcharge) → findings transmis à Étienne (design).
 Dernière mise à jour : **2026-07-22** (Claude/Benjamin) — Fix navigation Jeux : la bibliothèque Jeux devient un écran de **pile `/library/games`** (comme Séries/Films) au lieu d'un onglet caché `href:null`. Corrige le bug « retour depuis une fiche jeu (bouton **et** swipe) ramenait à l'Explorer » — expo-router ne pouvait pas restaurer l'onglet caché et retombait sur l'onglet voisin. En-tête « Ma collection » + retour (`LibHeader`).
@@ -100,6 +101,28 @@ la migration visuelle doit encore être exécutée sans modifier la logique mét
 6. Publication native optionnelle (EAS Build APK, puis stores).
 
 ## Journal des modifications
+
+### 2026-07-23 — Codex/Étienne : hiérarchie typographique allégée dans toute l’app
+- **Primitives partagées** (`ScreenHeader`, `SectionHeader`, `TabHeader`,
+  en-têtes de bibliothèque) : échelle typographique resserrée et suppression des
+  API de sur-titre/sous-titre décoratives, afin d’imposer un titre unique par
+  section.
+- **Accueil et Profil** : titres de groupes, cartes héro et sections de
+  collections réduits ; les mentions « En vedette » / « À regarder maintenant »
+  ont été retirées lorsque le contenu et l’action suffisaient déjà à expliquer
+  la carte.
+- **Fiches et écrans secondaires** : « Disponibilité / Où regarder » devient
+  « Où regarder », « Casting / Distribution » devient « Distribution »,
+  « Votre avis / Qu’est-ce qui vous intéresse ? » devient
+  « Ce qui vous intéresse ». Même simplification sur les fiches épisode, jeu,
+  personne, les profils publics, Explorer, Communauté, commentaires,
+  statistiques, badges, trophées et onboarding.
+- **Information préservée** : les compteurs, métriques, années, statuts et
+  instructions réellement utiles restent visibles, parfois replacés en
+  métadonnée compacte plutôt qu’en deuxième titre.
+- **Vérifié** : typecheck mobile, export Expo web statique, détecteur
+  Impeccable (`[]`) et parcours Playwright sur 8 écrans en 320/390 px — aucun
+  débordement horizontal, aucune erreur console/page.
 
 ### 2026-07-22 — Claude/Étienne : Accueil — carte héro compacte, déclinée Films/Jeux, choisie par préférences
 - **Carte héro réduite** (`mobile/app/(tabs)/index.tsx`) : elle prenait trop de

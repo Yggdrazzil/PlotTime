@@ -93,10 +93,7 @@ export default function ReorderFavoritesScreen() {
               <Feather name="move" size={21} color={COLORS.primary} />
             </View>
             <View style={styles.instructionCopy}>
-              <Text accessibilityRole="header" style={styles.title}>
-                Organisez vos {kind === 'movie' ? 'films' : 'séries'} préférés
-              </Text>
-              <Text style={styles.subtitle}>
+              <Text style={styles.instructionText}>
                 Maintenez une affiche, puis faites-la glisser jusqu'à sa nouvelle position.
               </Text>
             </View>
@@ -195,8 +192,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primarySoft,
   },
   instructionCopy: { flex: 1, minWidth: 0 },
-  title: { color: COLORS.text, fontSize: 17, lineHeight: 23, fontFamily: FONTS.extraBold },
-  subtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19, fontFamily: FONTS.regular, marginTop: 3 },
+  instructionText: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19, fontFamily: FONTS.regular },
   dragCanvas: {
     width: '100%',
     maxWidth: DRAG_GRID_MAX_WIDTH,

@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
   avatarEmpty: { alignItems: 'center', justifyContent: 'center' },
   avatarInit: { color: '#FFFFFF', fontSize: 28, fontFamily: FONTS.extraBold },
   identityCopy: { flex: 1, minWidth: 0 },
-  name: { color: '#FFFFFF', fontSize: 24, lineHeight: 30, fontFamily: FONTS.extraBold },
+  name: { color: '#FFFFFF', fontSize: 22, lineHeight: 28, fontFamily: FONTS.bold },
   levelLine: { color: 'rgba(255,255,255,0.82)', fontSize: 13.5, lineHeight: 18, fontFamily: FONTS.semiBold, marginTop: 2 },
   counters: {
     flexDirection: 'row',
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
   // statistiques) ; la carte Trophées qui suit apporte son propre marginTop.
   rewardsHead: { marginTop: SPACE.md, marginBottom: 0 },
   sectHeadPressed: { opacity: 0.8 },
-  sectTitle: { flexShrink: 1, color: COLORS.text, fontSize: 19, lineHeight: 25, fontFamily: FONTS.extraBold },
+  sectTitle: { flexShrink: 1, color: COLORS.text, fontSize: 17, lineHeight: 22, fontFamily: FONTS.bold },
   sectAction: { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0 },
   sectActionPressed: { opacity: 0.7 },
   sectActionText: { color: COLORS.primary, fontSize: 13, fontFamily: FONTS.bold },

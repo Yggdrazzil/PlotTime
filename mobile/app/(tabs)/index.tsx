@@ -470,7 +470,6 @@ function MoviesToWatchView() {
         {/* Film « en vedette » (préférences) hissé en tête, façon héro des séries. */}
         {heroFilm ? (
           <FeaturedHero
-            eyebrow="EN VEDETTE"
             title={heroFilm.title}
             sub={heroFilm.year ? String(heroFilm.year) : null}
             backdropPath={heroFilm.backdropPath ?? null}
@@ -555,7 +554,6 @@ function GamesWishlistView() {
         {/* Jeu « en vedette » (préférences) hissé en tête, façon héro des séries. */}
         {heroGame ? (
           <FeaturedHero
-            eyebrow="EN VEDETTE"
             title={heroGame.title}
             sub={heroGame.year ? String(heroGame.year) : null}
             backdropPath={heroGame.backdropPath}
@@ -663,7 +661,6 @@ function HeroCard({
       )}
       <LinearGradient colors={['rgba(23,15,45,0.16)', 'rgba(15,9,32,0.90)']} style={StyleSheet.absoluteFill} />
       <View style={styles.heroContent}>
-        <Text style={styles.heroEyebrow}>À REGARDER MAINTENANT</Text>
         <Pressable
           onPress={(event) => {
             event.stopPropagation();
@@ -737,7 +734,6 @@ function HeroCard({
 // des séries (backdrop + dégradé + grand titre), sans épisode ni progression —
 // l'item est choisi selon les préférences (pickFeaturedIndex). Tap → fiche.
 function FeaturedHero({
-  eyebrow,
   title,
   sub,
   backdropPath,
@@ -746,7 +742,6 @@ function FeaturedHero({
   onOpen,
   openHint,
 }: {
-  eyebrow: string;
   title: string;
   sub: string | null;
   backdropPath: string | null;
@@ -761,7 +756,7 @@ function FeaturedHero({
       style={({ pressed }) => [styles.hero, pressed && styles.heroPressed]}
       onPress={onOpen}
       accessibilityRole="button"
-      accessibilityLabel={`${eyebrow} : ${title}${sub ? ', ' + sub : ''}`}
+      accessibilityLabel={`${title}${sub ? ', ' + sub : ''}`}
       accessibilityHint={openHint}
     >
       {backdrop ? (
@@ -771,11 +766,10 @@ function FeaturedHero({
       )}
       <LinearGradient colors={['rgba(23,15,45,0.16)', 'rgba(15,9,32,0.90)']} style={StyleSheet.absoluteFill} />
       <View style={styles.heroContent}>
-        <View style={styles.heroEyebrowRow}>
-          <Text style={styles.heroEyebrow}>{eyebrow}</Text>
-          {isFavorite ? <Feather name="heart" size={12} color={COLORS.secondary} /> : null}
+        <View style={styles.heroTitleRow}>
+          <Text style={styles.heroTitle} numberOfLines={2}>{title}</Text>
+          {isFavorite ? <Feather name="heart" size={13} color={COLORS.secondary} /> : null}
         </View>
-        <Text style={styles.heroTitle} numberOfLines={2}>{title}</Text>
         {sub ? <Text style={styles.heroEp} numberOfLines={1}>{sub}</Text> : null}
         <View style={styles.heroActions}>
           {/* Affordance visuelle (le tap sur la carte entière ouvre la fiche). */}
@@ -1094,7 +1088,7 @@ const styles = StyleSheet.create({
     paddingTop: SPACE.sm,
     paddingBottom: SPACE.xxs,
   },
-  groupHeadLabel: { flexShrink: 1, color: COLORS.text, fontSize: 20, lineHeight: 26, fontFamily: FONTS.extraBold },
+  groupHeadLabel: { flexShrink: 1, color: COLORS.text, fontSize: 17, lineHeight: 22, fontFamily: FONTS.bold },
   groupHeadCount: { flexShrink: 0, color: COLORS.textMuted, fontSize: 13, fontFamily: FONTS.semiBold },
   // Carte héro « À regarder maintenant » — compacte (retour Étienne 22/07 :
   // prenait trop de place). Format décliné aux sous-onglets Films et Jeux.
@@ -1112,9 +1106,8 @@ const styles = StyleSheet.create({
   heroPressed: { opacity: 0.92 },
   heroFallback: { backgroundColor: '#241B3D' },
   heroContent: { padding: SPACE.sm, gap: 4 },
-  heroEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  heroEyebrow: { color: 'rgba(255,255,255,0.78)', fontSize: 10.5, letterSpacing: 1.1, fontFamily: FONTS.bold },
-  heroTitle: { color: '#FFFFFF', fontSize: 21, lineHeight: 26, fontFamily: FONTS.extraBold },
+  heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.xs },
+  heroTitle: { flexShrink: 1, color: '#FFFFFF', fontSize: 19, lineHeight: 24, fontFamily: FONTS.bold },
   heroEp: { color: 'rgba(255,255,255,0.86)', fontSize: 13, lineHeight: 18, fontFamily: FONTS.medium },
   heroTrack: {
     height: 6,

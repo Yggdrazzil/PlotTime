@@ -154,7 +154,7 @@ export default function EditProfile() {
       </PrismeCard>
 
       {/* Bannière — grand aperçu 16:9, actions dessous. */}
-      <SectionHeader title="Bannière" eyebrow="L'image en tête de ton profil" />
+      <SectionHeader title="Bannière du profil" />
       <PrismeCard elevated style={styles.card}>
         {coverUrl ? (
           <Image source={{ uri: tmdbImage(coverUrl, 'w500') ?? coverUrl }} style={styles.coverPreview} resizeMode="cover" />

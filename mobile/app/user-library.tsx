@@ -98,7 +98,7 @@ export default function UserLibraryScreen() {
       <ScreenShell contentContainerStyle={styles.content}>
         <ScreenHeader
           title={displayName ? 'Bibliothèque de ' + displayName : 'Bibliothèque'}
-          subtitle={typeof total === 'number' ? total + (total > 1 ? ' titres' : ' titre') : undefined}
+          trailing={typeof total === 'number' ? <Text style={styles.headerCount}>{total} titre{total > 1 ? 's' : ''}</Text> : undefined}
           leading={
             <IconAction
               icon="chevron-left"
@@ -211,6 +211,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.pill,
   },
   statusText: { color: '#FFFFFF', fontSize: 9, lineHeight: 13, fontFamily: FONTS.extraBold, letterSpacing: 0.4 },
+  headerCount: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18, fontFamily: FONTS.semiBold },
   locked: {
     alignItems: 'center',
     marginTop: SPACE.md,

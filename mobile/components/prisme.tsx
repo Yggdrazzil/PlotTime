@@ -68,23 +68,19 @@ export function ScreenShell({
 
 export type ScreenHeaderProps = {
   title: string;
-  eyebrow?: string;
-  subtitle?: string;
   leading?: React.ReactNode;
   trailing?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
-export function ScreenHeader({ title, eyebrow, subtitle, leading, trailing, style }: ScreenHeaderProps) {
+export function ScreenHeader({ title, leading, trailing, style }: ScreenHeaderProps) {
   return (
     <View style={[styles.screenHeader, style]}>
       {leading ? <View style={styles.headerAction}>{leading}</View> : null}
       <View style={styles.headerCopy}>
-        {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
         <Text accessibilityRole="header" style={styles.screenTitle} numberOfLines={2}>
           {title}
         </Text>
-        {subtitle ? <Text style={styles.screenSubtitle}>{subtitle}</Text> : null}
       </View>
       {trailing ? <View style={styles.headerAction}>{trailing}</View> : null}
     </View>
@@ -145,18 +141,16 @@ export function IconAction({
 
 export type SectionHeaderProps = {
   title: string;
-  eyebrow?: string;
   actionLabel?: string;
   onAction?: () => void;
   trailing?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
-export function SectionHeader({ title, eyebrow, actionLabel, onAction, trailing, style }: SectionHeaderProps) {
+export function SectionHeader({ title, actionLabel, onAction, trailing, style }: SectionHeaderProps) {
   return (
     <View style={[styles.sectionHeader, style]}>
       <View style={styles.sectionCopy}>
-        {eyebrow ? <Text style={styles.sectionEyebrow}>{eyebrow}</Text> : null}
         <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>
       </View>
       {trailing ?? (actionLabel && onAction ? (
@@ -332,22 +326,14 @@ const styles = StyleSheet.create({
   headerAction: { minWidth: SIZES.touch, minHeight: SIZES.touch, alignItems: 'center', justifyContent: 'center' },
   headerCopy: { flex: 1, minWidth: 0 },
   tabHeader: { height: 48, alignItems: 'center', justifyContent: 'center' },
-  tabHeaderTitle: { color: COLORS.text, fontFamily: FONTS.extraBold, fontSize: 18 },
+  tabHeaderTitle: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 17 },
   // Collé au bord droit du padding de l'écran (l'icône affleure à ~16 dp du
   // bord physique, comme Instagram) — le bouton gère lui-même sa cible 44 px.
   tabHeaderTrailing: { position: 'absolute', right: 0, height: '100%', justifyContent: 'center' },
   // Symétrique de trailing : action à gauche (le glyphe affleure le padding).
   tabHeaderLeading: { position: 'absolute', left: 0, height: '100%', justifyContent: 'center' },
-  eyebrow: {
-    color: COLORS.primary,
-    fontFamily: FONTS.bold,
-    fontSize: 11,
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
-    marginBottom: SPACE.xxs,
-  },
-  screenTitle: { color: COLORS.text, fontFamily: FONTS.extraBold, fontSize: 28, lineHeight: 34, letterSpacing: -0.5 },
-  screenSubtitle: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 14, lineHeight: 20, marginTop: SPACE.xxs },
+
+  screenTitle: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 22, lineHeight: 28, letterSpacing: -0.25 },
   iconAction: {
     width: SIZES.touch,
     height: SIZES.touch,
@@ -370,8 +356,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACE.xs,
   },
   sectionCopy: { flex: 1 },
-  sectionEyebrow: { color: COLORS.primary, fontFamily: FONTS.bold, fontSize: 10, letterSpacing: 0.9, textTransform: 'uppercase' },
-  sectionTitle: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 19, lineHeight: 25 },
+  sectionTitle: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 17, lineHeight: 22 },
   sectionAction: {
     minHeight: SIZES.touch,
     minWidth: SIZES.touch,

@@ -62,7 +62,7 @@ export default function BadgesScreen() {
           {data.sections.map((s, si) => (
             <AppearItem key={s.title} index={si + 1}>
               <View>
-                <SectionHeader title={s.title} eyebrow={`${s.badges.filter((b) => b.earned).length} / ${s.badges.length} débloqués`} />
+                <SectionHeader title={s.title} trailing={<Text style={styles.sectionMeta}>{s.badges.filter((b) => b.earned).length} / {s.badges.length}</Text>} />
                 <PrismeCard elevated>
                   <View style={styles.grid}>
                     {s.badges.map((b) => {
@@ -107,6 +107,7 @@ const styles = StyleSheet.create({
   summaryN: { color: COLORS.text, fontSize: 28, lineHeight: 33, fontFamily: FONTS.extraBold },
   summaryTotal: { color: COLORS.textMuted, fontSize: 19, fontFamily: FONTS.bold },
   summaryLabel: { color: COLORS.textMuted, fontSize: 13, fontFamily: FONTS.regular, marginTop: 2 },
+  sectionMeta: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18, fontFamily: FONTS.semiBold },
   grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: SPACE.lg },
   badge: { width: '33.333%', alignItems: 'center', paddingHorizontal: 4 },
   badgeTitle: { color: COLORS.text, fontSize: 12, fontFamily: FONTS.bold, textAlign: 'center', marginTop: 7 },

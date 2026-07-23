@@ -63,16 +63,9 @@ export default function MyCommentsScreen() {
             refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={COLORS.primary} />}
             contentContainerStyle={styles.list}
             ListHeaderComponent={
-              <View style={styles.intro}>
-                <View style={styles.eyebrow}>
-                  <Feather name="message-circle" size={14} color={COLORS.primary} />
-                  <Text style={styles.eyebrowText}>MES ÉCHANGES</Text>
-                </View>
-                <Text style={styles.introTitle}>Tes avis, au même endroit</Text>
-                <Text style={styles.introBody}>
-                  Retrouve les commentaires laissés sur tes séries, films et jeux.
-                </Text>
-              </View>
+              <Text style={styles.summaryText}>
+                {data?.comments.length ?? 0} commentaire{(data?.comments.length ?? 0) > 1 ? 's' : ''}
+              </Text>
             }
             ListEmptyComponent={
               <EmptyState
@@ -126,19 +119,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.pageMuted },
   canvas: { flex: 1, width: '100%', maxWidth: SIZES.contentMax, alignSelf: 'center' },
   list: { flexGrow: 1, paddingHorizontal: SPACE.md, paddingTop: SPACE.md, paddingBottom: SPACE.xl, gap: SPACE.sm },
-  intro: {
-    marginBottom: SPACE.xxs,
-    padding: SPACE.lg,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    borderRadius: RADIUS.card,
-    ...SHADOW.card,
-  },
-  eyebrow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: SPACE.xs },
-  eyebrowText: { color: COLORS.primary, fontSize: 11, lineHeight: 15, fontFamily: FONTS.extraBold, letterSpacing: 0.8 },
-  introTitle: { color: COLORS.text, fontSize: 24, lineHeight: 30, fontFamily: FONTS.extraBold },
-  introBody: { marginTop: SPACE.xs, color: COLORS.textMuted, fontSize: 14, lineHeight: 21, fontFamily: FONTS.regular },
+  summaryText: { minHeight: 24, marginBottom: SPACE.xxs, paddingHorizontal: SPACE.xs, color: COLORS.textMuted, fontSize: 13, lineHeight: 18, fontFamily: FONTS.semiBold },
   card: {
     minHeight: 148,
     flexDirection: 'row',

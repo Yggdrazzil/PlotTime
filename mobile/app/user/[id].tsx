@@ -295,7 +295,7 @@ export default function UserProfileScreen() {
 
             {gamification ? (
               <View style={styles.sectionCard}>
-                <SectionHeading icon="award" eyebrow="RÉPUTATION" title="Trophées" />
+                <SectionHeading icon="award" title="Trophées" />
                 <View style={styles.progressSummary}>
                   <View>
                     <Text style={styles.progressLabel}>Progression</Text>
@@ -344,7 +344,7 @@ export default function UserProfileScreen() {
               <>
                 {data.stats ? (
                   <View style={styles.sectionCard}>
-                    <SectionHeading icon="bar-chart-2" eyebrow="BILAN" title="Activité suivie" />
+                    <SectionHeading icon="bar-chart-2" title="Activité suivie" />
                     <View style={styles.statsGrid}>
                       <Counter icon="tv" value={data.stats.showsCount} label="Séries" />
                       <Counter icon="film" value={data.stats.moviesCount} label="Films" />
@@ -370,16 +370,15 @@ export default function UserProfileScreen() {
                     <Feather name="grid" size={17} color={COLORS.primary} />
                   </View>
                   <View style={styles.libraryCopy}>
-                    <Text style={styles.libraryTitle}>Voir toute sa bibliothèque</Text>
-                    <Text style={styles.librarySubtitle}>Séries, films et jeux suivis</Text>
+                    <Text style={styles.libraryTitle}>Bibliothèque complète</Text>
                   </View>
                   <Feather name="chevron-right" size={20} color={COLORS.textSoft} />
                 </Pressable>
 
-                <MediaRail title="Séries récentes" eyebrow="DERNIÈRES ACTIVITÉS" items={data.recentShows} kind="show" />
-                <MediaRail title="Séries préférées" eyebrow="COUPS DE CŒUR" items={data.favoriteShows} kind="show" favorite />
-                <MediaRail title="Films préférés" eyebrow="COUPS DE CŒUR" items={data.favoriteMovies} kind="movie" favorite />
-                <MediaRail title="Jeux préférés" eyebrow="COUPS DE CŒUR" items={data.favoriteGames} kind="game" favorite />
+                <MediaRail title="Séries récentes" items={data.recentShows} kind="show" />
+                <MediaRail title="Séries préférées" items={data.favoriteShows} kind="show" favorite />
+                <MediaRail title="Films préférés" items={data.favoriteMovies} kind="movie" favorite />
+                <MediaRail title="Jeux préférés" items={data.favoriteGames} kind="game" favorite />
               </>
             )}
           </View>
@@ -440,11 +439,9 @@ export default function UserProfileScreen() {
 
 function SectionHeading({
   icon,
-  eyebrow,
   title,
 }: {
   icon: keyof typeof Feather.glyphMap;
-  eyebrow: string;
   title: string;
 }) {
   return (
@@ -452,10 +449,7 @@ function SectionHeading({
       <View style={styles.headingIcon}>
         <Feather name={icon} size={17} color={COLORS.primary} />
       </View>
-      <View>
-        <Text style={styles.sectionEyebrow}>{eyebrow}</Text>
-        <Text style={styles.sectionTitle}>{title}</Text>
-      </View>
+      <Text style={styles.sectionTitle}>{title}</Text>
     </View>
   );
 }
@@ -480,13 +474,11 @@ function Counter({
 
 function MediaRail({
   title,
-  eyebrow,
   items,
   kind,
   favorite,
 }: {
   title: string;
-  eyebrow: string;
   items: Array<MediaDto | RecentShow>;
   kind: 'show' | 'movie' | 'game';
   favorite?: boolean;
@@ -495,7 +487,7 @@ function MediaRail({
   if (items.length === 0) return null;
   return (
     <View style={styles.sectionCard}>
-      <SectionHeading icon={favorite ? 'heart' : 'clock'} eyebrow={eyebrow} title={title} />
+      <SectionHeading icon={favorite ? 'heart' : 'clock'} title={title} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaRow}>
         {items.map((media, index) => {
           const poster = tmdbImage(media.posterPath, 'w342');
@@ -579,7 +571,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   levelPillText: { color: HERO_COLOR, fontSize: 13, lineHeight: 17, fontFamily: FONTS.extraBold },
-  name: { marginTop: SPACE.sm, color: '#FFFFFF', fontSize: 27, lineHeight: 34, fontFamily: FONTS.extraBold, textAlign: 'center' },
+  name: { marginTop: SPACE.sm, color: '#FFFFFF', fontSize: 23, lineHeight: 29, fontFamily: FONTS.bold, textAlign: 'center' },
   levelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
   levelTitle: { color: 'rgba(255,255,255,0.88)', fontSize: 14, lineHeight: 19, fontFamily: FONTS.bold },
   streakPill: {
@@ -642,8 +634,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primarySoft,
     borderRadius: 19,
   },
-  sectionEyebrow: { color: COLORS.primary, fontSize: 9, lineHeight: 12, fontFamily: FONTS.extraBold, letterSpacing: 0.8 },
-  sectionTitle: { marginTop: 1, color: COLORS.text, fontSize: 20, lineHeight: 25, fontFamily: FONTS.extraBold },
+  sectionTitle: { flex: 1, color: COLORS.text, fontSize: 17, lineHeight: 22, fontFamily: FONTS.bold },
   progressSummary: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -701,7 +692,6 @@ const styles = StyleSheet.create({
   },
   libraryCopy: { flex: 1, minWidth: 0 },
   libraryTitle: { color: COLORS.text, fontSize: 15, lineHeight: 20, fontFamily: FONTS.extraBold },
-  librarySubtitle: { marginTop: 1, color: COLORS.textMuted, fontSize: 12, lineHeight: 16, fontFamily: FONTS.regular },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.xs, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
   counter: {
     minWidth: '46%',

@@ -77,8 +77,7 @@ export default function FavoriteGamesScreen() {
               <Feather name="list" size={18} color={COLORS.primary} />
             </View>
             <View style={styles.sortCopy}>
-              <Text style={styles.sortLabel}>TRIER PAR</Text>
-              <Text style={styles.sortValue} numberOfLines={1}>{sortLabel}</Text>
+              <Text style={styles.sortValue} numberOfLines={1}>Tri : {sortLabel}</Text>
             </View>
             <Feather name="chevron-down" size={19} color={COLORS.primary} />
           </Pressable>
@@ -156,12 +155,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primarySoft,
   },
   sortCopy: { flex: 1, minWidth: 0 },
-  sortLabel: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    lineHeight: 14,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 0.7,
-  },
+
   sortValue: { color: COLORS.text, fontSize: 15, lineHeight: 21, fontFamily: FONTS.bold },
 });

@@ -110,10 +110,10 @@ function SeriesTab({ s }: { s: SeriesStats }) {
         </View>
       </AppearItem>
       <AppearItem index={2}>
-        <WeeklyChart title="Rythme des 12 dernières semaines" unit="épisodes / semaine" data={s.weekly.map((w) => ({ label: w.label, value: w.episodes }))} />
+        <WeeklyChart title="Épisodes vus sur 12 semaines" data={s.weekly.map((w) => ({ label: w.label, value: w.episodes }))} />
       </AppearItem>
       <AppearItem index={3}>
-        <RankBars title="Genres favoris" eyebrow="Ta bibliothèque séries" rows={s.genres} unit="séries" />
+        <RankBars title="Genres favoris" rows={s.genres} unit="séries" />
       </AppearItem>
       <AppearItem index={4}>
         <ChipCloud title="Chaînes & plateformes" rows={s.networks} />
@@ -154,10 +154,10 @@ function MoviesTab({ m }: { m: MovieStats }) {
         </View>
       </AppearItem>
       <AppearItem index={2}>
-        <WeeklyChart title="Rythme des 12 dernières semaines" unit="films / semaine" data={m.weekly.map((w) => ({ label: w.label, value: w.count }))} />
+        <WeeklyChart title="Films vus sur 12 semaines" data={m.weekly.map((w) => ({ label: w.label, value: w.count }))} />
       </AppearItem>
       <AppearItem index={3}>
-        <RankBars title="Genres favoris" eyebrow="Ta bibliothèque films" rows={m.genres} unit="films" />
+        <RankBars title="Genres favoris" rows={m.genres} unit="films" />
       </AppearItem>
       <AppearItem index={4}>
         <CompareButton href="/stats/leaderboard?type=movies" />
@@ -214,7 +214,7 @@ function GamesTab({ g }: { g?: GameStats }) {
       {g.topByPlaytime.length ? (
         <AppearItem index={4}>
           <View>
-            <SectionHeader title="Tes plus grosses sessions" eyebrow="Temps déclaré par jeu — modifiable sur chaque fiche" />
+            <SectionHeader title="Jeux les plus joués" />
             <PrismeCard elevated>
               {g.topByPlaytime.map((row, i) => (
                 <Pressable
@@ -243,7 +243,7 @@ function GamesTab({ g }: { g?: GameStats }) {
         </AppearItem>
       ) : null}
       <AppearItem index={5}>
-        <RankBars title="Genres favoris" eyebrow="Ta bibliothèque jeux" rows={g.genres} unit="jeux" />
+        <RankBars title="Genres favoris" rows={g.genres} unit="jeux" />
       </AppearItem>
     </>
   );
@@ -310,12 +310,12 @@ function DuoTile({ value, label }: { value: string; label: string }) {
 
 // Barres hebdo arrondies en dégradé — la semaine courante est pleine, les
 // précédentes adoucies.
-function WeeklyChart({ title, unit, data }: { title: string; unit: string; data: { label: string; value: number }[] }) {
+function WeeklyChart({ title, data }: { title: string; data: { label: string; value: number }[] }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   const H = 110;
   return (
     <View>
-      <SectionHeader title={title} eyebrow={unit} />
+      <SectionHeader title={title} />
       <PrismeCard elevated>
         <View style={styles.chartRow} accessible accessibilityLabel={`${title} : ${data.map((d) => `${d.label} ${d.value}`).join(', ')}`}>
           {data.map((d, i) => {
@@ -343,12 +343,12 @@ function WeeklyChart({ title, unit, data }: { title: string; unit: string; data:
 }
 
 // Classement en barres proportionnelles (remplace les tableaux à deux colonnes).
-function RankBars({ title, eyebrow, rows, unit }: { title: string; eyebrow: string; rows: { name: string; count: number }[]; unit: string }) {
+function RankBars({ title, rows, unit }: { title: string; rows: { name: string; count: number }[]; unit: string }) {
   if (rows.length === 0) return null;
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
     <View>
-      <SectionHeader title={title} eyebrow={eyebrow} />
+      <SectionHeader title={title} />
       <PrismeCard elevated>
         <View style={{ gap: SPACE.sm }}>
           {rows.map((r, i) => (
@@ -380,7 +380,7 @@ function ChipCloud({ title, rows }: { title: string; rows: { name: string; count
   if (rows.length === 0) return null;
   return (
     <View>
-      <SectionHeader title={title} eyebrow="Là où tu regardes" />
+      <SectionHeader title={title} />
       <PrismeCard elevated>
         <View style={styles.chips}>
           {rows.map((r) => (
@@ -404,7 +404,7 @@ const RANK_MEDAL = ['#D4A017', '#9AA2AA', '#CD7F32'];
 function Marathons({ rows }: { rows: { title: string; episodes: number; hours: number }[] }) {
   return (
     <View>
-      <SectionHeader title="Plus gros marathons" eyebrow="Max d'épisodes d'une série en un jour" />
+      <SectionHeader title="Plus d’épisodes vus en une journée" />
       <PrismeCard elevated>
         {rows.map((m, i) => (
           <View key={`${m.title}-${i}`} style={[styles.maraRow, i > 0 && styles.topRowBorder]} accessible accessibilityLabel={`${m.title}, ${m.episodes} épisodes, ${m.hours} heures`}>

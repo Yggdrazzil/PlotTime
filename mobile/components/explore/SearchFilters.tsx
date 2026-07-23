@@ -63,7 +63,6 @@ export function SearchFilterSheet({
   visible,
   onClose,
   title,
-  subtitle,
   sortOptions,
   sort,
   filterTitle,
@@ -75,7 +74,6 @@ export function SearchFilterSheet({
   visible: boolean;
   onClose: () => void;
   title: string;
-  subtitle?: string;
   sortOptions: FilterOption[];
   sort: string;
   filterTitle: string;
@@ -103,7 +101,6 @@ export function SearchFilterSheet({
           <View style={styles.header}>
             <View style={styles.headerCopy}>
               <Text accessibilityRole="header" style={styles.title}>{title}</Text>
-              {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
             </View>
             <Pressable
               style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
@@ -232,8 +229,7 @@ const styles = StyleSheet.create({
   handle: { width: 42, height: 4, alignSelf: 'center', marginBottom: SPACE.sm, borderRadius: RADIUS.pill, backgroundColor: COLORS.border },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.sm },
   headerCopy: { flex: 1, minWidth: 0 },
-  title: { color: COLORS.text, fontSize: 22, lineHeight: 28, fontFamily: FONTS.extraBold },
-  subtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19, fontFamily: FONTS.regular, marginTop: 2 },
+  title: { color: COLORS.text, fontSize: 19, lineHeight: 25, fontFamily: FONTS.bold },
   closeBtn: { width: SIZES.touch, height: SIZES.touch, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.control, backgroundColor: COLORS.surfaceMuted },
   pressed: { opacity: 0.84, transform: [{ scale: 0.97 }] },
   sectionTitle: { color: COLORS.text, fontSize: 15, lineHeight: 20, fontFamily: FONTS.extraBold, marginTop: SPACE.md, marginBottom: SPACE.xs },

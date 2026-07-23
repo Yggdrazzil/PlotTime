@@ -114,7 +114,7 @@ export default function GamesLibraryScreen() {
 
   return (
     <ScreenShell safeTop={false} contentContainerStyle={styles.content}>
-      {/* En-tête de pile « Ma collection » avec retour (comme Séries/Films) ;
+      {/* En-tête de pile compact avec retour (comme Séries/Films) ;
           LibHeader gère lui-même le safe-area haut, d'où safeTop={false}. */}
       <LibHeader title="Jeux" />
 
