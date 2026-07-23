@@ -1113,7 +1113,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
     // avant, les réponses d'une racine bloquée disparaissent avec elle.
     const roots = (
       await prisma.comment.findMany({
-        where: { mediaId: id, parentId: null, ...(episodeId ? { episodeId } : {}) },
+        where: { mediaId: id, parentId: null, ...(episodeId ? { episodeId } : { episodeId: null }) },
         include: { user: true, reactions: true },
         orderBy: { createdAt: 'desc' },
         take: rootTake,
@@ -1124,7 +1124,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
           await prisma.comment.findMany({
             // Même filtre episodeId que la requête d'origine (qui portait sur
             // racines ET réponses) : le comportement visible ne change pas.
-            where: { parentId: { in: roots.map((c) => c.id) }, ...(episodeId ? { episodeId } : {}) },
+            where: { parentId: { in: roots.map((c) => c.id) }, ...(episodeId ? { episodeId } : { episodeId: null }) },
             include: { user: true, reactions: true },
             orderBy: { createdAt: 'asc' },
           })

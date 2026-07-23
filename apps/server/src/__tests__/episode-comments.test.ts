@@ -112,4 +112,17 @@ describe('Commentaires par épisode — garde anti-spoiler', () => {
     });
     expect(reply.statusCode).toBe(403);
   });
+
+  it("le fil série n'inclut pas les commentaires d'épisode", async () => {
+    const series = await app.inject({ method: 'GET', url: `/api/media/${mediaId}/comments`, headers: bearer('vic') });
+    expect(series.statusCode).toBe(200);
+    const list = series.json().comments as { body: string; episodeId: string | null }[];
+    // Les commentaires épisode postés plus haut (« Quel épisode ! », « Racine »)
+    // ne polluent pas le fil série (anti-spoiler + séparation des fils).
+    const bodies = list.map((c) => c.body);
+    expect(bodies).not.toContain('Quel épisode !');
+    expect(bodies).not.toContain('Racine');
+    // Tout le fil série a episodeId null.
+    for (const c of list) expect(c.episodeId).toBeNull();
+  });
 });
