@@ -30,7 +30,7 @@ export async function ensureGameFromIgdb(igdbId: string) {
   return created;
 }
 
-function serializeGame(m: { id: string; title: string; posterPath: string | null; backdropPath?: string | null; year: number | null; voteAverage: number | null; igdbId: string | null; game?: { platforms: string | null } | null }, status?: { status: string; playtimeMinutes: number | null; isOwned: boolean; isFavorite?: boolean } | null) {
+function serializeGame(m: { id: string; title: string; posterPath: string | null; backdropPath?: string | null; year: number | null; voteAverage: number | null; igdbId: string | null; game?: { platforms: string | null } | null }, status?: { status: string; playtimeMinutes: number | null; isOwned: boolean; isFavorite?: boolean; createdAt?: Date | null } | null) {
   return {
     id: m.id, title: m.title, posterPath: m.posterPath, backdropPath: m.backdropPath ?? null, year: m.year,
     voteAverage: m.voteAverage, igdbId: m.igdbId,
@@ -40,6 +40,9 @@ function serializeGame(m: { id: string; title: string; posterPath: string | null
     // Exposé pour la carte « en vedette » de l'Accueil (sélection par préférence).
     isFavorite: status?.isFavorite ?? false,
     playtimeMinutes: status?.playtimeMinutes ?? null,
+    // Date d'ajout à la bibliothèque : alimente le tri « Dernier ajout »
+    // (bibliothèque Jeux, côté mobile). Null hors bibliothèque (recherche).
+    addedAt: status?.createdAt ? status.createdAt.toISOString() : null,
   };
 }
 
