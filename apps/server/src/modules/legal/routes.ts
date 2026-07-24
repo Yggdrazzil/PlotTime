@@ -1,4 +1,11 @@
 import type { FastifyInstance } from 'fastify';
+import { env } from '../../config/env.js';
+
+// Contact affiché sur les pages légales : mailto si SUPPORT_EMAIL est posé en
+// prod, sinon repli neutre (pas de lien mort vers une page inexistante).
+const CONTACT_HTML = env.SUPPORT_EMAIL
+  ? `à l'adresse <a href="mailto:${env.SUPPORT_EMAIL}">${env.SUPPORT_EMAIL}</a>`
+  : `depuis l'application (menu Réglages)`;
 
 // Pages légales PUBLIQUES (pas de hook requireAuth : contrairement aux autres
 // modules, tout est accessible sans compte — les stores exigent des URLs
@@ -6,7 +13,7 @@ import type { FastifyInstance } from 'fastify';
 // HTML statique inline, sans framework : sobre, lisible sur mobile, servi par
 // le même Fastify que /health (donc exposé pareil derrière Nginx en prod).
 
-const LAST_UPDATE = '17 juillet 2026';
+const LAST_UPDATE = '24 juillet 2026';
 
 // Gabarit commun : design volontairement minimal (fond blanc, colonne 720 px).
 function page(title: string, body: string): string {
@@ -52,8 +59,7 @@ données (RGPD).</p>
 
 <h2>1. Responsable du traitement</h2>
 <p>Le service PlotTime est édité à titre indépendant. Pour toute question relative
-à vos données, contactez-nous via la page de support du projet (lien disponible
-dans l'application et sur les fiches des magasins d'applications).</p>
+à vos données, contactez-nous ${CONTACT_HTML}.</p>
 
 <h2>2. Données collectées</h2>
 <ul>
@@ -209,8 +215,7 @@ peuvent être exportées à tout moment depuis l'application.</p>
 en haut de page. La poursuite de l'utilisation après modification vaut acceptation.</p>
 
 <h2>8. Contact</h2>
-<p>Pour toute question, utilisez la page de support du projet (lien disponible dans
-l'application et sur les fiches des magasins d'applications).</p>`,
+<p>Pour toute question, contactez-nous ${CONTACT_HTML}.</p>`,
 );
 
 const DELETE_ACCOUNT_HTML = page(
@@ -244,8 +249,7 @@ données</strong> au préalable si vous souhaitez en garder une copie (Paramètr
 Exporter mes données PlotTime).</p>
 
 <h2>Vous ne pouvez plus vous connecter ?</h2>
-<p>Si vous n'avez plus accès à votre compte, contactez-nous via la page de support
-du projet (lien disponible sur les fiches des magasins d'applications) en précisant
+<p>Si vous n'avez plus accès à votre compte, contactez-nous ${CONTACT_HTML} en précisant
 l'adresse e-mail ou le nom d'affichage du compte : la suppression sera effectuée
 manuellement après vérification.</p>`,
 );
