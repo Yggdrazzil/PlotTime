@@ -103,7 +103,14 @@ class NotConfiguredError extends Error {
 // FAIL CLOSED : sans GOOGLE_CLIENT_IDS on ne peut pas contrôler l'audience →
 // provider refusé (un jeton émis pour n'importe quelle app serait accepté).
 async function verifyGoogleToken(idToken: string): Promise<OAuthProfile> {
-  const allowed = env.GOOGLE_CLIENT_IDS.split(',').map((s) => s.trim()).filter(Boolean);
+  // Audiences acceptées = GOOGLE_CLIENT_IDS (web) + les client IDs natifs
+  // iOS/Android (inclus automatiquement pour éviter le footgun « jeton natif
+  // rejeté car oublié dans GOOGLE_CLIENT_IDS »).
+  const allowed = [
+    ...env.GOOGLE_CLIENT_IDS.split(','),
+    env.GOOGLE_IOS_CLIENT_ID,
+    env.GOOGLE_ANDROID_CLIENT_ID,
+  ].map((s) => s.trim()).filter(Boolean);
   if (allowed.length === 0) throw new NotConfiguredError('google');
   const res = await fetch(
     `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`,

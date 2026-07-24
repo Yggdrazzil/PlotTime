@@ -13,7 +13,9 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "resync:metadata": "tsx scripts/resync-metadata.ts",
-    "reapply:statuses": "tsx scripts/reapply-import-statuses.ts"
+    "reapply:statuses": "tsx scripts/reapply-import-statuses.ts",
+    "moderation": "tsx scripts/moderation.ts",
+    "create-demo-user": "tsx scripts/create-demo-user.ts"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

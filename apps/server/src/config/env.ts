@@ -10,6 +10,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().default('file:./data/serietime.sqlite'),
   APP_NAME: z.string().default('PlotTime'),
   APP_URL: z.string().default('http://localhost:4000'),
+  // Adresse de contact/support publiée sur les pages légales (mailto). Vide =
+  // repli neutre « depuis l'application ». À poser en prod pour la review.
+  SUPPORT_EMAIL: z.string().default(''),
   APP_SECRET: z.string().default('change-me'),
   JWT_SECRET: z.string().default('change-me'),
   SESSION_DURATION_DAYS: z.coerce.number().default(30),
